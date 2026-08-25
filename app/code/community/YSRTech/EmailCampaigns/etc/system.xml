@@ -1,0 +1,81 @@
+<?xml version="1.0"?>
+<config>
+    <tabs>
+        <ysrtech translate="label" module="ysrtech_emailcampaigns">
+            <label>YSRTech</label>
+            <sort_order>300</sort_order>
+        </ysrtech>
+    </tabs>
+    <sections>
+        <ysrtech_emailcampaigns translate="label" module="ysrtech_emailcampaigns">
+            <label>Email Campaigns</label>
+            <tab>ysrtech</tab>
+            <sort_order>100</sort_order>
+            <show_in_default>1</show_in_default>
+            <show_in_website>1</show_in_website>
+            <show_in_store>1</show_in_store>
+            <groups>
+                <sending translate="label">
+                    <label>Sending</label>
+                    <frontend_type>text</frontend_type>
+                    <sort_order>10</sort_order>
+                    <show_in_default>1</show_in_default>
+                    <show_in_website>1</show_in_website>
+                    <fields>
+                        <transport translate="label">
+                            <label>Transport Provider</label>
+                            <frontend_type>select</frontend_type>
+                            <source_model>ysrtech_emailcampaigns/system_config_source_transport</source_model>
+                            <sort_order>10</sort_order>
+                            <show_in_default>1</show_in_default>
+                        </transport>
+                        <api_key translate="label">
+                            <label>Provider API Key</label>
+                            <frontend_type>obscure</frontend_type>
+                            <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
+                            <sort_order>20</sort_order>
+                            <show_in_default>1</show_in_default>
+                        </api_key>
+                        <from_name translate="label">
+                            <label>Default From Name</label>
+                            <sort_order>30</sort_order>
+                            <show_in_default>1</show_in_default>
+                        </from_name>
+                        <from_email translate="label">
+                            <label>Default From Email</label>
+                            <frontend_type>text</frontend_type>
+                            <sort_order>40</sort_order>
+                            <show_in_default>1</show_in_default>
+                        </from_email>
+                        <batch_size translate="label">
+                            <label>Batch Size (per cron run)</label>
+                            <frontend_type>text</frontend_type>
+                            <sort_order>50</sort_order>
+                            <show_in_default>1</show_in_default>
+                        </batch_size>
+                        <max_attempts translate="label">
+                            <label>Max Send Attempts</label>
+                            <frontend_type>text</frontend_type>
+                            <sort_order>60</sort_order>
+                            <show_in_default>1</show_in_default>
+                        </max_attempts>
+                    </fields>
+                </sending>
+                <tracking translate="label">
+                    <label>Tracking</label>
+                    <sort_order>20</sort_order>
+                    <show_in_default>1</show_in_default>
+                    <fields>
+                        <enabled translate="label">
+                            <label>Enable Open/Click Tracking</label>
+                            <frontend_type>select</frontend_type>
+                            <source_model>adminhtml/system_config_source_yesno</source_model>
+                            <sort_order>10</sort_order>
+                            <show_in_default>1</show_in_default>
+                        </enabled>
+                    </fields>
+                </tracking>
+            </groups>
+        </ysrtech_emailcampaigns>
+    </sections>
+</config>

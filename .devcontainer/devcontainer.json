@@ -1,0 +1,21 @@
+{
+    "name": "YSRTech EmailCampaigns Dev",
+    "image": "mcr.microsoft.com/devcontainers/php:1-8.3-bookworm",
+    "features": {
+        "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+        "ghcr.io/itsmechlark/features/redis-server:1": {},
+        "ghcr.io/itsmechlark/features/mysql:1": {}
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "bmewburn.vscode-intelephense-client",
+                "junstyle.php-cs-fixer",
+                "ms-vscode.js-debug"
+            ]
+        }
+    },
+    "forwardPorts": [3306, 6379, 8080],
+    "postCreateCommand": "sudo apt-get update && sudo apt-get install -y libpng-dev libjpeg-dev libfreetype6-dev libzip-dev && sudo docker-php-ext-install gd zip pdo_mysql bcmath",
+    "remoteUser": "vscode"
+}

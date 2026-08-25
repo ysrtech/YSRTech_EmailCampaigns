@@ -1,0 +1,23 @@
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies / build artifacts
+vendor/
+node_modules/
+*.min.js.map
+
+# Local env & secrets
+.env
+.env.*
+*.local.xml
+
+# Logs / caches
+*.log
+var/
+.phpunit.result.cache

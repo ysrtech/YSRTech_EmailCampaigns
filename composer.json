@@ -1,0 +1,27 @@
+{
+    "name": "ysrtech/emailcampaigns",
+    "description": "Klaviyo-style email marketing module for OpenMage: segments, drag & drop template editor, campaigns, scheduling, tracking and analytics.",
+    "type": "magento-module",
+    "license": "proprietary",
+    "authors": [
+        {
+            "name": "YSRTech",
+            "email": "dev@ysrtech.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "ext-json": "*"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.0",
+        "squizlabs/php_codesniffer": "^3.10"
+    },
+    "autoload": {
+        "classmap": ["app/code/community/YSRTech/EmailCampaigns/Model"]
+    },
+    "extra": {
+        "magento-root-dir": ".",
+        "modman": true
+    }
+}

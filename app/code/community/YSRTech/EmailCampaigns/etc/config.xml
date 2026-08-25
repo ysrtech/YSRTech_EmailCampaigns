@@ -1,0 +1,197 @@
+<?xml version="1.0"?>
+<config>
+    <modules>
+        <YSRTech_EmailCampaigns>
+            <version>0.1.0</version>
+        </YSRTech_EmailCampaigns>
+    </modules>
+
+    <global>
+        <models>
+            <ysrtech_emailcampaigns>
+                <class>YSRTech_EmailCampaigns_Model</class>
+                <resourceModel>ysrtech_emailcampaigns_resource</resourceModel>
+            </ysrtech_emailcampaigns>
+            <ysrtech_emailcampaigns_resource>
+                <class>YSRTech_EmailCampaigns_Model_Resource</class>
+                <entities>
+                    <template>
+                        <table>ysrtech_emailcampaigns_template</table>
+                    </template>
+                    <segment>
+                        <table>ysrtech_emailcampaigns_segment</table>
+                    </segment>
+                    <segment_customer>
+                        <table>ysrtech_emailcampaigns_segment_customer</table>
+                    </segment_customer>
+                    <campaign>
+                        <table>ysrtech_emailcampaigns_campaign</table>
+                    </campaign>
+                    <queue>
+                        <table>ysrtech_emailcampaigns_queue</table>
+                    </queue>
+                    <subscriber_pref>
+                        <table>ysrtech_emailcampaigns_subscriber_preference</table>
+                    </subscriber_pref>
+                </entities>
+            </ysrtech_emailcampaigns_resource>
+        </models>
+
+        <blocks>
+            <ysrtech_emailcampaigns>
+                <class>YSRTech_EmailCampaigns_Block</class>
+            </ysrtech_emailcampaigns>
+        </blocks>
+
+        <helpers>
+            <ysrtech_emailcampaigns>
+                <class>YSRTech_EmailCampaigns_Helper</class>
+            </ysrtech_emailcampaigns>
+        </helpers>
+
+        <resources>
+            <ysrtech_emailcampaigns_setup>
+                <setup>
+                    <module>YSRTech_EmailCampaigns</module>
+                </setup>
+            </ysrtech_emailcampaigns_setup>
+        </resources>
+
+        <events>
+            <!-- Recalculate segment membership nightly -->
+            <ysrtech_emailcampaigns_reindex_segments>
+                <observers>
+                    <ysrtech_emailcampaigns_reindex>
+                        <class>ysrtech_emailcampaigns/observer</class>
+                        <method>reindexSegments</method>
+                    </ysrtech_emailcampaigns_reindex>
+                </observers>
+            </ysrtech_emailcampaigns_reindex_segments>
+        </events>
+    </global>
+
+    <frontend>
+        <routers>
+            <ysrtech_emailcampaigns>
+                <use>standard</use>
+                <args>
+                    <module>YSRTech_EmailCampaigns</module>
+                    <frontName>emailcampaigns</frontName>
+                </args>
+            </ysrtech_emailcampaigns>
+        </routers>
+        <translate>
+            <modules>
+                <YSRTech_EmailCampaigns>
+                    <files>
+                        <default>YSRTech_EmailCampaigns.csv</default>
+                    </files>
+                </YSRTech_EmailCampaigns>
+            </modules>
+        </translate>
+    </frontend>
+
+    <admin>
+        <routers>
+            <adminhtml>
+                <args>
+                    <modules>
+                        <YSRTech_EmailCampaigns before="Mage_Adminhtml">YSRTech_EmailCampaigns_Adminhtml</YSRTech_EmailCampaigns>
+                    </modules>
+                </args>
+            </adminhtml>
+        </routers>
+    </admin>
+
+    <adminhtml>
+        <menu>
+            <ysrtech_emailcampaigns translate="title" module="ysrtech_emailcampaigns">
+                <title>Email Campaigns</title>
+                <sort_order>75</sort_order>
+                <children>
+                    <campaign translate="title" module="ysrtech_emailcampaigns">
+                        <title>Campaigns</title>
+                        <action>adminhtml/ysrtech_campaign/index</action>
+                        <sort_order>10</sort_order>
+                    </campaign>
+                    <template translate="title" module="ysrtech_emailcampaigns">
+                        <title>Templates</title>
+                        <action>adminhtml/ysrtech_template/index</action>
+                        <sort_order>20</sort_order>
+                    </template>
+                    <segment translate="title" module="ysrtech_emailcampaigns">
+                        <title>Segments</title>
+                        <action>adminhtml/ysrtech_segment/index</action>
+                        <sort_order>30</sort_order>
+                    </segment>
+                    <analytics translate="title" module="ysrtech_emailcampaigns">
+                        <title>Analytics</title>
+                        <action>adminhtml/ysrtech_analytics/index</action>
+                        <sort_order>40</sort_order>
+                    </analytics>
+                    <config translate="title" module="ysrtech_emailcampaigns">
+                        <title>Settings</title>
+                        <action>adminhtml/system_config/edit/section/ysrtech_emailcampaigns</action>
+                        <sort_order>50</sort_order>
+                    </config>
+                </children>
+            </ysrtech_emailcampaigns>
+        </menu>
+        <acl>
+            <resources>
+                <all>
+                    <title>Allow Everything</title>
+                </all>
+                <admin>
+                    <children>
+                        <ysrtech_emailcampaigns translate="title" module="ysrtech_emailcampaigns">
+                            <title>Email Campaigns</title>
+                            <sort_order>75</sort_order>
+                        </ysrtech_emailcampaigns>
+                        <system>
+                            <children>
+                                <config>
+                                    <children>
+                                        <ysrtech_emailcampaigns translate="title">
+                                            <title>Email Campaigns Section</title>
+                                        </ysrtech_emailcampaigns>
+                                    </children>
+                                </config>
+                            </children>
+                        </system>
+                    </children>
+                </admin>
+            </resources>
+        </acl>
+    </adminhtml>
+
+    <default>
+        <ysrtech_emailcampaigns>
+            <sending>
+                <transport>smtp_api</transport>
+                <batch_size>100</batch_size>
+                <max_attempts>3</max_attempts>
+            </sending>
+            <tracking>
+                <enabled>1</enabled>
+            </tracking>
+        </ysrtech_emailcampaigns>
+    </default>
+
+    <crontab>
+        <jobs>
+            <ysrtech_emailcampaigns_process_queue>
+                <schedule><cron_expr>*/5 * * * *</cron_expr></schedule>
+                <run><model>ysrtech_emailcampaigns/observer::processQueue</model></run>
+            </ysrtech_emailcampaigns_process_queue>
+            <ysrtech_emailcampaigns_send_scheduled>
+                <schedule><cron_expr>* * * * *</cron_expr></schedule>
+                <run><model>ysrtech_emailcampaigns/observer::launchScheduledCampaigns</model></run>
+            </ysrtech_emailcampaigns_send_scheduled>
+            <ysrtech_emailcampaigns_reindex_segments>
+                <schedule><cron_expr>0 2 * * *</cron_expr></schedule>
+                <run><model>ysrtech_emailcampaigns/observer::reindexSegments</model></run>
+            </ysrtech_emailcampaigns_reindex_segments>
+        </jobs>
+    </crontab>
+</config>

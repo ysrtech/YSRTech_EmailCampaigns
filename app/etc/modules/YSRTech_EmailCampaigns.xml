@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<config>
+    <modules>
+        <YSRTech_EmailCampaigns>
+            <active>true</active>
+            <codePool>community</codePool>
+            <depends>
+                <Mage_Core />
+                <Mage_Customer />
+                <Mage_Newsletter />
+            </depends>
+        </YSRTech_EmailCampaigns>
+    </modules>
+</config>
