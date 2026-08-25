@@ -1,4 +1,8 @@
 <?php
+// Not autoloadable (lives under controllers/, which the classname-to-path
+// convention doesn't cover), so the shared base class needs an explicit include.
+require_once __DIR__ . '/../Controller/Abstract.php';
+
 class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
     extends YSRTech_EmailCampaigns_Adminhtml_Controller_Abstract
 {

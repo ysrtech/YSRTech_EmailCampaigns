@@ -1,4 +1,8 @@
 <?php
+// Not autoloadable (lives under controllers/, which the classname-to-path
+// convention doesn't cover), so the shared base class needs an explicit include.
+require_once __DIR__ . '/../Controller/Abstract.php';
+
 class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SegmentController
     extends YSRTech_EmailCampaigns_Adminhtml_Controller_Abstract
 {
@@ -52,14 +56,15 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SegmentController
             $model->load($id);
         }
         try {
-            // Conditions arrive in Mage_Rule serialized format from the rule builder form.
             $model->addData([
                 'name'      => (string) ($data['name'] ?? ''),
                 'is_active' => (int) (!empty($data['is_active'])),
             ]);
+            // Conditions arrive from the rule builder form as rule[conditions]; loadPost()
+            // is the same Mage_Rule entry point core's CatalogRule/SalesRule controllers use.
             if (isset($data['rule']['conditions'])) {
-                $model->setData('conditions', $data['rule']['conditions']);
-                $model->setData('conditions_serialized', json_encode($data['rule']['conditions']));
+                $data['conditions'] = $data['rule']['conditions'];
+                $model->loadPost($data);
             }
             $model->save();
 

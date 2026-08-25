@@ -9,7 +9,6 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
     protected function _construct()
     {
         $this->_init('ysrtech_emailcampaigns/segment');
-        $this->loadConditions();
     }
 
     /**
@@ -20,32 +19,13 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
         return Mage::getModel('salesrule/rule_condition_combine');
     }
 
-    public function loadConditions()
+    /**
+     * Mage_Rule integration: segments only filter membership, they have no
+     * actions to run, so this is the generic empty action collection.
+     */
+    public function getActionsInstance()
     {
-        if (!$this->hasData('conditions')) {
-            $conditions = $this->getData('conditions_serialized');
-            if ($conditions === null || $conditions === '') {
-                $conditions = [];
-            } else {
-                $conditions = json_decode($conditions, true);
-            }
-            $this->setData('conditions', $conditions);
-        }
-        return $this;
-    }
-
-    protected function _afterLoad()
-    {
-        $this->loadConditions();
-        return parent::_afterLoad();
-    }
-
-    protected function _beforeSave()
-    {
-        if ($this->hasData('conditions')) {
-            $this->setData('conditions_serialized', json_encode($this->getData('conditions')));
-        }
-        return parent::_beforeSave();
+        return Mage::getModel('rule/action_collection');
     }
 
     /**
@@ -82,7 +62,7 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
         if (!$conditions instanceof Mage_Rule_Model_Condition_Interface) {
             return true; // empty rule matches everyone
         }
-        return (bool) $conditions->validate($data);
+        return (bool) $conditions->validate(new Varien_Object($data));
     }
 
     private function _getOrderAggregates(int $customerId): array
@@ -127,20 +107,23 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
             $ids = $this->getMatchingCustomerIds();
             if ($ids) {
                 foreach (array_chunk($ids, 500) as $chunk) {
+                    $segmentId = (int) $this->getId();
                     $conn->insertArray($linkTable, ['segment_id', 'customer_id'], array_map(
-                        static fn ($id) => [(int) $this->getId(), (int) $id],
+                        static fn ($id) => [$segmentId, (int) $id],
                         $chunk
                     ));
                 }
             }
-            $this->setData([
+            // setData() with an array replaces the whole record (id included), which
+            // would turn this save into an INSERT; addData() merges instead.
+            $this->addData([
                 'customer_count'    => count($ids),
                 'last_reindexed_at' => Varien_Date::now(),
             ]);
             $this->save();
             $conn->commit();
             return count($ids);
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $conn->rollBack();
             throw $e;
         }

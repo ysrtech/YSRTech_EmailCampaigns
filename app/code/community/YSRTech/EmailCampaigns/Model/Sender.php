@@ -56,7 +56,7 @@ class YSRTech_EmailCampaigns_Model_Sender
 
         foreach ($byCampaign as $campaignId => $items) {
             try {
-                $this->_sendCampaignBatch((int) $campaignId, $items, $maxAttempts);
+                $this->_sendCampaignBatch($items, $maxAttempts);
             } catch (Exception $e) {
                 Mage::logException($e);
                 // Mark all items in this failed batch for retry.
@@ -116,7 +116,9 @@ class YSRTech_EmailCampaigns_Model_Sender
         foreach ($recipients as $r) {
             /** @var YSRTech_EmailCampaigns_Model_Queue $item */
             $item = $r['_item'];
-            $item->setData([
+            // setData() with an array replaces the whole record (id included), which
+            // would turn this save into an INSERT of a duplicate row; addData() merges.
+            $item->addData([
                 'status'   => 'sent',
                 'sent_at'  => $now,
                 'attempts' => (int) $item->getAttempts() + 1,
