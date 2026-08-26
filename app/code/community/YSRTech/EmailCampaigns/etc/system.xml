@@ -51,6 +51,14 @@
                             <show_in_default>1</show_in_default>
                             <comment><![CDATA[From Mailgun's dashboard under Sending > Webhooks > HTTP webhook signing key. Point Mailgun's "unsubscribed", "complained", and "permanently failed" webhooks at {{base_url}}emailcampaigns/webhook/mailgun/ to suppress those addresses here automatically.]]></comment>
                         </mailgun_webhook_signing_key>
+                        <resend_webhook_signing_secret translate="label comment">
+                            <label>Resend Webhook Signing Secret</label>
+                            <frontend_type>obscure</frontend_type>
+                            <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
+                            <sort_order>27</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <comment><![CDATA[From Resend's dashboard under Webhooks > (your endpoint) > Signing Secret (starts with whsec_). Point Resend's "email.bounced" and "email.complained" events at {{base_url}}emailcampaigns/webhook/resend/ to suppress those addresses here automatically.]]></comment>
+                        </resend_webhook_signing_secret>
                         <from_name translate="label">
                             <label>Default From Name</label>
                             <sort_order>30</sort_order>
