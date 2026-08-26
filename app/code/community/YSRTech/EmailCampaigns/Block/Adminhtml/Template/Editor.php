@@ -21,4 +21,9 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Editor extends Mage_Adminh
             'back' => 'editor',
         ]);
     }
+
+    public function getCatalogSearchUrl()
+    {
+        return $this->getUrl('*/*/catalogSearch');
+    }
 }

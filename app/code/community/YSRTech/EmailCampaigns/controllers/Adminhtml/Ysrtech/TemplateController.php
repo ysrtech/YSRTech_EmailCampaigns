@@ -106,4 +106,51 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_TemplateController
             $this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_template_grid')->toHtml()
         );
     }
+
+    /**
+     * Backs the editor's Product/Category block picker: search-as-you-type
+     * results with the display data (image/name/price/url) the block preview
+     * needs. The block itself only stores the id — Renderer.php re-resolves
+     * these at send time so price/stock stay current.
+     */
+    public function catalogSearchAction()
+    {
+        $type = (string) $this->getRequest()->getParam('type');
+        $query = trim((string) $this->getRequest()->getParam('q'));
+        $results = [];
+
+        if ($query !== '' && $type === 'product') {
+            $collection = Mage::getResourceModel('catalog/product_collection')
+                ->addAttributeToSelect(['name', 'price', 'small_image'])
+                ->addAttributeToFilter('name', ['like' => "%{$query}%"])
+                ->setPageSize(20);
+            foreach ($collection as $product) {
+                $hasImage = $product->getSmallImage() && $product->getSmallImage() !== 'no_selection';
+                $results[] = [
+                    'id'    => (int) $product->getId(),
+                    'name'  => $product->getName(),
+                    'price' => Mage::helper('core')->currency($product->getPrice(), true, false),
+                    'image' => $hasImage
+                        ? (string) Mage::helper('catalog/image')->init($product, 'small_image')->resize(120)
+                        : '',
+                    'url'   => $product->getProductUrl(),
+                ];
+            }
+        } elseif ($query !== '' && $type === 'category') {
+            $collection = Mage::getResourceModel('catalog/category_collection')
+                ->addAttributeToSelect(['name', 'image'])
+                ->addAttributeToFilter('name', ['like' => "%{$query}%"])
+                ->setPageSize(20);
+            foreach ($collection as $category) {
+                $results[] = [
+                    'id'    => (int) $category->getId(),
+                    'name'  => $category->getName(),
+                    'image' => (string) $category->getImageUrl(),
+                    'url'   => (string) $category->getUrl(),
+                ];
+            }
+        }
+
+        $this->getResponse()->setBody(Mage::helper('core')->jsonEncode($results));
+    }
 }

@@ -20,10 +20,57 @@ class YSRTech_EmailCampaigns_Model_Renderer
         }
 
         $helper = Mage::helper('ysrtech_emailcampaigns');
+        // Catalog markers ({{product.<id>.field}}) must resolve before renderMergeVars(),
+        // whose broader {{a.b.c}} regex would otherwise match them too and, finding no
+        // "product"/"category" key in $vars, silently blank them out.
+        $html = $this->_injectCatalogData($html);
         $html = $helper->renderMergeVars($html, $vars);
         $html = $this->_injectUnsubscribe($html, $vars);
 
         return $this->_wrapDocument($html, $vars);
+    }
+
+    /**
+     * Resolves {{product.<id>.field}} / {{category.<id>.field}} markers left by
+     * the editor's Product/Category blocks against the live catalog, so price
+     * and stock stay current between when a campaign is designed and when a
+     * (possibly scheduled) send actually goes out. Loads are cached per process
+     * since the same block renders once per recipient in a batch send.
+     */
+    private function _injectCatalogData(string $html): string
+    {
+        static $cache = [];
+
+        return preg_replace_callback(
+            '/\{\{(product|category)\.(\d+)\.(image|name|price|url)\}\}/',
+            static function (array $m) use (&$cache) {
+                [, $type, $id, $field] = $m;
+                $cacheKey = "{$type}:{$id}";
+                if (!isset($cache[$cacheKey])) {
+                    $cache[$cacheKey] = $type === 'product'
+                        ? Mage::getModel('catalog/product')->load((int) $id)
+                        : Mage::getModel('catalog/category')->load((int) $id);
+                }
+                $item = $cache[$cacheKey];
+                if (!$item->getId()) {
+                    return '';
+                }
+                return match ($field) {
+                    'name' => htmlspecialchars((string) $item->getName(), ENT_QUOTES),
+                    'price' => $type === 'product'
+                        ? Mage::helper('core')->currency($item->getPrice(), true, false)
+                        : '',
+                    'image' => $type === 'product'
+                        ? ($item->getSmallImage() && $item->getSmallImage() !== 'no_selection'
+                            ? (string) Mage::helper('catalog/image')->init($item, 'small_image')->resize(300)
+                            : '')
+                        : (string) $item->getImageUrl(),
+                    'url' => $type === 'product' ? (string) $item->getProductUrl() : (string) $item->getUrl(),
+                    default => '',
+                };
+            },
+            $html
+        );
     }
 
     /**

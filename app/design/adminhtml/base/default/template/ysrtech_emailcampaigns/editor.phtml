@@ -6,6 +6,7 @@ $skin = $this->getSkinUrl('ysrtech/emailcampaigns/');
 ?>
 <div id="ysr-email-editor-root"
      data-save-url="<?php echo $this->escapeHtml($this->getSaveUrl()) ?>"
+     data-catalog-search-url="<?php echo $this->escapeHtml($this->getCatalogSearchUrl()) ?>"
      data-form-key="<?php echo $this->escapeHtml(Mage::getSingleton('core/session')->getFormKey()) ?>"
      data-template-id="<?php echo (int) $template->getId() ?>"
      data-design-json="<?php echo $this->escapeHtml((string) $template->getDesignJson()) ?>"></div>
@@ -13,10 +14,11 @@ $skin = $this->getSkinUrl('ysrtech/emailcampaigns/');
 <script>
     var ysrRoot = document.getElementById('ysr-email-editor-root');
     window.YsrEmailEditorConfig = {
-        saveUrl:     ysrRoot.getAttribute('data-save-url'),
-        formKey:     ysrRoot.getAttribute('data-form-key'),
-        templateId:  parseInt(ysrRoot.getAttribute('data-template-id'), 10),
-        designJson:  ysrRoot.getAttribute('data-design-json')
+        saveUrl:           ysrRoot.getAttribute('data-save-url'),
+        catalogSearchUrl:  ysrRoot.getAttribute('data-catalog-search-url'),
+        formKey:           ysrRoot.getAttribute('data-form-key'),
+        templateId:        parseInt(ysrRoot.getAttribute('data-template-id'), 10),
+        designJson:        ysrRoot.getAttribute('data-design-json')
             ? JSON.parse(ysrRoot.getAttribute('data-design-json'))
             : null
     };

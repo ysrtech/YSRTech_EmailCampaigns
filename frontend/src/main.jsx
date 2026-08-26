@@ -4,9 +4,13 @@ import { BasicType, AdvancedType, BlockManager, JsonToMjml } from 'easy-email-co
 import { EmailEditor, EmailEditorProvider } from 'easy-email-editor';
 import { StandardLayout } from 'easy-email-extensions';
 import mjml2html from 'mjml-browser';
+import { registerCatalogBlocks, registerCatalogAttributePanels, CATALOG_CATEGORY } from './catalogBlocks';
 
 import 'easy-email-editor/lib/style.css';
 import 'easy-email-extensions/lib/style.css';
+
+registerCatalogBlocks();
+registerCatalogAttributePanels();
 
 /**
  * YSRTech EmailCampaigns — Easy Email (MJML-based) drag & drop editor.
@@ -47,6 +51,7 @@ const CATEGORIES = [
       { title: '4 columns', payload: [['25%', '25%', '25%', '25%']] },
     ],
   },
+  CATALOG_CATEGORY,
 ];
 
 function emptyTemplate() {
