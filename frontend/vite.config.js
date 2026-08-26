@@ -4,13 +4,23 @@ import { fileURLToPath } from 'node:url';
 
 // Build output goes DIRECTLY into the OpenMage skin directory so the
 // committed bundle ships with the module (no Node needed on target installs).
+// "base" is the design package OpenMage always includes in its theme fallback
+// chain (unlike "default", which is only used when a store explicitly sets its
+// package to "default") — see app/design/adminhtml/base/default/ for the phtml
+// template that loads this bundle.
 const outDir = fileURLToPath(
-  new URL('../skin/adminhtml/default/default/ysrtech/emailcampaigns/', import.meta.url)
+  new URL('../skin/adminhtml/base/default/ysrtech/emailcampaigns/', import.meta.url)
 );
 
 export default defineConfig({
   plugins: [react()],
-  base: '/skin/adminhtml/default/default/ysrtech/emailcampaigns/',
+  base: '/skin/adminhtml/base/default/ysrtech/emailcampaigns/',
+  // easy-email-editor/extensions assume a Node-like `process.env`, which Vite
+  // (unlike webpack) doesn't polyfill for the browser — without this the
+  // bundle throws "ReferenceError: process is not defined" at load time.
+  define: {
+    'process.env': {},
+  },
   build: {
     outDir,
     emptyOutDir: true,
