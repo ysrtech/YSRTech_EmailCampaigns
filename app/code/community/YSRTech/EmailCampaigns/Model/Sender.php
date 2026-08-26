@@ -85,11 +85,10 @@ class YSRTech_EmailCampaigns_Model_Sender
         // Mailgun expands this per-recipient token itself at send time and fires the
         // "unsubscribed" webhook (see WebhookController::mailgunAction) when it's
         // clicked, so it needs to reach the API as this literal string, not a URL we
-        // build here. Other transports have no equivalent yet, so they keep the
-        // module's own (currently unimplemented) unsubscribe route.
-        $unsubscribeUrl = $helper->getConfig('sending/transport') === 'mailgun'
-            ? '%recipient.unsubscribe_url%'
-            : null;
+        // build here. Other transports have no hosted equivalent, so they use the
+        // module's own preferences controller instead.
+        $isMailgun = $helper->getConfig('sending/transport') === 'mailgun';
+        $unsubscribeUrl = $isMailgun ? '%recipient.unsubscribe_url%' : null;
 
         $recipients = [];
         foreach ($items as $item) {
@@ -104,6 +103,11 @@ class YSRTech_EmailCampaigns_Model_Sender
                 'unsubscribe_url' => $unsubscribeUrl ?? Mage::getUrl('emailcampaigns/preferences/unsubscribe', [
                     '_token' => $item->getTrackingToken(),
                 ]),
+                // Echoed back by Mailgun in every webhook event for this send (as
+                // event-data.user-variables.tracking_token, via Transport/Mailgun.php's
+                // v:tracking_token param) so opened/clicked events can be matched back
+                // to this exact queue row.
+                'tracking_token' => $item->getTrackingToken(),
             ];
             $html = $renderer->render($template, $vars);
 

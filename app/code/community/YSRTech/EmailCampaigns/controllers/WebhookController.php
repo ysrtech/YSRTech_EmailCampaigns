@@ -1,8 +1,8 @@
 <?php
 /**
- * Provider event webhooks. Lets a transport's own bounce/complaint/unsubscribe
- * handling suppress future sends here too, instead of only in that provider's
- * own (transport-specific) suppression list.
+ * Provider event webhooks. Lets a transport's own bounce/complaint/unsubscribe/
+ * open/click tracking feed back into this module too, instead of staying
+ * locked inside that provider's own dashboard.
  */
 class YSRTech_EmailCampaigns_WebhookController extends Mage_Core_Controller_Front_Action
 {
@@ -31,17 +31,52 @@ class YSRTech_EmailCampaigns_WebhookController extends Mage_Core_Controller_Fron
         $isSuppressionEvent = in_array($event, ['unsubscribed', 'complained'], true)
             || ($event === 'failed' && ($eventData['severity'] ?? '') === 'permanent');
 
-        if ($email !== '' && $isSuppressionEvent) {
-            try {
+        try {
+            if ($email !== '' && $isSuppressionEvent) {
                 Mage::getModel('ysrtech_emailcampaigns/subscriber_pref')->suppress($email, $event);
-            } catch (Exception $e) {
-                Mage::logException($e);
-                $this->getResponse()->setHttpResponseCode(500);
-                return;
+            } elseif (in_array($event, ['opened', 'clicked'], true)) {
+                $userVariables = (array) ($eventData['user-variables'] ?? []);
+                $trackingToken = (string) ($userVariables['tracking_token'] ?? '');
+                if ($trackingToken !== '') {
+                    $this->_recordEngagement($trackingToken, $event);
+                }
             }
+        } catch (Exception $e) {
+            Mage::logException($e);
+            $this->getResponse()->setHttpResponseCode(500);
+            return;
         }
 
         $this->getResponse()->setHttpResponseCode(200);
+    }
+
+    /**
+     * tracking_token identifies the exact queue row this send was for (Sender.php
+     * sets it as a recipient variable, Transport/Mailgun.php echoes it back via
+     * v:tracking_token — see baseParams()). "First" timestamp is set once; the
+     * count increments on every open/click.
+     */
+    private function _recordEngagement(string $trackingToken, string $event): void
+    {
+        /** @var YSRTech_EmailCampaigns_Model_Queue $item */
+        $item = Mage::getModel('ysrtech_emailcampaigns/queue')->load($trackingToken, 'tracking_token');
+        if (!$item->getId()) {
+            return;
+        }
+
+        // addData() merges; setData() with an array would replace the whole record.
+        if ($event === 'opened') {
+            $item->addData([
+                'open_count' => (int) $item->getOpenCount() + 1,
+                'opened_at'  => $item->getOpenedAt() ?: Varien_Date::now(),
+            ]);
+        } else {
+            $item->addData([
+                'click_count' => (int) $item->getClickCount() + 1,
+                'clicked_at'  => $item->getClickedAt() ?: Varien_Date::now(),
+            ]);
+        }
+        $item->save();
     }
 
     /**
