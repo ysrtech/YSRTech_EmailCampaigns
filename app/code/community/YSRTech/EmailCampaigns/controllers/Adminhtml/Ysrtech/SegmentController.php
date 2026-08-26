@@ -38,6 +38,11 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SegmentController
         $this->_title($model->getId() ? $model->getName() : $this->__('New Segment'));
         $this->loadLayout();
         $this->_setActiveMenu('ysrtech_emailcampaigns/segment');
+        // Without this flag core's base layout never adds mage/adminhtml/rules.js, so
+        // VarienRulesForm (the JS that turns the rule field into the interactive tree) is
+        // undefined and the "Add" link never appears — same flag catalog/cart price rule
+        // edit pages set via their own layout XML.
+        $this->getLayout()->getBlock('head')->setCanLoadRulesJs(true);
         $this->_addContent($this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_segment_edit'));
         $this->renderLayout();
     }
@@ -113,5 +118,31 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SegmentController
         $this->getResponse()->setBody(
             $this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_segment_grid')->toHtml()
         );
+    }
+
+    /**
+     * Serves one condition row's HTML when the rule builder's "+" is clicked.
+     * Same entry point core's own CatalogRule/SalesRule promo controllers use.
+     */
+    public function newConditionHtmlAction()
+    {
+        $id = $this->getRequest()->getParam('id');
+        $typeArr = explode('|', str_replace('-', '/', $this->getRequest()->getParam('type')));
+        $type = $typeArr[0];
+
+        $model = Mage::getModel($type)
+            ->setId($id)
+            ->setType($type)
+            ->setRule(Mage::getModel('ysrtech_emailcampaigns/segment'))
+            ->setPrefix('conditions');
+        if (!empty($typeArr[1])) {
+            $model->setAttribute($typeArr[1]);
+        }
+
+        $html = $model instanceof Mage_Rule_Model_Condition_Abstract
+            ? $model->setJsFormObject($this->getRequest()->getParam('form'))->asHtmlRecursive()
+            : '';
+
+        $this->getResponse()->setBody($html);
     }
 }

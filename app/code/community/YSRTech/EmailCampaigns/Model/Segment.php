@@ -1,8 +1,8 @@
 <?php
 /**
  * Segment model built on Magento's rule engine (same as catalog/sales promo rules).
- * Conditions support the full customer attribute set plus order-history aggregates
- * via the salesrule condition combine.
+ * Conditions support customer attributes plus order-history aggregates via this
+ * module's own condition combine (Model/Segment/Condition/*).
  */
 class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
 {
@@ -16,7 +16,7 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
      */
     public function getConditionsInstance()
     {
-        return Mage::getModel('salesrule/rule_condition_combine');
+        return Mage::getModel('ysrtech_emailcampaigns/segment_condition_combine');
     }
 
     /**
