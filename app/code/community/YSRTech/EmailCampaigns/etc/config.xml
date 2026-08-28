@@ -2,7 +2,7 @@
 <config>
     <modules>
         <YSRTech_EmailCampaigns>
-            <version>0.2.0</version>
+            <version>0.3.0</version>
         </YSRTech_EmailCampaigns>
     </modules>
 
@@ -33,6 +33,15 @@
                     <subscriber_pref>
                         <table>ysrtech_emailcampaigns_subscriber_preference</table>
                     </subscriber_pref>
+                    <flow>
+                        <table>ysrtech_emailcampaigns_flow</table>
+                    </flow>
+                    <flow_enrollment>
+                        <table>ysrtech_emailcampaigns_flow_enrollment</table>
+                    </flow_enrollment>
+                    <flow_log>
+                        <table>ysrtech_emailcampaigns_flow_log</table>
+                    </flow_log>
                 </entities>
             </ysrtech_emailcampaigns_resource>
         </models>
@@ -67,6 +76,15 @@
                     </ysrtech_emailcampaigns_reindex>
                 </observers>
             </ysrtech_emailcampaigns_reindex_segments>
+            <!-- Enroll customers into active order_placed automation flows -->
+            <sales_order_place_after>
+                <observers>
+                    <ysrtech_emailcampaigns_flow_order_placed>
+                        <class>ysrtech_emailcampaigns/observer</class>
+                        <method>onOrderPlaced</method>
+                    </ysrtech_emailcampaigns_flow_order_placed>
+                </observers>
+            </sales_order_place_after>
         </events>
     </global>
 
@@ -192,6 +210,10 @@
                 <schedule><cron_expr>0 2 * * *</cron_expr></schedule>
                 <run><model>ysrtech_emailcampaigns/observer::reindexSegments</model></run>
             </ysrtech_emailcampaigns_reindex_segments>
+            <ysrtech_emailcampaigns_process_flows>
+                <schedule><cron_expr>*/5 * * * *</cron_expr></schedule>
+                <run><model>ysrtech_emailcampaigns/observer::processFlowEnrollments</model></run>
+            </ysrtech_emailcampaigns_process_flows>
         </jobs>
     </crontab>
 </config>

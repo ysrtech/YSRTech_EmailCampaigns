@@ -26,4 +26,35 @@ class YSRTech_EmailCampaigns_Model_Observer
             }
         }
     }
+
+    /** Event (sales_order_place_after): enroll the buyer into matching order_placed flows. */
+    public function onOrderPlaced(Varien_Event_Observer $observer)
+    {
+        /** @var Mage_Sales_Model_Order $order */
+        $order = $observer->getEvent()->getOrder();
+        if (!$order || !$order->getCustomerId()) {
+            return;
+        }
+
+        $flows = Mage::getResourceModel('ysrtech_emailcampaigns/flow_collection')
+            ->addFieldToFilter('status', YSRTech_EmailCampaigns_Model_Flow::STATUS_ACTIVE)
+            ->addFieldToFilter('trigger_type', 'order_placed');
+
+        $engine = Mage::getSingleton('ysrtech_emailcampaigns/flow_engine');
+        foreach ($flows as $flow) {
+            try {
+                $engine->enroll($flow, (int) $order->getCustomerId(), (string) $order->getCustomerEmail(), [
+                    'order_id' => (int) $order->getId(),
+                ]);
+            } catch (Throwable $e) {
+                Mage::logException($e);
+            }
+        }
+    }
+
+    /** Cron: advance every due flow enrollment one node. */
+    public function processFlowEnrollments()
+    {
+        Mage::getSingleton('ysrtech_emailcampaigns/flow_engine')->processEnrollments();
+    }
 }
