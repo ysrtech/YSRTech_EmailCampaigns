@@ -142,6 +142,11 @@
                         <action>adminhtml/ysrtech_segment/index</action>
                         <sort_order>30</sort_order>
                     </segment>
+                    <flow translate="title" module="ysrtech_emailcampaigns">
+                        <title>Automation Flows</title>
+                        <action>adminhtml/ysrtech_flow/index</action>
+                        <sort_order>35</sort_order>
+                    </flow>
                     <analytics translate="title" module="ysrtech_emailcampaigns">
                         <title>Analytics</title>
                         <action>adminhtml/ysrtech_analytics/index</action>

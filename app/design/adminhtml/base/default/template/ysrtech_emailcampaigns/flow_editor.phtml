@@ -1,0 +1,33 @@
+<?php
+/** @var YSRTech_EmailCampaigns_Block_Adminhtml_Flow_Editor $this */
+/** @var YSRTech_EmailCampaigns_Model_Flow $flow */
+$flow = $this->getFlowModel();
+$skin = $this->getSkinUrl('ysrtech/emailcampaigns/');
+?>
+<div id="ysr-flow-editor-root"
+     data-save-url="<?php echo $this->escapeHtml($this->getSaveUrl()) ?>"
+     data-form-key="<?php echo $this->escapeHtml(Mage::getSingleton('core/session')->getFormKey()) ?>"
+     data-flow-id="<?php echo (int) $flow->getId() ?>"
+     data-flow-name="<?php echo $this->escapeHtml((string) $flow->getName()) ?>"
+     data-flow-status="<?php echo $this->escapeHtml((string) ($flow->getStatus() ?: 'draft')) ?>"
+     data-flow-trigger-type="<?php echo $this->escapeHtml((string) ($flow->getTriggerType() ?: 'order_placed')) ?>"
+     data-flow-graph-json="<?php echo $this->escapeHtml((string) $flow->getGraphJson()) ?>"
+     data-templates-json="<?php echo $this->escapeHtml($this->getTemplatesJson()) ?>"></div>
+
+<script>
+    var ysrFlowRoot = document.getElementById('ysr-flow-editor-root');
+    window.YsrFlowEditorConfig = {
+        saveUrl:     ysrFlowRoot.getAttribute('data-save-url'),
+        formKey:     ysrFlowRoot.getAttribute('data-form-key'),
+        flowId:      parseInt(ysrFlowRoot.getAttribute('data-flow-id'), 10),
+        name:        ysrFlowRoot.getAttribute('data-flow-name'),
+        status:      ysrFlowRoot.getAttribute('data-flow-status'),
+        triggerType: ysrFlowRoot.getAttribute('data-flow-trigger-type'),
+        graph:       ysrFlowRoot.getAttribute('data-flow-graph-json')
+            ? JSON.parse(ysrFlowRoot.getAttribute('data-flow-graph-json'))
+            : null,
+        templates:   JSON.parse(ysrFlowRoot.getAttribute('data-templates-json') || '[]')
+    };
+</script>
+<script src="<?php echo $skin ?>flowBuilder.js"></script>
+<link rel="stylesheet" href="<?php echo $skin ?>flowBuilder.css" />

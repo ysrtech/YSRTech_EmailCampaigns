@@ -23,7 +23,9 @@ export default defineConfig({
   },
   build: {
     outDir,
-    emptyOutDir: true,
+    // false so this build and vite.flow.config.js's don't wipe each other's
+    // output — both share this same skin directory.
+    emptyOutDir: false,
     lib: {
       entry: 'src/main.jsx',
       name: 'YsrEmailEditor',

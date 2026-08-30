@@ -136,41 +136,48 @@ class YSRTech_EmailCampaigns_Model_Flow_Engine
             return;
         }
 
-        $customer = Mage::getModel('customer/customer')->load($enrollment->getCustomerId());
-        $trackingToken = Mage::helper('core')->getRandomString(32);
-
-        // A queue row (not just the flow_log entry above) so this send shows up
-        // in the same place every other send does: unsubscribe links resolve a
-        // tracking_token via the queue table (PreferencesController), and so
-        // does open/click tracking (WebhookController) — a flow-triggered send
-        // needs both exactly like a campaign-triggered one does.
-        /** @var YSRTech_EmailCampaigns_Model_Queue $queueItem */
-        $queueItem = Mage::getModel('ysrtech_emailcampaigns/queue')->addData([
-            'flow_id'            => (int) $flow->getId(),
-            'flow_enrollment_id' => (int) $enrollment->getId(),
-            'email'              => $enrollment->getEmail(),
-            'customer_id'        => $enrollment->getCustomerId(),
-            'status'             => 'sending',
-            'tracking_token'     => $trackingToken,
-        ]);
-        $queueItem->save();
-
-        $helper = Mage::helper('ysrtech_emailcampaigns');
-        $isMailgun = $helper->getConfig('sending/transport') === 'mailgun';
-        $vars = [
-            'customer' => [
-                'firstname' => $customer->getFirstname(),
-                'lastname'  => $customer->getLastname(),
-                'email'     => $customer->getEmail(),
-            ],
-            'store'           => ['name' => Mage::app()->getStore()->getName()],
-            'unsubscribe_url' => $isMailgun
-                ? '%recipient.unsubscribe_url%'
-                : Mage::getUrl('emailcampaigns/preferences/unsubscribe', ['_token' => $trackingToken]),
-            'tracking_token'  => $trackingToken,
-        ];
-
+        // Everything below (not just the render/transport call) is one try/catch:
+        // _advance() only persists the enrollment's advanced current_node_id/status
+        // *after* this method returns, so any uncaught exception here — from
+        // Mage::getUrl() included — would leave the enrollment stuck re-entering
+        // this same already-elapsed node forever, spamming a new queue row and
+        // flow_log entry every single cron tick instead of failing once and moving on.
+        $queueItem = null;
         try {
+            $customer = Mage::getModel('customer/customer')->load($enrollment->getCustomerId());
+            $trackingToken = Mage::helper('core')->getRandomString(32);
+
+            // A queue row (not just the flow_log entry above) so this send shows up
+            // in the same place every other send does: unsubscribe links resolve a
+            // tracking_token via the queue table (PreferencesController), and so
+            // does open/click tracking (WebhookController) — a flow-triggered send
+            // needs both exactly like a campaign-triggered one does.
+            /** @var YSRTech_EmailCampaigns_Model_Queue $queueItem */
+            $queueItem = Mage::getModel('ysrtech_emailcampaigns/queue')->addData([
+                'flow_id'            => (int) $flow->getId(),
+                'flow_enrollment_id' => (int) $enrollment->getId(),
+                'email'              => $enrollment->getEmail(),
+                'customer_id'        => $enrollment->getCustomerId(),
+                'status'             => 'sending',
+                'tracking_token'     => $trackingToken,
+            ]);
+            $queueItem->save();
+
+            $helper = Mage::helper('ysrtech_emailcampaigns');
+            $isMailgun = $helper->getConfig('sending/transport') === 'mailgun';
+            $vars = [
+                'customer' => [
+                    'firstname' => $customer->getFirstname(),
+                    'lastname'  => $customer->getLastname(),
+                    'email'     => $customer->getEmail(),
+                ],
+                'store'           => ['name' => Mage::app()->getStore()->getName()],
+                'unsubscribe_url' => $isMailgun
+                    ? '%recipient.unsubscribe_url%'
+                    : Mage::getUrl('emailcampaigns/preferences/unsubscribe', ['_token' => $trackingToken]),
+                'tracking_token'  => $trackingToken,
+            ];
+
             $html = Mage::getSingleton('ysrtech_emailcampaigns/renderer')->render($template, $vars);
             $transport = Mage::getSingleton('ysrtech_emailcampaigns/transport_factory')->get();
             $transport->sendBatch(
@@ -179,7 +186,9 @@ class YSRTech_EmailCampaigns_Model_Flow_Engine
                 $html
             );
         } catch (Throwable $e) {
-            $queueItem->addData(['status' => 'failed', 'error_message' => substr($e->getMessage(), 0, 60000)])->save();
+            if ($queueItem && $queueItem->getId()) {
+                $queueItem->addData(['status' => 'failed', 'error_message' => substr($e->getMessage(), 0, 60000)])->save();
+            }
             $this->_log($enrollment, $node['id'], 'skipped', $e->getMessage());
             return;
         }
