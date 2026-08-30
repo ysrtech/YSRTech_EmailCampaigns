@@ -12,21 +12,25 @@ $skin = $this->getSkinUrl('ysrtech/emailcampaigns/');
      data-flow-status="<?php echo $this->escapeHtml((string) ($flow->getStatus() ?: 'draft')) ?>"
      data-flow-trigger-type="<?php echo $this->escapeHtml((string) ($flow->getTriggerType() ?: 'order_placed')) ?>"
      data-flow-graph-json="<?php echo $this->escapeHtml((string) $flow->getGraphJson()) ?>"
-     data-templates-json="<?php echo $this->escapeHtml($this->getTemplatesJson()) ?>"></div>
+     data-flow-store-id="<?php echo (int) $flow->getStoreId() ?>"
+     data-templates-json="<?php echo $this->escapeHtml($this->getTemplatesJson()) ?>"
+     data-store-options-json="<?php echo $this->escapeHtml($this->getStoreOptionsJson()) ?>"></div>
 
 <script>
     var ysrFlowRoot = document.getElementById('ysr-flow-editor-root');
     window.YsrFlowEditorConfig = {
-        saveUrl:     ysrFlowRoot.getAttribute('data-save-url'),
-        formKey:     ysrFlowRoot.getAttribute('data-form-key'),
-        flowId:      parseInt(ysrFlowRoot.getAttribute('data-flow-id'), 10),
-        name:        ysrFlowRoot.getAttribute('data-flow-name'),
-        status:      ysrFlowRoot.getAttribute('data-flow-status'),
-        triggerType: ysrFlowRoot.getAttribute('data-flow-trigger-type'),
-        graph:       ysrFlowRoot.getAttribute('data-flow-graph-json')
+        saveUrl:      ysrFlowRoot.getAttribute('data-save-url'),
+        formKey:      ysrFlowRoot.getAttribute('data-form-key'),
+        flowId:       parseInt(ysrFlowRoot.getAttribute('data-flow-id'), 10),
+        name:         ysrFlowRoot.getAttribute('data-flow-name'),
+        status:       ysrFlowRoot.getAttribute('data-flow-status'),
+        triggerType:  ysrFlowRoot.getAttribute('data-flow-trigger-type'),
+        storeId:      parseInt(ysrFlowRoot.getAttribute('data-flow-store-id'), 10) || 0,
+        graph:        ysrFlowRoot.getAttribute('data-flow-graph-json')
             ? JSON.parse(ysrFlowRoot.getAttribute('data-flow-graph-json'))
             : null,
-        templates:   JSON.parse(ysrFlowRoot.getAttribute('data-templates-json') || '[]')
+        templates:    JSON.parse(ysrFlowRoot.getAttribute('data-templates-json') || '[]'),
+        storeOptions: JSON.parse(ysrFlowRoot.getAttribute('data-store-options-json') || '[]')
     };
 </script>
 <script src="<?php echo $skin ?>flowBuilder.js"></script>

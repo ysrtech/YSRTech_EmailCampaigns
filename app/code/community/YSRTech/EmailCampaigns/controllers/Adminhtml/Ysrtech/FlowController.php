@@ -73,6 +73,7 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_FlowController
                 'name'         => (string) ($data['name'] ?? ''),
                 'status'       => $status,
                 'trigger_type' => (string) ($data['trigger_type'] ?? 'order_placed'),
+                'store_id'     => (int) ($data['store_id'] ?? 0),
                 'graph_json'   => (string) ($data['graph_json'] ?? ''),
             ]);
             $model->save();

@@ -163,6 +163,10 @@ class YSRTech_EmailCampaigns_Model_Flow_Engine
             ]);
             $queueItem->save();
 
+            $storeId = (int) $flow->getStoreId();
+            $store = $storeId ? Mage::app()->getStore($storeId) : Mage::app()->getStore();
+            $context = json_decode((string) $enrollment->getContextJson(), true) ?: [];
+
             $helper = Mage::helper('ysrtech_emailcampaigns');
             $isMailgun = $helper->getConfig('sending/transport') === 'mailgun';
             $vars = [
@@ -171,7 +175,8 @@ class YSRTech_EmailCampaigns_Model_Flow_Engine
                     'lastname'  => $customer->getLastname(),
                     'email'     => $customer->getEmail(),
                 ],
-                'store'           => ['name' => Mage::app()->getStore()->getName()],
+                'order'           => $this->_orderVars($context),
+                'store'           => ['name' => $store->getName()],
                 'unsubscribe_url' => $isMailgun
                     ? '%recipient.unsubscribe_url%'
                     : Mage::getUrl('emailcampaigns/preferences/unsubscribe', ['_token' => $trackingToken]),
@@ -195,6 +200,45 @@ class YSRTech_EmailCampaigns_Model_Flow_Engine
 
         $queueItem->addData(['status' => 'sent', 'sent_at' => Varien_Date::now()])->save();
         $this->_log($enrollment, $node['id'], 'sent');
+    }
+
+    /**
+     * order_id is the only thing captured in an order_placed enrollment's
+     * context_json (see Observer::onOrderPlaced()) — this resolves it against
+     * the real order at send time so price/qty reflect what was actually
+     * ordered. Returns [] (every {{order.*}} tag renders blank) if there's no
+     * order context or the order can't be loaded, rather than failing the send.
+     */
+    private function _orderVars(array $context): array
+    {
+        $orderId = (int) ($context['order_id'] ?? 0);
+        if (!$orderId) {
+            return [];
+        }
+        $order = Mage::getModel('sales/order')->load($orderId);
+        if (!$order->getId()) {
+            return [];
+        }
+
+        $rows = '';
+        foreach ($order->getAllVisibleItems() as $item) {
+            $rows .= sprintf(
+                '<tr><td style="padding:6px 0;">%s &times; %d</td><td style="padding:6px 0;text-align:right;">%s</td></tr>',
+                htmlspecialchars((string) $item->getName(), ENT_QUOTES),
+                (int) $item->getQtyOrdered(),
+                Mage::helper('core')->currency($item->getRowTotal(), true, false)
+            );
+        }
+
+        return [
+            'increment_id' => (string) $order->getIncrementId(),
+            'total'        => Mage::helper('core')->currency($order->getGrandTotal(), true, false),
+            'items_count'  => (int) $order->getTotalItemCount(),
+            // A pre-rendered HTML table, not a list the template loops over itself —
+            // renderMergeVars() only substitutes scalar {{a.b.c}} leaves, so this is
+            // the one merge tag ({{order.items_html}}) that expands to the whole list.
+            'items_html'   => $rows !== '' ? "<table style=\"width:100%;border-collapse:collapse;\">{$rows}</table>" : '',
+        ];
     }
 
     private function _resolveDelay(array $config): string

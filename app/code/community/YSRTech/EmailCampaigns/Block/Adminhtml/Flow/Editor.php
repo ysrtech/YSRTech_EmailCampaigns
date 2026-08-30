@@ -28,4 +28,19 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Flow_Editor extends Mage_Adminhtml_
         }
         return Mage::helper('core')->jsonEncode($templates);
     }
+
+    /**
+     * The same Website > Store Group > Store View tree Campaigns already use
+     * (see Block/Adminhtml/Campaign/Edit/Form.php) — a flat array where an
+     * entry's `value` is either a store id (a plain option) or an array of
+     * child {label, value} options (an optgroup). "All Store Views" (id 0)
+     * enrolls regardless of which store an order was placed on; a specific
+     * store view only enrolls orders placed on that one.
+     */
+    public function getStoreOptionsJson()
+    {
+        return Mage::helper('core')->jsonEncode(
+            Mage::getSingleton('adminhtml/system_store')->getStoreValuesForForm(false, true)
+        );
+    }
 }

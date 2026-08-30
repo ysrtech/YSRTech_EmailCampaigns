@@ -20,9 +20,10 @@ import NodePanel from './NodePanel';
  * Mounted by skin/adminhtml/.../flow_editor.phtml with a global config:
  *
  *   window.YsrFlowEditorConfig = {
- *     saveUrl, formKey, flowId, name, status, triggerType,
+ *     saveUrl, formKey, flowId, name, status, triggerType, storeId,
  *     graph: {nodes: [{id, type, position, config}], edges: [{source, target}]} | null,
- *     templates: [{id, name}, ...]
+ *     templates: [{id, name}, ...],
+ *     storeOptions: [{label, value: storeId | [{label, value: storeId}, ...]}, ...]
  *   };
  *
  * graph_json's node shape ({id, type, position, config}) is what
@@ -63,7 +64,24 @@ function nextNodeId(type) {
   return `${type}-${Date.now()}-${nodeSeq++}`;
 }
 
-function Toolbar({ name, setName, status, setStatus, onSave, saving, statusMessage }) {
+// getStoreValuesForForm()'s shape: a flat array where an entry's `value` is
+// either a store id (a plain <option>) or an array of {label, value} children
+// (an <optgroup>) — see Block/Adminhtml/Flow/Editor.php's getStoreOptionsJson().
+function renderStoreOptions(options) {
+  return options.map((opt, i) =>
+    Array.isArray(opt.value) ? (
+      <optgroup key={i} label={opt.label}>
+        {opt.value.map((child, j) => (
+          <option key={j} value={child.value}>{child.label}</option>
+        ))}
+      </optgroup>
+    ) : (
+      <option key={i} value={opt.value}>{opt.label}</option>
+    )
+  );
+}
+
+function Toolbar({ name, setName, status, setStatus, storeId, setStoreId, storeOptions, onSave, saving, statusMessage }) {
   return (
     <div className="ysr-flow-toolbar">
       <strong>Automation Flow</strong>
@@ -72,6 +90,9 @@ function Toolbar({ name, setName, status, setStatus, onSave, saving, statusMessa
         <option value="draft">Draft</option>
         <option value="active">Active</option>
         <option value="paused">Paused</option>
+      </select>
+      <select value={storeId} onChange={(e) => setStoreId(parseInt(e.target.value, 10) || 0)}>
+        {renderStoreOptions(storeOptions)}
       </select>
       <button type="button" onClick={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
       <span>{statusMessage}</span>
@@ -152,6 +173,8 @@ function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [name, setName] = useState(cfg.name || '');
   const [status, setStatus] = useState(cfg.status || 'draft');
+  const [storeId, setStoreId] = useState(cfg.storeId || 0);
+  const storeOptions = cfg.storeOptions || [];
   const [saving, setSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
 
@@ -194,6 +217,7 @@ function App() {
       body.append('name', name);
       body.append('status', status);
       body.append('trigger_type', cfg.triggerType || 'order_placed');
+      body.append('store_id', storeId);
       body.append('graph_json', JSON.stringify(toGraphJson(nodes, edges)));
 
       const res = await fetch(cfg.saveUrl, { method: 'POST', body });
@@ -216,6 +240,7 @@ function App() {
       <Toolbar
         name={name} setName={setName}
         status={status} setStatus={setStatus}
+        storeId={storeId} setStoreId={setStoreId} storeOptions={storeOptions}
         onSave={save} saving={saving} statusMessage={statusMessage}
       />
       <div className="ysr-flow-body">

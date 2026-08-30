@@ -36,9 +36,13 @@ class YSRTech_EmailCampaigns_Model_Observer
             return;
         }
 
+        // store_id = 0 means "All Store Views" (enrolls regardless of which
+        // store the order was placed on); a flow scoped to a specific store
+        // view only enrolls orders placed on that one.
         $flows = Mage::getResourceModel('ysrtech_emailcampaigns/flow_collection')
             ->addFieldToFilter('status', YSRTech_EmailCampaigns_Model_Flow::STATUS_ACTIVE)
-            ->addFieldToFilter('trigger_type', 'order_placed');
+            ->addFieldToFilter('trigger_type', 'order_placed')
+            ->addFieldToFilter('store_id', ['in' => [0, (int) $order->getStoreId()]]);
 
         $engine = Mage::getSingleton('ysrtech_emailcampaigns/flow_engine');
         foreach ($flows as $flow) {
