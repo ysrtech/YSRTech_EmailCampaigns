@@ -33,6 +33,17 @@ class YSRTech_EmailCampaigns_Model_Sender
      */
     public function processQueue(): void
     {
+        /*
+         * The store's own "Disable Email Communications" switch. A campaign is
+         * email like any other, and a store with sending turned off - staging,
+         * a restore, a migration in progress - must not have this cron blast
+         * its whole customer list because it goes out through a transport of
+         * its own rather than Mage_Core_Model_Email_Template.
+         */
+        if (Mage::getStoreConfigFlag('system/smtp/disable')) {
+            return;
+        }
+
         $helper = Mage::helper('ysrtech_emailcampaigns');
         $batchSize = max(1, (int) $helper->getConfig('sending/batch_size') ?: 100);
         $maxAttempts = max(1, (int) $helper->getConfig('sending/max_attempts') ?: 3);
@@ -40,6 +51,13 @@ class YSRTech_EmailCampaigns_Model_Sender
         /** @var YSRTech_EmailCampaigns_Model_Resource_Queue_Collection $queue */
         $queue = Mage::getResourceModel('ysrtech_emailcampaigns/queue_collection')
             ->addFieldToFilter('status', 'pending')
+            // A row waiting out its backoff is not due yet. Without this the
+            // delay _markFailure() sets is ignored and every retry fires on
+            // the next cron tick.
+            ->addFieldToFilter('next_attempt_at', [
+                ['null' => true],
+                ['lteq' => Varien_Date::now()],
+            ])
             ->setPageSize($batchSize)
             ->setCurPage(1)
             ->load();
@@ -56,7 +74,10 @@ class YSRTech_EmailCampaigns_Model_Sender
 
         foreach ($byCampaign as $campaignId => $items) {
             try {
-                $this->_sendCampaignBatch((int) $campaignId, $items, $maxAttempts);
+                // The method takes the items and reads the campaign off the
+                // first of them; passing the id as well made the int land in
+                // the array parameter, which is a TypeError.
+                $this->_sendCampaignBatch($items, $maxAttempts);
             } catch (Exception $e) {
                 Mage::logException($e);
                 // Mark all items in this failed batch for retry.
@@ -91,8 +112,19 @@ class YSRTech_EmailCampaigns_Model_Sender
                     'email'     => $customer->getEmail(),
                 ],
                 'store' => ['name' => Mage::app()->getStore($campaign->getStoreId())->getName()],
+                /*
+                 * _nosid, because this runs from cron: without it getUrl()
+                 * reaches for the frontend session to decide about a session id
+                 * and dies with "Unable to start session" on the command line.
+                 * _store so the link points at the campaign's own store, and
+                 * the token as a plain parameter - Magento reads keys starting
+                 * with an underscore as url options, so "_token" was being
+                 * swallowed rather than put in the link.
+                 */
                 'unsubscribe_url' => Mage::getUrl('emailcampaigns/preferences/unsubscribe', [
-                    '_token' => $item->getTrackingToken(),
+                    'token'   => $item->getTrackingToken(),
+                    '_store'  => $campaign->getStoreId(),
+                    '_nosid'  => true,
                 ]),
             ];
             $html = $renderer->render($template, $vars);
@@ -106,9 +138,20 @@ class YSRTech_EmailCampaigns_Model_Sender
             ];
         }
 
-        // Send using first rendered HTML (merge vars are provider-side per recipient).
+        /*
+         * Each recipient carries the copy rendered for them. A transport that
+         * expands merge variables provider-side can ignore that and use the
+         * shared body; one that cannot - anything sending real messages itself
+         * - must not, or every recipient is posted the first person's email,
+         * their name in the greeting included.
+         */
         $transport->sendBatch(
-            array_map(static fn ($r) => ['email' => $r['email'], 'name' => $r['name'], 'vars' => $r['vars']], $recipients),
+            array_map(static fn ($r) => [
+                'email' => $r['email'],
+                'name'  => $r['name'],
+                'vars'  => $r['vars'],
+                'html'  => $r['_html'],
+            ], $recipients),
             (string) $campaign->getSubject(),
             $recipients[0]['_html']
         );
@@ -116,7 +159,9 @@ class YSRTech_EmailCampaigns_Model_Sender
         foreach ($recipients as $r) {
             /** @var YSRTech_EmailCampaigns_Model_Queue $item */
             $item = $r['_item'];
-            $item->setData([
+            // addData: setData given an array replaces the row's data
+            // outright, dropping queue_id and turning the save into an insert.
+            $item->addData([
                 'status'   => 'sent',
                 'sent_at'  => $now,
                 'attempts' => (int) $item->getAttempts() + 1,

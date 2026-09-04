@@ -9,7 +9,6 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
     protected function _construct()
     {
         $this->_init('ysrtech_emailcampaigns/segment');
-        $this->loadConditions();
     }
 
     /**
@@ -31,33 +30,14 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
         return Mage::getModel('rule/action_collection');
     }
 
-    public function loadConditions()
-    {
-        if (!$this->hasData('conditions')) {
-            $conditions = $this->getData('conditions_serialized');
-            if ($conditions === null || $conditions === '') {
-                $conditions = [];
-            } else {
-                $conditions = json_decode($conditions, true);
-            }
-            $this->setData('conditions', $conditions);
-        }
-        return $this;
-    }
-
-    protected function _afterLoad()
-    {
-        $this->loadConditions();
-        return parent::_afterLoad();
-    }
-
-    protected function _beforeSave()
-    {
-        if ($this->hasData('conditions')) {
-            $this->setData('conditions_serialized', json_encode($this->getData('conditions')));
-        }
-        return parent::_beforeSave();
-    }
+    /*
+     * conditions_serialized is Mage_Rule_Model_Abstract's own column and it
+     * handles both ends: _beforeSave() writes serialize($conditions->asArray())
+     * and getConditions() reads it back through core/unserializeArray. Writing
+     * JSON into it instead - as this model and the save controller both used to
+     * - meant the very next getConditions() fed JSON to unserialize and the
+     * save died with "Error unserializing data." Nothing to override here.
+     */
 
     /**
      * Build the SELECT of matching customer IDs by evaluating the rule
@@ -93,7 +73,9 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
         if (!$conditions instanceof Mage_Rule_Model_Condition_Interface) {
             return true; // empty rule matches everyone
         }
-        return (bool) $conditions->validate($data);
+        // Mage_Rule conditions read their operands off a Varien_Object with
+        // getData(); handed a bare array they raise a TypeError.
+        return (bool) $conditions->validate(new Varien_Object($data));
     }
 
     private function _getOrderAggregates(int $customerId): array
@@ -132,26 +114,41 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
         $conn = $res->getConnection('core_write');
         $linkTable = $res->getTableName('ysrtech_emailcampaigns/segment_customer');
 
+        // Read once and close over the value: the mapping closure below is
+        // static, so it has no $this to ask.
+        $segmentId = (int) $this->getId();
+
         $conn->beginTransaction();
         try {
-            $conn->delete($linkTable, ['segment_id = ?' => (int) $this->getId()]);
+            $conn->delete($linkTable, ['segment_id = ?' => $segmentId]);
             $ids = $this->getMatchingCustomerIds();
             if ($ids) {
                 foreach (array_chunk($ids, 500) as $chunk) {
                     $conn->insertArray($linkTable, ['segment_id', 'customer_id'], array_map(
-                        static fn ($id) => [(int) $this->getId(), (int) $id],
+                        static fn ($id) => [$segmentId, (int) $id],
                         $chunk
                     ));
                 }
             }
-            $this->setData([
+            /*
+             * addData, not setData: setData given an array replaces the object's
+             * data outright, which would drop segment_id and turn this save into
+             * an insert of a second, nameless segment.
+             */
+            $this->addData([
                 'customer_count'    => count($ids),
                 'last_reindexed_at' => Varien_Date::now(),
             ]);
             $this->save();
             $conn->commit();
             return count($ids);
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
+            /*
+             * Throwable, not Exception: a TypeError from a condition is an
+             * Error, which an Exception catch lets past - leaving the
+             * transaction open until the connection is destroyed and the
+             * adapter throws over it, burying the real cause.
+             */
             $conn->rollBack();
             throw $e;
         }

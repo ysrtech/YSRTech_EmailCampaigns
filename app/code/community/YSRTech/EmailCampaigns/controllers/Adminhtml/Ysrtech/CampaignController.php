@@ -66,11 +66,23 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
             $model->addData([
                 'name'          => (string) $data['name'],
                 'subject'       => (string) ($data['subject'] ?? ''),
-                'template_id'   => (int) ($data['template_id'] ?? 0),
-                'segment_id'    => (int) ($data['segment_id'] ?? 0),
+                /*
+                 * Null, not 0, when nothing is picked: both columns carry a
+                 * foreign key, and there is no template or segment numbered 0
+                 * for the row to point at.
+                 */
+                'template_id'   => !empty($data['template_id']) ? (int) $data['template_id'] : null,
+                'segment_id'    => !empty($data['segment_id']) ? (int) $data['segment_id'] : null,
                 'store_id'      => (int) ($data['store_id'] ?? 0),
+                /*
+                 * formatDate, because Varien_Date::toDbTimestamp() does not
+                 * exist - calling it fataled the moment anyone set a date. The
+                 * field posts DATETIME_INTERNAL_FORMAT already; this normalises
+                 * it in the same frame the scheduler reads, which is
+                 * Varien_Date::now(), i.e. server local time.
+                 */
                 'scheduled_at'  => !empty($data['scheduled_at'])
-                    ? Varien_Date::toDbTimestamp($data['scheduled_at']) : null,
+                    ? Varien_Date::formatDate($data['scheduled_at'], true) : null,
             ]);
 
             // Schedule action: queue it up.
@@ -83,11 +95,24 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
             $model->save();
 
             if ($model->getStatus() === YSRTech_EmailCampaigns_Model_Campaign::STATUS_SCHEDULED) {
-                $count = $model->buildQueue();
-                $model->setStatus(YSRTech_EmailCampaigns_Model_Campaign::STATUS_SENDING)->save();
-                $this->_getSession()->addSuccess(
-                    $this->__('Campaign scheduled. %d recipients queued.', $count)
-                );
+                /*
+                 * A campaign due later stays scheduled and is picked up by the
+                 * launchScheduledCampaigns cron when its time comes. Queueing
+                 * it here regardless is what made "schedule" mean "send now".
+                 */
+                $due = !$model->getScheduledAt() || $model->getScheduledAt() <= Varien_Date::now();
+
+                if ($due) {
+                    $count = $model->buildQueue();
+                    $model->setStatus(YSRTech_EmailCampaigns_Model_Campaign::STATUS_SENDING)->save();
+                    $this->_getSession()->addSuccess(
+                        $this->__('Campaign queued. %d recipients queued.', $count)
+                    );
+                } else {
+                    $this->_getSession()->addSuccess(
+                        $this->__('Campaign scheduled for %s.', $model->getScheduledAt())
+                    );
+                }
             } else {
                 $this->_getSession()->addSuccess($this->__('Campaign saved.'));
             }

@@ -2,7 +2,7 @@
 <config>
     <modules>
         <YSRTech_EmailCampaigns>
-            <version>0.1.0</version>
+            <version>0.1.1</version>
         </YSRTech_EmailCampaigns>
     </modules>
 
@@ -176,7 +176,7 @@
     <default>
         <ysrtech_emailcampaigns>
             <sending>
-                <transport>smtp_api</transport>
+                <transport>smtp</transport>
                 <batch_size>100</batch_size>
                 <max_attempts>3</max_attempts>
             </sending>

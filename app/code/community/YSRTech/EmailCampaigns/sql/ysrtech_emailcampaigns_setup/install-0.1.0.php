@@ -87,6 +87,16 @@ $queueTable = $installer->getConnection()
     ->addColumn('tracking_token', Varien_Db_Ddl_Table::TYPE_TEXT, 64, [], 'Unique tracking token')
     ->addIndex('idx_campaign_status', ['campaign_id', 'status'])
     ->addIndex('idx_next_attempt', ['status', 'next_attempt_at'])
+    // buildQueue() writes with insertOnDuplicate, which needs a unique key to
+    // detect a duplicate against. Without one a campaign queued twice - which
+    // is what happens whenever the scheduler picks up a campaign whose status
+    // has not moved on yet - puts every recipient in the queue a second time
+    // and mails them all twice.
+    ->addIndex(
+        'unq_campaign_email',
+        ['campaign_id', 'email'],
+        ['type' => Varien_Db_Adapter_Interface::INDEX_TYPE_UNIQUE]
+    )
     ->setComment('Send queue');
 
 /* ---------- Subscriber preferences / unsubscribe ---------- */

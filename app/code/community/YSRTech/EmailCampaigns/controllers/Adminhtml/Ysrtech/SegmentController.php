@@ -61,15 +61,19 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SegmentController
             $model->load($id);
         }
         try {
-            // Conditions arrive in Mage_Rule serialized format from the rule builder form.
             $model->addData([
                 'name'      => (string) ($data['name'] ?? ''),
                 'is_active' => (int) (!empty($data['is_active'])),
             ]);
-            if (isset($data['rule']['conditions'])) {
-                $model->setData('conditions', $data['rule']['conditions']);
-                $model->setData('conditions_serialized', json_encode($data['rule']['conditions']));
-            }
+
+            /*
+             * loadPost() is what the rule builder's flat rule[conditions][...]
+             * post is shaped for: it rebuilds the condition tree, and the
+             * model's own _beforeSave() then serializes it into
+             * conditions_serialized. Writing that column here by hand fed JSON
+             * to an unserialize() and the save died on it.
+             */
+            $model->loadPost(['conditions' => $data['rule']['conditions'] ?? []]);
             $model->save();
 
             if (!empty($data['reindex'])) {
