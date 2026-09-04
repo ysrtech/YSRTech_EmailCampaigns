@@ -1,4 +1,13 @@
 <?php
+/*
+ * Magento 1 does not autoload controller classes - they sit outside the
+ * autoloader's class path - so a controller extending another one has to
+ * pull it in itself, or the class is simply not there when the router
+ * instantiates this file.
+ */
+require_once Mage::getModuleDir('controllers', 'YSRTech_EmailCampaigns')
+    . DS . 'Adminhtml' . DS . 'Controller' . DS . 'Abstract.php';
+
 class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
     extends YSRTech_EmailCampaigns_Adminhtml_Controller_Abstract
 {

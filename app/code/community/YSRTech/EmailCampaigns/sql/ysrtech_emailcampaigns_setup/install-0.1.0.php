@@ -43,7 +43,7 @@ $segmentCustomerTable = $installer->getConnection()
     ->addForeignKey(
         $installer->getFkName('ysrtech_emailcampaigns/segment_customer', 'segment_id', 'ysrtech_emailcampaigns/segment', 'segment_id'),
         'segment_id', $installer->getTable('ysrtech_emailcampaigns/segment'), 'segment_id',
-        Varien_Db_Ddl_Table::FK_ACTION_CASCADE, Varien_Db_Ddl_Table::FK_ACTION_CASCADE
+        Varien_Db_Adapter_Interface::FK_ACTION_CASCADE, Varien_Db_Adapter_Interface::FK_ACTION_CASCADE
     )
     ->setComment('Segment membership');
 
@@ -66,7 +66,7 @@ $campaignTable = $installer->getConnection()
     ->addForeignKey(
         $installer->getFkName('ysrtech_emailcampaigns/campaign', 'template_id', 'ysrtech_emailcampaigns/template', 'template_id'),
         'template_id', $installer->getTable('ysrtech_emailcampaigns/template'), 'template_id',
-        Varien_Db_Ddl_Table::FK_ACTION_SET_NULL, Varien_Db_Ddl_Table::FK_ACTION_CASCADE
+        Varien_Db_Adapter_Interface::FK_ACTION_SET_NULL, Varien_Db_Adapter_Interface::FK_ACTION_CASCADE
     )
     ->setComment('Campaigns');
 

@@ -104,6 +104,14 @@
     </admin>
 
     <adminhtml>
+        <layout>
+            <updates>
+                <ysrtech_emailcampaigns>
+                    <file>ysrtech_emailcampaigns.xml</file>
+                </ysrtech_emailcampaigns>
+            </updates>
+        </layout>
+
         <menu>
             <ysrtech_emailcampaigns translate="title" module="ysrtech_emailcampaigns">
                 <title>Email Campaigns</title>

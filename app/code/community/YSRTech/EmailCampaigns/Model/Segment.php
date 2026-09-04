@@ -20,6 +20,17 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
         return Mage::getModel('salesrule/rule_condition_combine');
     }
 
+    /**
+     * Mage_Rule_Model_Abstract declares this abstract alongside
+     * getConditionsInstance(), so the class does not load without it. A segment
+     * only ever selects customers - there is nothing for a rule action to do -
+     * so this is the empty collection the rule engine expects.
+     */
+    public function getActionsInstance()
+    {
+        return Mage::getModel('rule/action_collection');
+    }
+
     public function loadConditions()
     {
         if (!$this->hasData('conditions')) {
