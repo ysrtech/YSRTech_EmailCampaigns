@@ -29,7 +29,13 @@ class YSRTech_EmailCampaigns_Model_Sender
     }
 
     /**
-     * Process one batch of pending queue rows.
+     * How long a claim may sit before another run may take the rows back.
+     * Long enough that a slow batch is never stolen mid-send.
+     */
+    private const CLAIM_TIMEOUT_MINUTES = 30;
+
+    /**
+     * Send one batch of queued messages.
      */
     public function processQueue(): void
     {
@@ -44,43 +50,34 @@ class YSRTech_EmailCampaigns_Model_Sender
             return;
         }
 
-        $helper = Mage::helper('ysrtech_emailcampaigns');
-        $batchSize = max(1, (int) $helper->getConfig('sending/batch_size') ?: 100);
+        $helper      = Mage::helper('ysrtech_emailcampaigns');
+        $batchSize   = max(1, (int) $helper->getConfig('sending/batch_size') ?: 100);
         $maxAttempts = max(1, (int) $helper->getConfig('sending/max_attempts') ?: 3);
 
-        /** @var YSRTech_EmailCampaigns_Model_Resource_Queue_Collection $queue */
-        $queue = Mage::getResourceModel('ysrtech_emailcampaigns/queue_collection')
-            ->addFieldToFilter('status', 'pending')
-            // A row waiting out its backoff is not due yet. Without this the
-            // delay _markFailure() sets is ignored and every retry fires on
-            // the next cron tick.
-            ->addFieldToFilter('next_attempt_at', [
-                ['null' => true],
-                ['lteq' => Varien_Date::now()],
-            ])
-            ->setPageSize($batchSize)
-            ->setCurPage(1)
-            ->load();
+        $this->_releaseStaleClaims();
 
-        if (!count($queue)) {
+        $token = $this->_claim($batchSize);
+
+        if ($token === null) {
             return;
         }
 
-        // Group by campaign so each batch shares subject/template/transport.
+        /** @var YSRTech_EmailCampaigns_Model_Resource_Queue_Collection $queue */
+        $queue = Mage::getResourceModel('ysrtech_emailcampaigns/queue_collection')
+            ->addFieldToFilter('lock_token', $token);
+
         $byCampaign = [];
+
         foreach ($queue as $item) {
             $byCampaign[(int) $item->getCampaignId()][] = $item;
         }
 
-        foreach ($byCampaign as $campaignId => $items) {
+        foreach ($byCampaign as $items) {
             try {
-                // The method takes the items and reads the campaign off the
-                // first of them; passing the id as well made the int land in
-                // the array parameter, which is a TypeError.
                 $this->_sendCampaignBatch($items, $maxAttempts);
-            } catch (Exception $e) {
+            } catch (Throwable $e) {
                 Mage::logException($e);
-                // Mark all items in this failed batch for retry.
+
                 foreach ($items as $item) {
                     $this->_markFailure($item, $e->getMessage(), $maxAttempts);
                 }
@@ -88,30 +85,98 @@ class YSRTech_EmailCampaigns_Model_Sender
         }
     }
 
+    /**
+     * Take ownership of up to $batchSize due rows, and return the token they
+     * were stamped with.
+     *
+     * This is what makes the queue safe to run quickly. Selecting pending rows
+     * and sending them leaves nothing to stop a second cron run, started while
+     * the first is still going, from selecting the very same rows and mailing
+     * everybody twice. At the default hundred a tick that never happened
+     * because a tick finished in a second; raising the batch to get 12,000 out
+     * in an hour is exactly what would have exposed it.
+     *
+     * The UPDATE is the lock: whichever run gets there first stamps the rows,
+     * and the other finds nothing left to claim.
+     *
+     * @param  int $batchSize
+     * @return string|null Token, or null when nothing was due
+     */
+    protected function _claim(int $batchSize): ?string
+    {
+        /** @var Mage_Core_Model_Resource $resource */
+        $resource = Mage::getSingleton('core/resource');
+        $adapter  = $resource->getConnection('core_write');
+        $table    = $resource->getTableName('ysrtech_emailcampaigns/queue');
+
+        $token = Mage::helper('core')->getRandomString(32);
+        $now   = Varien_Date::now();
+
+        $claimed = $adapter->query(
+            "UPDATE {$table}
+                SET status = 'sending', lock_token = ?, locked_at = ?
+              WHERE status = 'pending'
+                AND lock_token IS NULL
+                AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+              ORDER BY queue_id
+              LIMIT {$batchSize}",
+            [$token, $now, $now]
+        )->rowCount();
+
+        return $claimed > 0 ? $token : null;
+    }
+
+    /**
+     * Give back rows claimed by a run that never finished - a fatal, a deploy
+     * mid-batch, a killed process - so they are not stranded in "sending"
+     * forever.
+     */
+    protected function _releaseStaleClaims(): void
+    {
+        /** @var Mage_Core_Model_Resource $resource */
+        $resource = Mage::getSingleton('core/resource');
+        $adapter  = $resource->getConnection('core_write');
+        $table    = $resource->getTableName('ysrtech_emailcampaigns/queue');
+
+        $cutoff = date('Y-m-d H:i:s', strtotime('-' . self::CLAIM_TIMEOUT_MINUTES . ' minutes'));
+
+        $adapter->update(
+            $table,
+            ['status' => 'pending', 'lock_token' => null, 'locked_at' => null],
+            ['status = ?' => 'sending', 'locked_at < ?' => $cutoff]
+        );
+    }
+
     private function _sendCampaignBatch(array $items, int $maxAttempts): void
     {
         /** @var YSRTech_EmailCampaigns_Model_Campaign $campaign */
         $campaign = Mage::getModel('ysrtech_emailcampaigns/campaign')->load($items[0]->getCampaignId());
+
         if (!$campaign->getId()) {
             return;
         }
 
         /** @var YSRTech_EmailCampaigns_Model_Template $template */
-        $template = Mage::getModel('ysrtech_emailcampaigns/template')->load($campaign->getTemplateId());
-        $renderer = Mage::getSingleton('ysrtech_emailcampaigns/renderer');
+        $template  = Mage::getModel('ysrtech_emailcampaigns/template')->load($campaign->getTemplateId());
+        $renderer  = Mage::getSingleton('ysrtech_emailcampaigns/renderer');
         $transport = Mage::getSingleton('ysrtech_emailcampaigns/transport_factory')->get();
-        $now = Varien_Date::now();
+        $now       = Varien_Date::now();
 
+        $names      = $this->_loadRecipientNames($items);
+        $storeName  = Mage::app()->getStore($campaign->getStoreId())->getName();
         $recipients = [];
+
         foreach ($items as $item) {
-            $customer = Mage::getModel('customer/customer')->load($item->getCustomerId());
+            $id   = (int) $item->getSubscriberId();
+            $name = $names[$id] ?? ['firstname' => '', 'lastname' => ''];
+
             $vars = [
                 'customer' => [
-                    'firstname' => $customer->getFirstname(),
-                    'lastname'  => $customer->getLastname(),
-                    'email'     => $customer->getEmail(),
+                    'firstname' => $name['firstname'],
+                    'lastname'  => $name['lastname'],
+                    'email'     => $item->getEmail(),
                 ],
-                'store' => ['name' => Mage::app()->getStore($campaign->getStoreId())->getName()],
+                'store' => ['name' => $storeName],
                 /*
                  * _nosid, because this runs from cron: without it getUrl()
                  * reaches for the frontend session to decide about a session id
@@ -122,19 +187,18 @@ class YSRTech_EmailCampaigns_Model_Sender
                  * swallowed rather than put in the link.
                  */
                 'unsubscribe_url' => Mage::getUrl('emailcampaigns/preferences/unsubscribe', [
-                    'token'   => $item->getTrackingToken(),
-                    '_store'  => $campaign->getStoreId(),
-                    '_nosid'  => true,
+                    'token'  => $item->getTrackingToken(),
+                    '_store' => $campaign->getStoreId(),
+                    '_nosid' => true,
                 ]),
             ];
-            $html = $renderer->render($template, $vars);
 
             $recipients[] = [
                 'email' => $item->getEmail(),
-                'name'  => trim((string) $customer->getFirstname()),
+                'name'  => trim($name['firstname'] . ' ' . $name['lastname']),
                 'vars'  => $vars,
+                'html'  => $renderer->render($template, $vars),
                 '_item' => $item,
-                '_html' => $html,
             ];
         }
 
@@ -150,21 +214,24 @@ class YSRTech_EmailCampaigns_Model_Sender
                 'email' => $r['email'],
                 'name'  => $r['name'],
                 'vars'  => $r['vars'],
-                'html'  => $r['_html'],
+                'html'  => $r['html'],
             ], $recipients),
             (string) $campaign->getSubject(),
-            $recipients[0]['_html']
+            $recipients[0]['html']
         );
 
         foreach ($recipients as $r) {
             /** @var YSRTech_EmailCampaigns_Model_Queue $item */
             $item = $r['_item'];
+
             // addData: setData given an array replaces the row's data
             // outright, dropping queue_id and turning the save into an insert.
             $item->addData([
-                'status'   => 'sent',
-                'sent_at'  => $now,
-                'attempts' => (int) $item->getAttempts() + 1,
+                'status'     => 'sent',
+                'sent_at'    => $now,
+                'attempts'   => (int) $item->getAttempts() + 1,
+                'lock_token' => null,
+                'locked_at'  => null,
             ])->save();
         }
 
@@ -173,6 +240,7 @@ class YSRTech_EmailCampaigns_Model_Sender
             ->addFieldToFilter('campaign_id', $campaign->getId())
             ->addFieldToFilter('status', ['in' => ['pending', 'sending']])
             ->getSize();
+
         if ($remaining === 0 && $campaign->getStatus() === YSRTech_EmailCampaigns_Model_Campaign::STATUS_SENDING) {
             $campaign
                 ->setStatus(YSRTech_EmailCampaigns_Model_Campaign::STATUS_SENT)
@@ -181,10 +249,88 @@ class YSRTech_EmailCampaigns_Model_Sender
         }
     }
 
+    /**
+     * Names for a batch, in one query.
+     *
+     * The previous version loaded a full customer EAV model per recipient
+     * purely to read a first and last name - the single most expensive thing
+     * in the send path. The newsletter row already carries both, for people
+     * with an account and without one alike.
+     *
+     * @param  array $items
+     * @return array Subscriber ID => ['firstname' => ..., 'lastname' => ...]
+     */
+    protected function _loadRecipientNames(array $items): array
+    {
+        $ids = array_filter(array_map(static fn ($i) => (int) $i->getSubscriberId(), $items));
+
+        if (!$ids) {
+            return [];
+        }
+
+        /** @var Mage_Core_Model_Resource $resource */
+        $resource = Mage::getSingleton('core/resource');
+        $adapter  = $resource->getConnection('core_read');
+
+        $select = $adapter->select()
+            ->from(
+                $resource->getTableName('newsletter/subscriber'),
+                ['subscriber_id', 'customer_id', 'subscriber_firstname', 'subscriber_lastname']
+            )
+            ->where('subscriber_id IN (?)', $ids);
+
+        $names       = [];
+        $customerIds = [];
+
+        foreach ($adapter->fetchAll($select) as $row) {
+            $subscriberId = (int) $row['subscriber_id'];
+
+            $names[$subscriberId] = [
+                'firstname' => (string) $row['subscriber_firstname'],
+                'lastname'  => (string) $row['subscriber_lastname'],
+            ];
+
+            /*
+             * subscriber_firstname is only filled in when somebody subscribed
+             * through a form that asked for a name - on this store it is empty
+             * on every row, while the linked customer records do have names.
+             * Collect those and fetch them together below.
+             */
+            if ($names[$subscriberId]['firstname'] === '' && !empty($row['customer_id'])) {
+                $customerIds[(int) $row['customer_id']] = $subscriberId;
+            }
+        }
+
+        if ($customerIds) {
+            /** @var Mage_Customer_Model_Resource_Customer_Collection $customers */
+            $customers = Mage::getResourceModel('customer/customer_collection')
+                ->addAttributeToSelect(['firstname', 'lastname'])
+                ->addFieldToFilter('entity_id', ['in' => array_keys($customerIds)]);
+
+            // One collection for the batch, not a model load per recipient
+            foreach ($customers as $customer) {
+                $subscriberId = $customerIds[(int) $customer->getId()] ?? null;
+
+                if ($subscriberId !== null) {
+                    $names[$subscriberId] = [
+                        'firstname' => (string) $customer->getFirstname(),
+                        'lastname'  => (string) $customer->getLastname(),
+                    ];
+                }
+            }
+        }
+
+        return $names;
+    }
+
     private function _markFailure(YSRTech_EmailCampaigns_Model_Queue $item, string $error, int $maxAttempts): void
     {
         $attempts = (int) $item->getAttempts() + 1;
         $item->setAttempts($attempts)->setErrorMessage(substr($error, 0, 60000));
+
+        // Release the claim either way, or the row sits in "sending" until the
+        // stale-claim sweep picks it up half an hour later.
+        $item->setLockToken(null)->setLockedAt(null);
 
         if ($attempts >= $maxAttempts) {
             $item->setStatus('failed');

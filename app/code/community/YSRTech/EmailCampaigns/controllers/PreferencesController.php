@@ -90,6 +90,26 @@ class YSRTech_EmailCampaigns_PreferencesController extends Mage_Core_Controller_
         );
 
         /*
+         * And through Magento's own newsletter status, which is what the rest
+         * of the store reads: the admin's Newsletter Subscribers grid, the
+         * account page, and this module's own queue builder. Recording the
+         * opt-out only in the table above would leave someone still marked
+         * subscribed everywhere a human would think to look.
+         */
+        $subscriber = Mage::getModel('newsletter/subscriber')->loadByEmail($email);
+
+        if ($subscriber->getId()
+            && (int) $subscriber->getStatus() !== Mage_Newsletter_Model_Subscriber::STATUS_UNSUBSCRIBED) {
+            try {
+                $subscriber->setStatus(Mage_Newsletter_Model_Subscriber::STATUS_UNSUBSCRIBED)->save();
+            } catch (Exception $e) {
+                // The module's own record above already stands; don't lose the
+                // opt-out over a newsletter save that failed.
+                Mage::logException($e);
+            }
+        }
+
+        /*
          * Anything still queued for this address goes now. Without this the
          * unsubscribe only takes effect for campaigns queued afterwards, and
          * the messages already waiting are still delivered.
