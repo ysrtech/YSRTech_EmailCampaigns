@@ -55,6 +55,32 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_TemplateController
     }
 
     /**
+     * The visual editor for this template's content.
+     */
+    public function designerAction()
+    {
+        /** @var YSRTech_EmailCampaigns_Model_Template $template */
+        $template = Mage::getModel('ysrtech_emailcampaigns/template')->load((int) $this->getRequest()->getParam('id'));
+
+        if (!$template->getId()) {
+            $this->_getSession()->addError($this->__('Save the template before designing it.'));
+            $this->_redirect('*/*/index');
+            return;
+        }
+
+        Mage::register('ysrtech_emailcampaigns_template', $template);
+
+        $this->_title($this->__('Email Campaigns'))
+            ->_title($this->__('Designer'))
+            ->_title($template->getName());
+
+        $this->loadLayout();
+        $this->_setActiveMenu('ysrtech_emailcampaigns/template');
+        $this->_addContent($this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_template_designer'));
+        $this->renderLayout();
+    }
+
+    /**
      * The template as a recipient would see it, with stand-in details.
      */
     public function previewAction()
@@ -122,6 +148,11 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_TemplateController
         } catch (Exception $e) {
             $this->_getSession()->addError($e->getMessage());
             Mage::logException($e);
+        }
+
+        if ($this->getRequest()->getParam('back') === 'designer') {
+            $this->_redirect('*/*/designer', ['id' => $model->getId()]);
+            return;
         }
 
         $this->_redirect('*/*/index');

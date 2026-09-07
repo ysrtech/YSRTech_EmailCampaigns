@@ -2,12 +2,13 @@
 /**
  * Container for the template edit page.
  *
- * There was an "Open in Designer" button here pointing at a drag and drop
- * editor that was never built: its block referenced a phtml that does not
- * exist, so the button led to a blank page. A control that does nothing is
- * worse than an absent one - somebody clicks it, loses the page they were
- * on, and has no way to tell whether the feature broke or never existed.
- * Content is edited as HTML on the form itself.
+ * Content can be edited two ways: as HTML on the form itself, or visually in
+ * the designer. Both write the same html column, so a template can be roughed
+ * out in one and finished in the other.
+ *
+ * An earlier "Open in Designer" button pointed at an editor that was never
+ * built and led to a blank page; it was removed rather than left as a trap.
+ * This one goes somewhere.
  */
 class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Edit extends Mage_Adminhtml_Block_Widget_Form_Container
 {
@@ -23,6 +24,12 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Edit extends Mage_Adminhtm
         $model = Mage::registry('ysrtech_emailcampaigns_template');
 
         if ($model && $model->getId()) {
+            $this->_addButton('designer', [
+                'label'   => Mage::helper('ysrtech_emailcampaigns')->__('Open in Designer'),
+                'onclick' => "setLocation('" . $this->getUrl('*/*/designer', ['id' => $model->getId()]) . "')",
+                'class'   => 'go',
+            ], 0);
+
             $this->_addButton('preview', [
                 'label'   => Mage::helper('ysrtech_emailcampaigns')->__('Preview'),
                 // A new tab, so an edit in progress is not lost to it

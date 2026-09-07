@@ -19,11 +19,47 @@ class YSRTech_EmailCampaigns_Model_Renderer
             Mage::throwException('Template has no content to render.');
         }
 
+        $html = $this->_unwrapDocument($html);
+
         $helper = Mage::helper('ysrtech_emailcampaigns');
         $html = $helper->renderMergeVars($html, $vars);
         $html = $this->_injectUnsubscribe($html, $vars);
 
         return $this->_wrapDocument($html, $vars);
+    }
+
+    /**
+     * Reduce a whole document to the markup inside its body.
+     *
+     * The template is wrapped in <html><body> further down, so content that
+     * already carries its own produces a document with two bodies - which is
+     * what the designer's inlined export gives, and what somebody pasting a
+     * full email from elsewhere gives too. Nested body tags are invalid, and
+     * clients disagree about how to cope.
+     *
+     * Any <style> from the head is carried into the body rather than dropped:
+     * a pasted template would otherwise lose all of its styling. Style blocks
+     * inside the body are well supported by the clients that support style
+     * blocks at all.
+     *
+     * @param  string $html
+     * @return string
+     */
+    protected function _unwrapDocument(string $html): string
+    {
+        if (!preg_match('#<body\b[^>]*>(.*)</body>#is', $html, $body)) {
+            return $html;
+        }
+
+        $styles = '';
+
+        if (preg_match('#<head\b[^>]*>(.*)</head>#is', $html, $head)
+            && preg_match_all('#<style\b[^>]*>.*?</style>#is', $head[1], $found)
+        ) {
+            $styles = implode("\n", $found[0]);
+        }
+
+        return $styles . $body[1];
     }
 
     /**

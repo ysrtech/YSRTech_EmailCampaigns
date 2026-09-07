@@ -1,0 +1,141 @@
+<?php
+/**
+ * @var YSRTech_EmailCampaigns_Block_Adminhtml_Template_Designer $this
+ */
+$template = $this->getEmailTemplate();
+?>
+<link rel="stylesheet" type="text/css" href="<?php echo $this->escapeHtml($this->getAssetUrl('grapes.min.css')) ?>" />
+
+<style>
+    /*
+     * Give the container a real height and then leave the editor alone. It
+     * positions its own canvas and panels against this box; an earlier
+     * override of .gjs-cv-canvas collapsed the canvas to zero height, so the
+     * chrome loaded around an invisible page.
+     */
+    /*
+     * Both the container and the editor get the same definite height, rather
+     * than the editor inheriting a percentage.
+     *
+     * GrapesJS ships .gjs-editor { height: 100% }, which resolves against the
+     * parent's used height. That came out as auto here, and since everything
+     * inside the editor is absolutely positioned, auto means zero - the
+     * toolbar and panels rendered around a canvas with no height at all. A
+     * length rather than a percentage removes the dependency.
+     */
+    #ec-designer,
+    #ec-designer .gjs-editor { height: calc(100vh - 260px); min-height: 560px; }
+    #ec-designer { border: 1px solid #d6d6d6; box-sizing: border-box; }
+    .ec-designer-bar { margin-bottom: 10px; }
+    .ec-designer-note { margin: 8px 0 0; color: #777; font-size: 11px; }
+</style>
+
+<div class="content-header">
+    <h3 class="icon-head head-edit-form">
+        <?php echo $this->__('Designer: %s', $this->escapeHtml($template->getName())) ?>
+    </h3>
+    <p class="form-buttons ec-designer-bar">
+        <button type="button" class="scalable back" id="ec-designer-back">
+            <span><span><span><?php echo $this->__('Back') ?></span></span></span></button>
+        <button type="button" class="scalable go" id="ec-designer-preview">
+            <span><span><span><?php echo $this->__('Preview') ?></span></span></span></button>
+        <button type="button" class="scalable save" id="ec-designer-save">
+            <span><span><span><?php echo $this->__('Save Content') ?></span></span></span></button>
+    </p>
+</div>
+
+<div id="ec-designer"></div>
+<p class="ec-designer-note">
+    <?php echo $this->__('Saving writes inlined HTML into the same content field the plain editor uses, so a template can be started here and finished by hand. Placeholders such as {{ customer.firstname|there }} are kept exactly as typed.') ?>
+</p>
+
+<script type="text/javascript" src="<?php echo $this->escapeHtml($this->getAssetUrl('grapes.min.js')) ?>"></script>
+<script type="text/javascript" src="<?php echo $this->escapeHtml($this->getAssetUrl('preset-newsletter.js')) ?>"></script>
+
+<script type="text/javascript">
+//<![CDATA[
+(function () {
+    var startingHtml = <?php echo $this->getContentJson() ?>,
+        saveUrl      = '<?php echo $this->escapeHtml($this->getSaveUrl()) ?>',
+        backUrl      = '<?php echo $this->escapeHtml($this->getBackUrl()) ?>',
+        previewUrl   = '<?php echo $this->escapeHtml($this->getPreviewUrl()) ?>',
+        formKey      = '<?php echo $this->escapeHtml($this->getFormKey()) ?>';
+
+    var editor = grapesjs.init({
+        container: '#ec-designer',
+        height: '100%',
+        width: 'auto',
+        fromElement: false,
+        /*
+         * Off by default it is not: GrapesJS posts this store's domain and its
+         * own version to app.grapesjs.com on load. Nothing about which
+         * templates are edited, but an admin tool serving its assets locally
+         * should not be calling a third party at all.
+         */
+        telemetry: false,
+        /*
+         * The default pulls Font Awesome 4.7 from cdnjs for a handful of
+         * toolbar glyphs. Blank leaves the editor on the svg icons it already
+         * ships, and keeps the admin working with no outbound internet - which
+         * was the whole reason for vendoring the rest.
+         */
+        cssIcons: '',
+        // The template lives in Magento's own table; letting the editor also
+        // keep a copy in localStorage would give two answers to one question
+        storageManager: false,
+        plugins: ['grapesjs-preset-newsletter'],
+        pluginsOpts: {
+            'grapesjs-preset-newsletter': {
+                modalTitleImport: '<?php echo $this->jsQuoteEscape($this->__('Paste your HTML here')) ?>',
+                // The editor's own export/import already round-trips html,
+                // which is what this module needs from it
+                inlineCss: true
+            }
+        },
+        components: startingHtml
+    });
+
+    function inlinedHtml() {
+        // The preset's inliner: css moved into style attributes, which is the
+        // only form several email clients render correctly
+        var html = editor.runCommand('gjs-get-inlined-html');
+        return typeof html === 'string' ? html : editor.getHtml();
+    }
+
+    function post(url, fields) {
+        var form = new Element('form', {action: url, method: 'post'});
+        Object.keys(fields).forEach(function (name) {
+            form.insert(new Element('input', {type: 'hidden', name: name, value: fields[name]}));
+        });
+        document.body.appendChild(form);
+        form.submit();
+    }
+
+    $('ec-designer-save').observe('click', function () {
+        post(saveUrl, {
+            form_key: formKey,
+            html: inlinedHtml(),
+            /*
+             * The save action rewrites the whole row, so the fields the
+             * designer does not edit have to travel with it or they are
+             * blanked.
+             */
+            name: <?php echo Mage::helper('core')->jsonEncode((string) $template->getName()) ?>,
+            subject: <?php echo Mage::helper('core')->jsonEncode((string) $template->getSubject()) ?>,
+            is_active: <?php echo (int) $template->getIsActive() ?>
+        });
+    });
+
+    $('ec-designer-back').observe('click', function () {
+        setLocation(backUrl);
+    });
+
+    $('ec-designer-preview').observe('click', function () {
+        window.open(previewUrl);
+    });
+
+    // Exposed for the browser tests that check tokens survive a round trip
+    window.ecDesigner = {editor: editor, inlinedHtml: inlinedHtml};
+}());
+//]]>
+</script>
