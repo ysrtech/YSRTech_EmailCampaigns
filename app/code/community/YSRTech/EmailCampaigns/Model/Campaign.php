@@ -14,7 +14,106 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
     }
 
     /**
-     * Populate the send queue from the target segment.
+     * Segments whose members this campaign goes to.
+     *
+     * @return int[]
+     */
+    public function getIncludedSegmentIds(): array
+    {
+        if (!$this->hasData('included_segment_ids')) {
+            $this->setData('included_segment_ids', $this->_loadSegmentIds(false));
+        }
+
+        return array_map('intval', (array) $this->getData('included_segment_ids'));
+    }
+
+    /**
+     * Segments whose members are held back, whichever included segment also
+     * holds them. Exclusion wins: that is the point of it.
+     *
+     * @return int[]
+     */
+    public function getExcludedSegmentIds(): array
+    {
+        if (!$this->hasData('excluded_segment_ids')) {
+            $this->setData('excluded_segment_ids', $this->_loadSegmentIds(true));
+        }
+
+        return array_map('intval', (array) $this->getData('excluded_segment_ids'));
+    }
+
+    /**
+     * @param  bool $excluded
+     * @return int[]
+     */
+    protected function _loadSegmentIds(bool $excluded): array
+    {
+        if (!$this->getId()) {
+            return [];
+        }
+
+        $resource = Mage::getSingleton('core/resource');
+        $adapter  = $resource->getConnection('core_read');
+
+        return array_map('intval', $adapter->fetchCol(
+            $adapter->select()
+                ->from($resource->getTableName('ysrtech_emailcampaigns/campaign_segment'), 'segment_id')
+                ->where('campaign_id = ?', (int) $this->getId())
+                ->where('is_excluded = ?', $excluded ? 1 : 0)
+        ));
+    }
+
+    /**
+     * Rewrite the campaign's segment links from what the form posted.
+     *
+     * Called after the row is saved, so a new campaign has an id to hang them
+     * on. A segment named on both sides is treated as excluded - the safer
+     * reading, and the primary key would reject the pair anyway.
+     *
+     * @return $this
+     */
+    protected function _afterSave()
+    {
+        parent::_afterSave();
+
+        if (!$this->hasData('included_segment_ids') && !$this->hasData('excluded_segment_ids')) {
+            return $this;
+        }
+
+        $resource = Mage::getSingleton('core/resource');
+        $adapter  = $resource->getConnection('core_write');
+        $table    = $resource->getTableName('ysrtech_emailcampaigns/campaign_segment');
+
+        $excluded = array_values(array_unique(array_map('intval', (array) $this->getData('excluded_segment_ids'))));
+        $included = array_values(array_diff(
+            array_unique(array_map('intval', (array) $this->getData('included_segment_ids'))),
+            $excluded
+        ));
+
+        $adapter->delete($table, ['campaign_id = ?' => (int) $this->getId()]);
+
+        $rows = [];
+
+        foreach ($included as $id) {
+            $rows[] = ['campaign_id' => (int) $this->getId(), 'segment_id' => $id, 'is_excluded' => 0];
+        }
+
+        foreach ($excluded as $id) {
+            $rows[] = ['campaign_id' => (int) $this->getId(), 'segment_id' => $id, 'is_excluded' => 1];
+        }
+
+        if ($rows) {
+            $adapter->insertMultiple($table, $rows);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Populate the send queue from the campaign's segments.
+     *
+     * Everyone in any included segment, minus everyone in any excluded one,
+     * minus anybody the newsletter says may not be mailed.
      */
     public function buildQueue(): int
     {
@@ -31,7 +130,21 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
         $subscriberTable = $resource->getTableName('newsletter/subscriber');
         $prefTable       = $resource->getTableName('ysrtech_emailcampaigns/subscriber_pref');
 
+        $includedIds = $this->getIncludedSegmentIds();
+        $excludedIds = $this->getExcludedSegmentIds();
+
+        if (!$includedIds) {
+            Mage::throwException('Campaign has no included segments, so there is nobody to send to.');
+        }
+
+        /*
+         * DISTINCT because the segments may overlap: somebody in both "past
+         * customers" and "spent over $100" is one recipient, not two. The
+         * queue's unique key would collapse them anyway, but counting them
+         * twice here would misreport the size of the send.
+         */
         $select = $adapter->select()
+            ->distinct()
             ->from(
                 ['ns' => $subscriberTable],
                 ['subscriber_id', 'customer_id', 'email' => 'subscriber_email']
@@ -41,7 +154,7 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
                 'm.subscriber_id = ns.subscriber_id',
                 []
             )
-            ->where('m.segment_id = ?', (int) $this->getSegmentId())
+            ->where('m.segment_id IN (?)', $includedIds)
             /*
              * Magento's own newsletter status is the authority on who may be
              * mailed. Reading membership without it would send to the people
@@ -55,6 +168,17 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
                     WHERE p.email = ns.subscriber_email AND p.unsubscribed_at IS NOT NULL
                 )"
             );
+
+        if ($excludedIds) {
+            // Held back whichever included segment also holds them
+            $select->where(
+                'NOT EXISTS (' . $adapter->select()
+                    ->from(['x' => $membershipTable], [new Zend_Db_Expr('1')])
+                    ->where('x.subscriber_id = ns.subscriber_id')
+                    ->where('x.segment_id IN (?)', $excludedIds)
+                . ')'
+            );
+        }
 
         $campaignId = (int) $this->getId();
         $inserted   = 0;

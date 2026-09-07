@@ -72,7 +72,14 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
                  * for the row to point at.
                  */
                 'template_id'   => !empty($data['template_id']) ? (int) $data['template_id'] : null,
-                'segment_id'    => !empty($data['segment_id']) ? (int) $data['segment_id'] : null,
+                /*
+                 * Multiselects post an array, and post nothing at all when the
+                 * user clears every option - so the key's absence has to read
+                 * as "none selected", not "leave as it was", or an exclusion
+                 * could never be removed.
+                 */
+                'included_segment_ids' => array_map('intval', (array) ($data['included_segment_ids'] ?? [])),
+                'excluded_segment_ids' => array_map('intval', (array) ($data['excluded_segment_ids'] ?? [])),
                 'store_id'      => (int) ($data['store_id'] ?? 0),
                 /*
                  * formatDate, because Varien_Date::toDbTimestamp() does not

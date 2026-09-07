@@ -1,5 +1,5 @@
 <?php
-/** Campaign edit form: name, subject, template, segment, schedule. */
+/** Campaign edit form: name, subject, template, segments, schedule. */
 class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Edit_Form extends Mage_Adminhtml_Block_Widget_Form
 {
     protected function _prepareForm()
@@ -29,9 +29,10 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Edit_Form extends Mage_Adm
             'value'    => $model->getSubject(),
         ]);
 
-        $templates = Mage::getResourceModel('ysrtech_emailcampaigns/template_collection')
-            ->addFieldToFilter('is_active', 1)
-            ->toOptionArray('template_id', 'name');
+        $templates = $this->_toOptions(
+            Mage::getResourceModel('ysrtech_emailcampaigns/template_collection')->addFieldToFilter('is_active', 1),
+            'template_id'
+        );
         $fieldset->addField('template_id', 'select', [
             'label'    => $h->__('Template'),
             'name'     => 'template_id',
@@ -40,15 +41,26 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Edit_Form extends Mage_Adm
             'value'    => $model->getTemplateId(),
         ]);
 
-        $segments = Mage::getResourceModel('ysrtech_emailcampaigns/segment_collection')
-            ->addFieldToFilter('is_active', 1)
-            ->toOptionArray('segment_id', 'name');
-        $fieldset->addField('segment_id', 'select', [
-            'label'    => $h->__('Target Segment'),
-            'name'     => 'segment_id',
+        $segments = $this->_toOptions(
+            Mage::getResourceModel('ysrtech_emailcampaigns/segment_collection')->addFieldToFilter('is_active', 1),
+            'segment_id'
+        );
+
+        $fieldset->addField('included_segment_ids', 'multiselect', [
+            'label'    => $h->__('Included Segments'),
+            'name'     => 'included_segment_ids[]',
             'required' => true,
             'values'   => $segments,
-            'value'    => $model->getSegmentId(),
+            'value'    => $model->getIncludedSegmentIds(),
+            'note'     => $h->__('Everyone in any of these segments. Overlaps are fine - a subscriber in two of them is still mailed once.'),
+        ]);
+
+        $fieldset->addField('excluded_segment_ids', 'multiselect', [
+            'label'  => $h->__('Excluded Segments'),
+            'name'   => 'excluded_segment_ids[]',
+            'values' => $segments,
+            'value'  => $model->getExcludedSegmentIds(),
+            'note'   => $h->__('Held back even when an included segment also holds them. Exclusion wins.'),
         ]);
 
         $fieldset->addField('store_id', 'select', [
@@ -82,5 +94,34 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Edit_Form extends Mage_Adm
 
         $this->setForm($form);
         return parent::_prepareForm();
+    }
+
+    /**
+     * Options for a select, keyed on the collection's own id column.
+     *
+     * Varien_Data_Collection::toOptionArray() takes no arguments - it always
+     * reads 'id' and 'name' - so the two calls that passed 'template_id' and
+     * 'segment_id' were silently ignored and every option came out with an
+     * empty value. The labels looked right, which is what hid it: the form
+     * listed every template and segment by name, and posted nothing at all
+     * when one was chosen.
+     *
+     * @param  Varien_Data_Collection $collection
+     * @param  string                 $valueField
+     * @param  string                 $labelField
+     * @return array
+     */
+    protected function _toOptions($collection, string $valueField, string $labelField = 'name'): array
+    {
+        $options = [];
+
+        foreach ($collection as $item) {
+            $options[] = [
+                'value' => $item->getData($valueField),
+                'label' => $item->getData($labelField),
+            ];
+        }
+
+        return $options;
     }
 }
