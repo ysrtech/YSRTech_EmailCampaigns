@@ -80,6 +80,23 @@ $template = $this->getEmailTemplate();
          * was the whole reason for vendoring the rest.
          */
         cssIcons: '',
+        /*
+         * Images are uploaded into the store's own media directory and
+         * referenced by absolute url. An email client fetches them from the
+         * open internet, often weeks later and never with an admin session -
+         * anything served from behind the admin would arrive broken.
+         */
+        assetManager: {
+            upload: '<?php echo $this->escapeHtml($this->getAssetsUrl()) ?>',
+            uploadName: 'files',
+            autoAdd: true,
+            multiUpload: true,
+            headers: {},
+            params: {form_key: '<?php echo $this->escapeHtml($this->getFormKey()) ?>'},
+            assets: [],
+            uploadText: '<?php echo $this->jsQuoteEscape($this->__('Drop images here, or click to choose. They are stored on this site and linked from the email.')) ?>',
+            addBtnText: '<?php echo $this->jsQuoteEscape($this->__('Add image by URL')) ?>'
+        },
         // The template lives in Magento's own table; letting the editor also
         // keep a copy in localStorage would give two answers to one question
         storageManager: false,
@@ -132,6 +149,26 @@ $template = $this->getEmailTemplate();
 
     $('ec-designer-preview').observe('click', function () {
         window.open(previewUrl);
+    });
+
+    /*
+     * Fill the asset list from what is already in media, so previously
+     * uploaded images can be reused rather than uploaded again each time.
+     */
+    new Ajax.Request('<?php echo $this->escapeHtml($this->getAssetsUrl()) ?>', {
+        method: 'post',
+        parameters: {form_key: '<?php echo $this->escapeHtml($this->getFormKey()) ?>'},
+        onSuccess: function (response) {
+            var payload;
+            try {
+                payload = response.responseJSON || response.responseText.evalJSON();
+            } catch (e) {
+                return;
+            }
+            if (payload && payload.data && payload.data.length) {
+                editor.AssetManager.add(payload.data);
+            }
+        }
     });
 
     // Exposed for the browser tests that check tokens survive a round trip

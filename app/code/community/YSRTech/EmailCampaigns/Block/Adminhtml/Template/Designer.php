@@ -68,7 +68,25 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Designer extends Mage_Admi
      */
     public function getContentJson(): string
     {
-        return Mage::helper('core')->jsonEncode((string) $this->getEmailTemplate()->getHtml());
+        $html = (string) $this->getEmailTemplate()->getHtml();
+
+        if (trim($html) === '') {
+            // An empty canvas invites a bare paragraph, which arrives
+            // full-width and unstyled; start from a whole email instead
+            $html = Mage::getSingleton('ysrtech_emailcampaigns/template_starter')->getHtml();
+        }
+
+        return Mage::helper('core')->jsonEncode($html);
+    }
+
+    /**
+     * Where the editor lists and uploads images.
+     *
+     * @return string
+     */
+    public function getAssetsUrl(): string
+    {
+        return $this->getUrl('*/*/assets');
     }
 
     /**

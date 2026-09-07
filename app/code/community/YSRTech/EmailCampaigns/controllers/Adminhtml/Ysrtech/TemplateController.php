@@ -80,6 +80,112 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_TemplateController
         $this->renderLayout();
     }
 
+    /** Where campaign images live, under the store's public media directory */
+    private const ASSET_DIR = 'ysrtech/emailcampaigns';
+
+    /**
+     * List and receive the images the designer offers.
+     *
+     * They go into the store's own media directory rather than anywhere
+     * private, because an email client fetches them from the open internet
+     * weeks after the send - a path only the admin can reach would arrive as
+     * a broken image for every recipient. For the same reason the urls handed
+     * back are absolute.
+     */
+    public function assetsAction()
+    {
+        $this->_validateFormKey();
+
+        try {
+            if ($this->getRequest()->isPost() && !empty($_FILES['files'])) {
+                $uploaded = $this->_receiveUploads();
+            } else {
+                $uploaded = [];
+            }
+
+            $this->getResponse()
+                ->setHeader('Content-Type', 'application/json', true)
+                ->setBody(Mage::helper('core')->jsonEncode([
+                    'data' => $uploaded ?: $this->_listAssets(),
+                ]));
+        } catch (Exception $e) {
+            Mage::logException($e);
+            $this->getResponse()
+                ->setHeader('Content-Type', 'application/json', true)
+                ->setBody(Mage::helper('core')->jsonEncode(['data' => [], 'error' => $e->getMessage()]));
+        }
+    }
+
+    /**
+     * @return array
+     * @throws Mage_Core_Exception
+     */
+    protected function _receiveUploads(): array
+    {
+        $dir = Mage::getBaseDir('media') . DS . str_replace('/', DS, self::ASSET_DIR);
+        $io  = new Varien_Io_File();
+        $io->checkAndCreateFolder($dir);
+
+        $files = $_FILES['files'];
+        $names = is_array($files['name']) ? $files['name'] : [$files['name']];
+        $out   = [];
+
+        foreach (array_keys($names) as $i) {
+            $key = is_array($files['name']) ? "files[{$i}]" : 'files';
+
+            $uploader = new Varien_File_Uploader($key);
+            /*
+             * Images only, and the extension is checked rather than trusted
+             * from the browser: this writes into a directory the whole
+             * internet can read, so a .php landing there would be served.
+             */
+            $uploader->setAllowedExtensions(['jpg', 'jpeg', 'png', 'gif', 'webp']);
+            $uploader->setAllowRenameFiles(true);
+            $uploader->setFilesDispersion(false);
+            $uploader->setAllowCreateFolders(true);
+
+            $result = $uploader->save($dir);
+
+            if (!empty($result['file'])) {
+                $out[] = $this->_asset($result['file']);
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return array
+     */
+    protected function _listAssets(): array
+    {
+        $dir = Mage::getBaseDir('media') . DS . str_replace('/', DS, self::ASSET_DIR);
+
+        if (!is_dir($dir)) {
+            return [];
+        }
+
+        $files = glob($dir . DS . '*.{jpg,jpeg,png,gif,webp}', GLOB_BRACE) ?: [];
+
+        // Newest first: the image somebody just uploaded is the one they want
+        usort($files, static fn($a, $b) => filemtime($b) <=> filemtime($a));
+
+        return array_map(fn($path) => $this->_asset(basename($path)), $files);
+    }
+
+    /**
+     * @param  string $file
+     * @return array
+     */
+    protected function _asset(string $file): array
+    {
+        return [
+            'type' => 'image',
+            'src'  => Mage::getBaseUrl(Mage_Core_Model_Store::URL_TYPE_MEDIA) . self::ASSET_DIR . '/' . rawurlencode($file),
+            'name' => $file,
+        ];
+    }
+
     /**
      * The template as a recipient would see it, with stand-in details.
      */

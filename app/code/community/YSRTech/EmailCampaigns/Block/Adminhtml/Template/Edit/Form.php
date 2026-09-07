@@ -44,7 +44,7 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Edit_Form extends Mage_Adm
             'label'    => $h->__('Email Content (HTML)'),
             'name'     => 'html',
             'required' => true,
-            'value'    => $model->getHtml(),
+            'value'    => $model->getHtml() ?: Mage::getSingleton('ysrtech_emailcampaigns/template_starter')->getHtml(),
             'style'    => 'width:90%; height:420px; font-family:Menlo,Consolas,monospace; font-size:12px',
             'note'     => $this->_mergeVarNote(),
         ]);
