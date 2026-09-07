@@ -14,7 +14,7 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Segment_Grid extends Mage_Adminhtml
     protected function _prepareCollection()
     {
         $this->setCollection(
-            Mage::getResourceModel('ysrtech_emailcampaigns/segment_collection')
+            Mage::getResourceModel('ysrtech_emailcampaigns/segment_collection')->addCampaignUsage()
         );
         return parent::_prepareCollection();
     }
@@ -31,6 +31,15 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Segment_Grid extends Mage_Adminhtml
         ]);
         $this->addColumn('customer_count', [
             'header' => $h->__('Subscribers'), 'index' => 'customer_count', 'width' => '100px',
+        ]);
+        $this->addColumn('campaign_names', [
+            'header'   => $h->__('Used By'),
+            'index'    => 'campaign_names',
+            'renderer' => 'ysrtech_emailcampaigns/adminhtml_segment_grid_renderer_usage',
+            // Computed in a joined subselect, so the grid's own filter and
+            // sort would build sql against a column main_table does not have
+            'filter'   => false,
+            'sortable' => false,
         ]);
         $this->addColumn('last_reindexed_at', [
             'header' => $h->__('Last Reindexed'), 'index' => 'last_reindexed_at',

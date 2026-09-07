@@ -48,6 +48,38 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
         $this->renderLayout();
     }
 
+    /**
+     * How many people the segments currently chosen on the form would reach.
+     *
+     * Answered from the same query that fills the queue, so the number shown
+     * before sending is the number that gets sent.
+     */
+    public function recipientCountAction()
+    {
+        $this->_validateFormKey();
+
+        $response = ['count' => 0, 'formatted' => '0'];
+
+        try {
+            $included = array_map('intval', (array) $this->getRequest()->getParam('included_segment_ids', []));
+            $excluded = array_map('intval', (array) $this->getRequest()->getParam('excluded_segment_ids', []));
+
+            // Same rule the save applies, so the estimate matches the campaign
+            // that would be saved rather than what was clicked
+            $included = array_values(array_diff($included, $excluded));
+
+            $count = YSRTech_EmailCampaigns_Model_Campaign::countRecipients($included, $excluded);
+
+            $response = ['count' => $count, 'formatted' => number_format($count)];
+        } catch (Exception $e) {
+            $response['error'] = $e->getMessage();
+        }
+
+        $this->getResponse()
+            ->setHeader('Content-Type', 'application/json', true)
+            ->setBody(Mage::helper('core')->jsonEncode($response));
+    }
+
     public function saveAction()
     {
         if (!$this->getRequest()->isPost()) {

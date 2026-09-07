@@ -110,50 +110,63 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
     }
 
     /**
-     * Populate the send queue from the campaign's segments.
+     * How many people a given include/exclude pairing would actually reach.
      *
-     * Everyone in any included segment, minus everyone in any excluded one,
-     * minus anybody the newsletter says may not be mailed.
+     * Built on the same select the queue is, so the number on the form and the
+     * number that gets mailed cannot drift apart - which is the only reason
+     * the estimate is worth showing at all.
+     *
+     * @param  int[] $includedIds
+     * @param  int[] $excludedIds
+     * @return int
      */
-    public function buildQueue(): int
+    public static function countRecipients(array $includedIds, array $excludedIds): int
     {
-        if (!$this->getId() || $this->getStatus() !== self::STATUS_SCHEDULED) {
-            Mage::throwException('Campaign must be scheduled before building its queue.');
+        if (!$includedIds) {
+            return 0;
         }
 
-        /** @var Mage_Core_Model_Resource $resource */
-        $resource = Mage::getSingleton('core/resource');
-        $adapter  = $resource->getConnection('core_write');
+        $adapter = Mage::getSingleton('core/resource')->getConnection('core_read');
 
-        $queueTable      = $resource->getTableName('ysrtech_emailcampaigns/queue');
-        $membershipTable = $resource->getTableName('ysrtech_emailcampaigns/segment_subscriber');
-        $subscriberTable = $resource->getTableName('newsletter/subscriber');
-        $prefTable       = $resource->getTableName('ysrtech_emailcampaigns/subscriber_pref');
+        $select = self::recipientSelect($includedIds, $excludedIds, ['subscriber_id']);
 
-        $includedIds = $this->getIncludedSegmentIds();
-        $excludedIds = $this->getExcludedSegmentIds();
+        return (int) $adapter->fetchOne(
+            $adapter->select()->from(['r' => $select], [new Zend_Db_Expr('COUNT(*)')])
+        );
+    }
 
+    /**
+     * Everyone in any included segment, less everyone in any excluded one,
+     * less anybody the newsletter says may not be mailed.
+     *
+     * @param  int[] $includedIds
+     * @param  int[] $excludedIds
+     * @param  array $columns
+     * @return Varien_Db_Select
+     */
+    public static function recipientSelect(array $includedIds, array $excludedIds, array $columns): Varien_Db_Select
+    {
         if (!$includedIds) {
             Mage::throwException('Campaign has no included segments, so there is nobody to send to.');
         }
+
+        $resource = Mage::getSingleton('core/resource');
+        $adapter  = $resource->getConnection('core_read');
+
+        $membershipTable = $resource->getTableName('ysrtech_emailcampaigns/segment_subscriber');
+        $subscriberTable = $resource->getTableName('newsletter/subscriber');
+        $prefTable       = $resource->getTableName('ysrtech_emailcampaigns/subscriber_pref');
 
         /*
          * DISTINCT because the segments may overlap: somebody in both "past
          * customers" and "spent over $100" is one recipient, not two. The
          * queue's unique key would collapse them anyway, but counting them
-         * twice here would misreport the size of the send.
+         * twice would misreport the size of the send.
          */
         $select = $adapter->select()
             ->distinct()
-            ->from(
-                ['ns' => $subscriberTable],
-                ['subscriber_id', 'customer_id', 'email' => 'subscriber_email']
-            )
-            ->join(
-                ['m' => $membershipTable],
-                'm.subscriber_id = ns.subscriber_id',
-                []
-            )
+            ->from(['ns' => $subscriberTable], $columns)
+            ->join(['m' => $membershipTable], 'm.subscriber_id = ns.subscriber_id', [])
             ->where('m.segment_id IN (?)', $includedIds)
             /*
              * Magento's own newsletter status is the authority on who may be
@@ -179,6 +192,33 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
                 . ')'
             );
         }
+
+        return $select;
+    }
+
+    /**
+     * Populate the send queue from the campaign's segments.
+     *
+     * Everyone in any included segment, minus everyone in any excluded one,
+     * minus anybody the newsletter says may not be mailed.
+     */
+    public function buildQueue(): int
+    {
+        if (!$this->getId() || $this->getStatus() !== self::STATUS_SCHEDULED) {
+            Mage::throwException('Campaign must be scheduled before building its queue.');
+        }
+
+        /** @var Mage_Core_Model_Resource $resource */
+        $resource = Mage::getSingleton('core/resource');
+        $adapter  = $resource->getConnection('core_write');
+
+        $queueTable = $resource->getTableName('ysrtech_emailcampaigns/queue');
+
+        $select = self::recipientSelect(
+            $this->getIncludedSegmentIds(),
+            $this->getExcludedSegmentIds(),
+            ['subscriber_id', 'customer_id', 'email' => 'subscriber_email']
+        );
 
         $campaignId = (int) $this->getId();
         $inserted   = 0;

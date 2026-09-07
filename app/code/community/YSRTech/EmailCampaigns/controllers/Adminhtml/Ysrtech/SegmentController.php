@@ -135,12 +135,38 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SegmentController
     public function deleteAction()
     {
         $id = (int) $this->getRequest()->getParam('id');
+
         try {
-            Mage::getModel('ysrtech_emailcampaigns/segment')->load($id)->delete();
+            /** @var YSRTech_EmailCampaigns_Model_Segment $segment */
+            $segment = Mage::getModel('ysrtech_emailcampaigns/segment')->load($id);
+
+            if (!$segment->getId()) {
+                Mage::throwException($this->__('Segment no longer exists.'));
+            }
+
+            /*
+             * Deleting a segment a campaign points at used to cascade the link
+             * away, so a scheduled campaign's audience silently became
+             * something else. Say which campaigns are in the way instead and
+             * let somebody decide; the foreign key refuses it regardless, but
+             * a constraint violation is not an explanation.
+             */
+            $usedBy = $segment->getCampaignUsage();
+
+            if ($usedBy) {
+                Mage::throwException($this->__(
+                    'Cannot delete "%s": it is used by %s. Remove it from those campaigns first.',
+                    $segment->getName(),
+                    implode(', ', $usedBy)
+                ));
+            }
+
+            $segment->delete();
             $this->_getSession()->addSuccess($this->__('Segment deleted.'));
         } catch (Exception $e) {
             $this->_getSession()->addError($e->getMessage());
         }
+
         $this->_redirect('*/*/index');
     }
 

@@ -63,6 +63,45 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
     }
 
     /**
+     * Campaigns that name this segment, described the way the admin will read
+     * them: the campaign's name and whether it includes or excludes it.
+     *
+     * @return string[]
+     */
+    public function getCampaignUsage(): array
+    {
+        if (!$this->getId()) {
+            return [];
+        }
+
+        $resource = Mage::getSingleton('core/resource');
+        $adapter  = $resource->getConnection('core_read');
+
+        $rows = $adapter->fetchAll(
+            $adapter->select()
+                ->from(['cs' => $resource->getTableName('ysrtech_emailcampaigns/campaign_segment')], ['is_excluded'])
+                ->join(
+                    ['c' => $resource->getTableName('ysrtech_emailcampaigns/campaign')],
+                    'c.campaign_id = cs.campaign_id',
+                    ['name']
+                )
+                ->where('cs.segment_id = ?', (int) $this->getId())
+                ->order('c.name')
+        );
+
+        $helper = Mage::helper('ysrtech_emailcampaigns');
+
+        return array_map(
+            static fn($row) => sprintf(
+                '%s (%s)',
+                $row['name'],
+                $row['is_excluded'] ? $helper->__('excluded') : $helper->__('included')
+            ),
+            $rows
+        );
+    }
+
+    /**
      * The subscribers this segment's rule matches.
      *
      * The audience is the newsletter, not the customer table: customers are

@@ -41,10 +41,7 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Edit_Form extends Mage_Adm
             'value'    => $model->getTemplateId(),
         ]);
 
-        $segments = $this->_toOptions(
-            Mage::getResourceModel('ysrtech_emailcampaigns/segment_collection')->addFieldToFilter('is_active', 1),
-            'segment_id'
-        );
+        $segments = $this->_segmentOptions();
 
         $fieldset->addField('included_segment_ids', 'multiselect', [
             'label'    => $h->__('Included Segments'),
@@ -61,6 +58,17 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Edit_Form extends Mage_Adm
             'values' => $segments,
             'value'  => $model->getExcludedSegmentIds(),
             'note'   => $h->__('Held back even when an included segment also holds them. Exclusion wins.'),
+        ]);
+
+        /*
+         * The one number that matters, and the one nobody can work out by
+         * reading the two lists: segments overlap, and people who have
+         * unsubscribed drop out of all of them. Computed by the same query
+         * that fills the queue.
+         */
+        $fieldset->addField('recipient_estimate', 'note', [
+            'label' => $h->__('Will Be Sent To'),
+            'text'  => $this->_estimateHtml($model),
         ]);
 
         $fieldset->addField('store_id', 'select', [
@@ -111,6 +119,133 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Edit_Form extends Mage_Adm
      * @param  string                 $labelField
      * @return array
      */
+    /**
+     * Segments to choose from, each carrying its own size.
+     *
+     * The count belongs on the option because it is what the choice is
+     * actually about - "Past Customers" says nothing about whether this is a
+     * send to four hundred people or four thousand.
+     *
+     * @return array
+     */
+    protected function _segmentOptions(): array
+    {
+        $options = [];
+
+        $collection = Mage::getResourceModel('ysrtech_emailcampaigns/segment_collection')
+            ->addFieldToFilter('is_active', 1)
+            ->setOrder('name', 'ASC');
+
+        foreach ($collection as $segment) {
+            $options[] = [
+                'value' => $segment->getSegmentId(),
+                'label' => sprintf(
+                    '%s (%s)',
+                    $segment->getName(),
+                    $segment->getLastReindexedAt()
+                        ? number_format((int) $segment->getCustomerCount())
+                        : Mage::helper('ysrtech_emailcampaigns')->__('not counted yet')
+                ),
+            ];
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param  YSRTech_EmailCampaigns_Model_Campaign $model
+     * @return string
+     */
+    protected function _estimateHtml($model): string
+    {
+        $h = Mage::helper('ysrtech_emailcampaigns');
+
+        $count = 0;
+
+        if ($model->getIncludedSegmentIds()) {
+            $count = YSRTech_EmailCampaigns_Model_Campaign::countRecipients(
+                $model->getIncludedSegmentIds(),
+                $model->getExcludedSegmentIds()
+            );
+        }
+
+        return '<strong id="recipient_estimate_value" style="font-size:1.3em">'
+            . number_format($count)
+            . '</strong> '
+            . '<span id="recipient_estimate_label">' . $h->__('subscribers') . '</span> '
+            . '<button type="button" class="scalable" id="recipient_estimate_refresh" style="margin-left:10px">'
+            . '<span><span><span>' . $h->__('Recalculate') . '</span></span></span></button>'
+            . '<p class="note"><span>'
+            . $h->__('Everyone in the included segments, minus the excluded ones, minus anybody unsubscribed. Overlaps counted once.')
+            . '</span></p>'
+            . $this->_estimateScript();
+    }
+
+    /**
+     * @return string
+     */
+    protected function _estimateScript(): string
+    {
+        $url = $this->getUrl('*/*/recipientCount');
+
+        return <<<HTML
+<script type="text/javascript">
+//<![CDATA[
+(function () {
+    var button = $('recipient_estimate_refresh'),
+        value  = $('recipient_estimate_value');
+
+    if (!button || !value) {
+        return;
+    }
+
+    function chosen(id) {
+        var el = $(id), out = [], i;
+        if (!el) {
+            return out;
+        }
+        for (i = 0; i < el.options.length; i++) {
+            if (el.options[i].selected) {
+                out.push(el.options[i].value);
+            }
+        }
+        return out;
+    }
+
+    button.observe('click', function () {
+        value.update('...');
+        new Ajax.Request('{$url}', {
+            method: 'post',
+            parameters: {
+                form_key: FORM_KEY,
+                // Prototype serializes an array parameter under name[] itself
+                'included_segment_ids[]': chosen('included_segment_ids'),
+                'excluded_segment_ids[]': chosen('excluded_segment_ids')
+            },
+            onSuccess: function (response) {
+                var data;
+                try {
+                    data = response.responseJSON || response.responseText.evalJSON();
+                } catch (e) {
+                    value.update('?');
+                    return;
+                }
+                value.update(data.error ? '?' : data.formatted);
+                if (data.error) {
+                    alert(data.error);
+                }
+            },
+            onFailure: function () {
+                value.update('?');
+            }
+        });
+    });
+}());
+//]]>
+</script>
+HTML;
+    }
+
     protected function _toOptions($collection, string $valueField, string $labelField = 'name'): array
     {
         $options = [];
