@@ -110,6 +110,38 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
     }
 
     /**
+     * Recalculate membership for the segments named, so a count or a send
+     * reflects the list as it is now.
+     *
+     * Segments reindex nightly, and between those runs people subscribe,
+     * unsubscribe and place orders. Reading yesterday's membership to decide
+     * today's audience is how somebody who unsubscribed this morning still
+     * gets the email.
+     *
+     * @param  int[] $segmentIds
+     * @return void
+     */
+    public static function reindexSegments(array $segmentIds): void
+    {
+        foreach (array_unique(array_filter(array_map('intval', $segmentIds))) as $segmentId) {
+            $segment = Mage::getModel('ysrtech_emailcampaigns/segment')->load($segmentId);
+
+            if ($segment->getId()) {
+                /*
+                 * One failing segment must not lose the rest: a count built
+                 * from three fresh segments and one stale one is still far
+                 * closer to the truth than no answer at all.
+                 */
+                try {
+                    $segment->reindex();
+                } catch (Throwable $e) {
+                    Mage::logException($e);
+                }
+            }
+        }
+    }
+
+    /**
      * How many people a given include/exclude pairing would actually reach.
      *
      * Built on the same select the queue is, so the number on the form and the
@@ -120,10 +152,14 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
      * @param  int[] $excludedIds
      * @return int
      */
-    public static function countRecipients(array $includedIds, array $excludedIds): int
+    public static function countRecipients(array $includedIds, array $excludedIds, bool $reindex = true): int
     {
         if (!$includedIds) {
             return 0;
+        }
+
+        if ($reindex) {
+            self::reindexSegments(array_merge($includedIds, $excludedIds));
         }
 
         $adapter = Mage::getSingleton('core/resource')->getConnection('core_read');
@@ -213,6 +249,14 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
         $adapter  = $resource->getConnection('core_write');
 
         $queueTable = $resource->getTableName('ysrtech_emailcampaigns/queue');
+
+        /*
+         * Refreshed here as well as behind the form's estimate. A campaign is
+         * usually queued by cron some time after it was set up, and sending to
+         * the membership as it stood when somebody clicked Schedule would mail
+         * everyone who unsubscribed in between.
+         */
+        self::reindexSegments(array_merge($this->getIncludedSegmentIds(), $this->getExcludedSegmentIds()));
 
         $select = self::recipientSelect(
             $this->getIncludedSegmentIds(),

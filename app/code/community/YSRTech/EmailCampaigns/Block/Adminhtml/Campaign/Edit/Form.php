@@ -163,9 +163,12 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Edit_Form extends Mage_Adm
         $count = 0;
 
         if ($model->getIncludedSegmentIds()) {
+            // Read as it stands. Merely opening a campaign should not rewrite
+            // membership tables; Recalculate is the button that does that.
             $count = YSRTech_EmailCampaigns_Model_Campaign::countRecipients(
                 $model->getIncludedSegmentIds(),
-                $model->getExcludedSegmentIds()
+                $model->getExcludedSegmentIds(),
+                false
             );
         }
 
@@ -178,6 +181,9 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Edit_Form extends Mage_Adm
             . '<p class="note"><span>'
             . $h->__('Everyone in the included segments, minus the excluded ones, minus anybody unsubscribed. Overlaps counted once.')
             . '</span></p>'
+            . '<p class="note"><span>'
+            . $h->__('The figure above is from the last nightly rebuild. Recalculate refreshes the chosen segments first, so it counts the list as it stands right now - as the send itself will.')
+            . '</span></p>'
             . $this->_estimateScript();
     }
 
@@ -186,7 +192,8 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Edit_Form extends Mage_Adm
      */
     protected function _estimateScript(): string
     {
-        $url = $this->getUrl('*/*/recipientCount');
+        $url     = $this->getUrl('*/*/recipientCount');
+        $working = Mage::helper('ysrtech_emailcampaigns')->__('counting...');
 
         return <<<HTML
 <script type="text/javascript">
@@ -213,7 +220,14 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Edit_Form extends Mage_Adm
     }
 
     button.observe('click', function () {
-        value.update('...');
+        if (button.disabled) {
+            return;
+        }
+        // Rebuilding membership before counting takes a moment; a second
+        // click would start the same work again alongside the first
+        button.disabled = true;
+        button.addClassName('disabled');
+        value.update('{$working}');
         new Ajax.Request('{$url}', {
             method: 'post',
             parameters: {
@@ -237,6 +251,10 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Edit_Form extends Mage_Adm
             },
             onFailure: function () {
                 value.update('?');
+            },
+            onComplete: function () {
+                button.disabled = false;
+                button.removeClassName('disabled');
             }
         });
     });

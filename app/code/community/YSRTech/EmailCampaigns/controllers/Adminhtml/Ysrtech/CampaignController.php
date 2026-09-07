@@ -68,6 +68,8 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
             // that would be saved rather than what was clicked
             $included = array_values(array_diff($included, $excluded));
 
+            // Rebuilds the chosen segments first, so the answer describes the
+            // list as it is now rather than as it was at the last nightly run
             $count = YSRTech_EmailCampaigns_Model_Campaign::countRecipients($included, $excluded);
 
             $response = ['count' => $count, 'formatted' => number_format($count)];
