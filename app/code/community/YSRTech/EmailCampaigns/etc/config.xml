@@ -205,6 +205,11 @@
                 <schedule><cron_expr>0 2 * * *</cron_expr></schedule>
                 <run><model>ysrtech_emailcampaigns/observer::reindexSegments</model></run>
             </ysrtech_emailcampaigns_reindex_segments>
+            <!-- Pull back who unsubscribed, bounced or complained on Mailgun -->
+            <ysrtech_emailcampaigns_sync_suppressions>
+                <schedule><cron_expr>15 * * * *</cron_expr></schedule>
+                <run><model>ysrtech_emailcampaigns/observer::syncSuppressions</model></run>
+            </ysrtech_emailcampaigns_sync_suppressions>
         </jobs>
     </crontab>
 </config>

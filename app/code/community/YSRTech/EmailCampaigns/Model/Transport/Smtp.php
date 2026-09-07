@@ -28,6 +28,18 @@ class YSRTech_EmailCampaigns_Model_Transport_Smtp
     /**
      * @inheritdoc
      *
+     * There is no provider here to expand anything - each message is built and
+     * posted by this process - so the caller must hand over copy already
+     * rendered per recipient.
+     */
+    public function supportsRecipientVariables(): bool
+    {
+        return false;
+    }
+
+    /**
+     * @inheritdoc
+     *
      * $timestamp is ignored: there is nothing to hand a send-at to here. The
      * queue is what defers a campaign, and it only releases a row once it is
      * due, so by the time this is called the message is meant to go now.

@@ -13,6 +13,26 @@ class YSRTech_EmailCampaigns_Model_Observer
         Mage::getSingleton('ysrtech_emailcampaigns/sender')->processQueue();
     }
 
+    /**
+     * Cron: bring Mailgun's unsubscribes, bounces and complaints back into the
+     * store, so the queue stops enqueueing people who have opted out and the
+     * subscriber grid shows what is actually true.
+     *
+     * @return $this
+     */
+    public function syncSuppressions()
+    {
+        $counts = Mage::getSingleton('ysrtech_emailcampaigns/suppressions')->sync();
+
+        foreach ($counts as $list => $count) {
+            if ($count > 0) {
+                Mage::log("EmailCampaigns: {$count} address(es) unsubscribed from Mailgun's {$list} list.", Zend_Log::INFO);
+            }
+        }
+
+        return $this;
+    }
+
     /** Cron/event: reindex all active segments. */
     public function reindexSegments()
     {

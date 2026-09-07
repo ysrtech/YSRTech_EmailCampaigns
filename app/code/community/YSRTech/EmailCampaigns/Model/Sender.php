@@ -162,8 +162,21 @@ class YSRTech_EmailCampaigns_Model_Sender
         $transport = Mage::getSingleton('ysrtech_emailcampaigns/transport_factory')->get();
         $now       = Varien_Date::now();
 
-        $names      = $this->_loadRecipientNames($items);
-        $storeName  = Mage::app()->getStore($campaign->getStoreId())->getName();
+        $names     = $this->_loadRecipientNames($items);
+        $storeName = Mage::app()->getStore($campaign->getStoreId())->getName();
+        $delegates = $transport->supportsRecipientVariables();
+
+        /*
+         * When the provider expands variables itself, the template is rendered
+         * once with its placeholders left in and every recipient shares that
+         * body - which is what turns a twelve thousand person send into a
+         * couple of dozen requests. When it does not, each person's copy is
+         * rendered here instead.
+         */
+        $sharedHtml = $delegates
+            ? $renderer->render($template, $this->_placeholderVars($storeName))
+            : null;
+
         $recipients = [];
 
         foreach ($items as $item) {
@@ -176,39 +189,19 @@ class YSRTech_EmailCampaigns_Model_Sender
                     'lastname'  => $name['lastname'],
                     'email'     => $item->getEmail(),
                 ],
-                'store' => ['name' => $storeName],
-                /*
-                 * _nosid, because this runs from cron: without it getUrl()
-                 * reaches for the frontend session to decide about a session id
-                 * and dies with "Unable to start session" on the command line.
-                 * _store so the link points at the campaign's own store, and
-                 * the token as a plain parameter - Magento reads keys starting
-                 * with an underscore as url options, so "_token" was being
-                 * swallowed rather than put in the link.
-                 */
-                'unsubscribe_url' => Mage::getUrl('emailcampaigns/preferences/unsubscribe', [
-                    'token'  => $item->getTrackingToken(),
-                    '_store' => $campaign->getStoreId(),
-                    '_nosid' => true,
-                ]),
+                'store'           => ['name' => $storeName],
+                'unsubscribe_url' => $this->_unsubscribeUrl($campaign, $item, $delegates),
             ];
 
             $recipients[] = [
                 'email' => $item->getEmail(),
                 'name'  => trim($name['firstname'] . ' ' . $name['lastname']),
                 'vars'  => $vars,
-                'html'  => $renderer->render($template, $vars),
+                'html'  => $delegates ? $sharedHtml : $renderer->render($template, $vars),
                 '_item' => $item,
             ];
         }
 
-        /*
-         * Each recipient carries the copy rendered for them. A transport that
-         * expands merge variables provider-side can ignore that and use the
-         * shared body; one that cannot - anything sending real messages itself
-         * - must not, or every recipient is posted the first person's email,
-         * their name in the greeting included.
-         */
         $transport->sendBatch(
             array_map(static fn ($r) => [
                 'email' => $r['email'],
@@ -217,7 +210,7 @@ class YSRTech_EmailCampaigns_Model_Sender
                 'html'  => $r['html'],
             ], $recipients),
             (string) $campaign->getSubject(),
-            $recipients[0]['html']
+            $delegates ? $sharedHtml : $recipients[0]['html']
         );
 
         foreach ($recipients as $r) {
@@ -247,6 +240,63 @@ class YSRTech_EmailCampaigns_Model_Sender
                 ->setSentAt($now)
                 ->save();
         }
+    }
+
+    /**
+     * The variable set for a body the provider will personalise.
+     *
+     * Every per-recipient value is left as the provider's own placeholder, so
+     * one rendered body serves the whole batch and the provider fills in each
+     * person's values as it delivers.
+     *
+     * @param  string $storeName
+     * @return array
+     */
+    protected function _placeholderVars(string $storeName): array
+    {
+        return [
+            'customer' => [
+                'firstname' => '%recipient.firstname%',
+                'lastname'  => '%recipient.lastname%',
+                'email'     => '%recipient.email%',
+            ],
+            'store'           => ['name' => $storeName],
+            'unsubscribe_url' => '%unsubscribe_url%',
+        ];
+    }
+
+    /**
+     * Where the unsubscribe link points.
+     *
+     * With a provider that handles unsubscribes, it is the provider's hosted
+     * page: it records the opt-out on its own suppression list and will not
+     * deliver to that address again, and the store plays no part in the
+     * recipient's side of it. Otherwise the link comes back here.
+     *
+     * @param  YSRTech_EmailCampaigns_Model_Campaign $campaign
+     * @param  YSRTech_EmailCampaigns_Model_Queue    $item
+     * @param  bool                                  $providerHandlesIt
+     * @return string
+     */
+    protected function _unsubscribeUrl($campaign, $item, bool $providerHandlesIt): string
+    {
+        if ($providerHandlesIt) {
+            return '%unsubscribe_url%';
+        }
+
+        /*
+         * _nosid, because this runs from cron: without it getUrl() reaches for
+         * the frontend session to decide about a session id and dies with
+         * "Unable to start session" on the command line. _store so the link
+         * points at the campaign's own store, and the token as a plain
+         * parameter - Magento reads keys starting with an underscore as url
+         * options, so "_token" was being swallowed rather than put in the link.
+         */
+        return Mage::getUrl('emailcampaigns/preferences/unsubscribe', [
+            'token'  => $item->getTrackingToken(),
+            '_store' => $campaign->getStoreId(),
+            '_nosid' => true,
+        ]);
     }
 
     /**

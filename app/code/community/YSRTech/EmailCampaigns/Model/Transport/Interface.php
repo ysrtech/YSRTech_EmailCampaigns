@@ -21,4 +21,16 @@ interface YSRTech_EmailCampaigns_Model_Transport_Interface
      * @param string[][] $recipients [['email' => ..., 'name' => ..., 'vars' => [...]], ...]
      */
     public function sendBatch(array $recipients, string $subject, string $html, ?int $timestamp = null);
+
+    /**
+     * Whether this provider expands per-recipient variables itself.
+     *
+     * True means one message body carrying provider placeholders is posted for
+     * the whole batch and the provider fills in each person's values - which is
+     * what makes a twelve thousand recipient send a hundred and twenty API
+     * calls instead of twelve thousand. False means every recipient needs the
+     * copy already rendered for them, and sending the shared body would post
+     * the first person's email, their name in the greeting, to everybody.
+     */
+    public function supportsRecipientVariables(): bool;
 }

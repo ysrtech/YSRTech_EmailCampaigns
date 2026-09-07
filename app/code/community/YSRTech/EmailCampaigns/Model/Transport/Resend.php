@@ -16,6 +16,18 @@ class YSRTech_EmailCampaigns_Model_Transport_Resend
         return $key;
     }
 
+    /**
+     * @inheritdoc
+     *
+     * Resend's batch endpoint takes discrete messages rather than one body
+     * plus variables, so each carries its own html and there is nothing for
+     * the provider to expand.
+     */
+    public function supportsRecipientVariables(): bool
+    {
+        return false;
+    }
+
     public function send(string $to, string $subject, string $html, array $vars = [], ?int $timestamp = null)
     {
         $payload = [
@@ -41,7 +53,9 @@ class YSRTech_EmailCampaigns_Model_Transport_Resend
                 'from'    => $this->getFrom(),
                 'to'      => [$r['email']],
                 'subject' => $subject,
-                'html'    => $html,
+                // Their own copy. Using the shared body posted the first
+                // recipient's email - greeting and all - to everybody.
+                'html'    => isset($r['html']) ? (string) $r['html'] : $html,
             ];
         }
         return $this->request('POST', 'emails/batch', $messages);
