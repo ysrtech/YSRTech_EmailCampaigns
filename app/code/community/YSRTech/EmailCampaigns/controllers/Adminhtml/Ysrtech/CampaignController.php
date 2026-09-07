@@ -82,6 +82,81 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
             ->setBody(Mage::helper('core')->jsonEncode($response));
     }
 
+    /**
+     * The campaign as a recipient would see it.
+     */
+    public function previewAction()
+    {
+        /** @var YSRTech_EmailCampaigns_Model_Campaign $campaign */
+        $campaign = Mage::getModel('ysrtech_emailcampaigns/campaign')->load((int) $this->getRequest()->getParam('id'));
+
+        if (!$campaign->getId()) {
+            $this->_getSession()->addError($this->__('Campaign no longer exists.'));
+            $this->_redirect('*/*/index');
+            return;
+        }
+
+        try {
+            /** @var YSRTech_EmailCampaigns_Model_Template $template */
+            $template = Mage::getModel('ysrtech_emailcampaigns/template')->load($campaign->getTemplateId());
+
+            if (!$template->getId()) {
+                Mage::throwException($this->__('This campaign has no template to preview.'));
+            }
+
+            $helper = Mage::helper('ysrtech_emailcampaigns');
+
+            $this->_renderPreviewPage(
+                Mage::getSingleton('ysrtech_emailcampaigns/sender')
+                    ->renderPreview($template, $campaign->getStoreId()),
+                (string) $campaign->getSubject(),
+                sprintf(
+                    '%s <%s>',
+                    $helper->getConfig('sending/from_name') ?: Mage::app()->getStore()->getFrontendName(),
+                    $helper->getConfig('sending/from_email') ?: $this->__('(no from address configured)')
+                )
+            );
+        } catch (Exception $e) {
+            $this->_getSession()->addError($e->getMessage());
+            $this->_redirect('*/*/edit', ['id' => $campaign->getId()]);
+        }
+    }
+
+    /**
+     * Send one copy of the campaign to a named address.
+     *
+     * Nothing is queued and nothing is marked sent - this is a way to read the
+     * email in a real client before it goes to thousands of people.
+     */
+    public function sendTestAction()
+    {
+        $this->_validateFormKey();
+
+        $id = (int) $this->getRequest()->getParam('id');
+
+        try {
+            /** @var YSRTech_EmailCampaigns_Model_Campaign $campaign */
+            $campaign = Mage::getModel('ysrtech_emailcampaigns/campaign')->load($id);
+
+            if (!$campaign->getId()) {
+                Mage::throwException($this->__('Campaign no longer exists.'));
+            }
+
+            $email = (string) $this->getRequest()->getParam('test_email');
+
+            Mage::getSingleton('ysrtech_emailcampaigns/sender')->sendTest($campaign, $email);
+
+            $this->_getSession()->addSuccess(
+                $this->__('Test sent to %s. Nothing was queued and the campaign is unchanged.', $email)
+            );
+        } catch (Exception $e) {
+            $this->_getSession()->addError($this->__('Test send failed: %s', $e->getMessage()));
+            Mage::logException($e);
+        }
+
+        $this->_redirect('*/*/edit', ['id' => $id]);
+    }
+
     public function saveAction()
     {
         if (!$this->getRequest()->isPost()) {

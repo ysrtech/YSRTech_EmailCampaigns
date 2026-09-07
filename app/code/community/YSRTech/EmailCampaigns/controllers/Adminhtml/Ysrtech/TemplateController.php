@@ -54,6 +54,48 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_TemplateController
         $this->renderLayout();
     }
 
+    /**
+     * The template as a recipient would see it, with stand-in details.
+     */
+    public function previewAction()
+    {
+        /** @var YSRTech_EmailCampaigns_Model_Template $template */
+        $template = Mage::getModel('ysrtech_emailcampaigns/template')->load((int) $this->getRequest()->getParam('id'));
+
+        if (!$template->getId()) {
+            $this->_getSession()->addError($this->__('Template no longer exists.'));
+            $this->_redirect('*/*/index');
+            return;
+        }
+
+        try {
+            $sender = Mage::getSingleton('ysrtech_emailcampaigns/sender');
+
+            $this->_renderPreviewPage(
+                $sender->renderPreview($template),
+                (string) ($template->getSubject() ?: $template->getName()),
+                $this->_previewFrom()
+            );
+        } catch (Exception $e) {
+            $this->_getSession()->addError($e->getMessage());
+            $this->_redirect('*/*/edit', ['id' => $template->getId()]);
+        }
+    }
+
+    /**
+     * @return string
+     */
+    protected function _previewFrom(): string
+    {
+        $helper = Mage::helper('ysrtech_emailcampaigns');
+
+        return sprintf(
+            '%s <%s>',
+            $helper->getConfig('sending/from_name') ?: Mage::app()->getStore()->getFrontendName(),
+            $helper->getConfig('sending/from_email') ?: $this->__('(no from address configured)')
+        );
+    }
+
     public function saveAction()
     {
         if (!$this->getRequest()->isPost()) {

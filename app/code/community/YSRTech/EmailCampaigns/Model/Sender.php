@@ -163,7 +163,7 @@ class YSRTech_EmailCampaigns_Model_Sender
         $now       = Varien_Date::now();
 
         $names     = $this->_loadRecipientNames($items);
-        $storeName = Mage::app()->getStore($campaign->getStoreId())->getName();
+        $storeName = $this->storeName($campaign->getStoreId());
         $delegates = $transport->supportsRecipientVariables();
 
         /*
@@ -240,6 +240,139 @@ class YSRTech_EmailCampaigns_Model_Sender
                 ->setSentAt($now)
                 ->save();
         }
+    }
+
+    /**
+     * What {{ store.name }} should say.
+     *
+     * Store::getName() is the store *view* name, so on this install it
+     * rendered as "English" - every email read "New titles have arrived at
+     * English." The shop's own name lives in store information, with the
+     * frontend name behind it.
+     *
+     * @param  int|null $storeId
+     * @return string
+     */
+    public function storeName($storeId = null): string
+    {
+        $configured = trim((string) Mage::getStoreConfig('general/store_information/name', $storeId));
+
+        return $configured !== '' ? $configured : (string) Mage::app()->getStore($storeId)->getFrontendName();
+    }
+
+    /**
+     * The email as one person would receive it, rendered but not sent.
+     *
+     * Uses the same renderer and the same variable shape the send does, so
+     * what is on screen is what would arrive - a preview built any other way
+     * is a drawing of the email rather than the email.
+     *
+     * Concrete values, not the provider's %recipient.x% tokens: those are
+     * substituted by Mailgun on the way out, and showing them would hide
+     * exactly what the reader wants to check.
+     *
+     * @param  YSRTech_EmailCampaigns_Model_Template $template
+     * @param  int|null                              $storeId
+     * @param  array                                 $overrides
+     * @return string
+     */
+    public function renderPreview($template, $storeId = null, array $overrides = []): string
+    {
+        $vars = array_replace_recursive($this->previewVars($storeId), $overrides);
+
+        return Mage::getSingleton('ysrtech_emailcampaigns/renderer')->render($template, $vars);
+    }
+
+    /**
+     * Stand-in values for a preview.
+     *
+     * @param  int|null $storeId
+     * @return array
+     */
+    public function previewVars($storeId = null): array
+    {
+        return [
+            'customer' => [
+                'firstname' => 'Chaya',
+                'lastname'  => 'Rosenberg',
+                'email'     => 'preview@example.com',
+            ],
+            'store' => ['name' => $this->storeName($storeId)],
+            /*
+             * Deliberately inert. A preview that carried a working opt-out
+             * link would let a click from the admin suppress a real address.
+             */
+            'unsubscribe_url' => '#preview-unsubscribe-link',
+        ];
+    }
+
+    /**
+     * Send one campaign to one address, without touching the queue.
+     *
+     * Goes out through the configured transport on the same code path as the
+     * real send, including the provider's own variable substitution, so a test
+     * that arrives correctly is evidence about the send rather than about the
+     * test. Nothing is queued, nothing is marked sent, and the campaign's
+     * status is untouched.
+     *
+     * @param  YSRTech_EmailCampaigns_Model_Campaign $campaign
+     * @param  string                                $email
+     * @return void
+     * @throws Mage_Core_Exception
+     */
+    public function sendTest($campaign, string $email): void
+    {
+        $email = trim($email);
+
+        if (!Zend_Validate::is($email, 'EmailAddress')) {
+            Mage::throwException(Mage::helper('ysrtech_emailcampaigns')->__('"%s" is not an email address.', $email));
+        }
+
+        /** @var YSRTech_EmailCampaigns_Model_Template $template */
+        $template = Mage::getModel('ysrtech_emailcampaigns/template')->load($campaign->getTemplateId());
+
+        if (!$template->getId()) {
+            Mage::throwException(Mage::helper('ysrtech_emailcampaigns')->__('This campaign has no template to send.'));
+        }
+
+        $renderer  = Mage::getSingleton('ysrtech_emailcampaigns/renderer');
+        $transport = Mage::getSingleton('ysrtech_emailcampaigns/transport_factory')->get();
+        $storeName = $this->storeName($campaign->getStoreId());
+        $delegates = $transport->supportsRecipientVariables();
+
+        /*
+         * The names are the preview's stand-ins rather than a real
+         * subscriber's: a test send should not put somebody else's name and
+         * address in front of whoever is testing.
+         */
+        $preview = $this->previewVars($campaign->getStoreId());
+
+        $vars = [
+            'customer' => [
+                'firstname' => $preview['customer']['firstname'],
+                'lastname'  => $preview['customer']['lastname'],
+                'email'     => $email,
+            ],
+            'store'           => ['name' => $storeName],
+            'unsubscribe_url' => $delegates ? '%unsubscribe_url%' : '#test-send',
+        ];
+
+        $html = $delegates
+            ? $renderer->render($template, $this->_placeholderVars($storeName))
+            : $renderer->render($template, $vars);
+
+        $subject = Mage::helper('ysrtech_emailcampaigns')->__('[TEST] %s', (string) $campaign->getSubject());
+
+        $transport->sendBatch(
+            [[
+                'email' => $email,
+                'name'  => trim($vars['customer']['firstname'] . ' ' . $vars['customer']['lastname']),
+                'vars'  => $vars,
+                'html'  => $html,
+            ]],
+            $subject,
+            $html
+        );
     }
 
     /**

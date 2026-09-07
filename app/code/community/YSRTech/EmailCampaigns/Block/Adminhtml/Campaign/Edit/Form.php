@@ -71,6 +71,11 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Edit_Form extends Mage_Adm
             'text'  => $this->_estimateHtml($model),
         ]);
 
+        $fieldset->addField('send_test', 'note', [
+            'label' => $h->__('Send A Test'),
+            'text'  => $this->_testSendHtml($model),
+        ]);
+
         $fieldset->addField('store_id', 'select', [
             'label' => $h->__('Store View'),
             'name'  => 'store_id',
@@ -119,6 +124,94 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Edit_Form extends Mage_Adm
      * @param  string                 $labelField
      * @return array
      */
+    /**
+     * A single address to send one real copy to.
+     *
+     * Its own form rather than a field on this one: submitting the campaign
+     * form would save the campaign as a side effect of asking for a test, and
+     * a test is something you want to run on a draft you are still editing.
+     *
+     * @param  YSRTech_EmailCampaigns_Model_Campaign $model
+     * @return string
+     */
+    protected function _testSendHtml($model): string
+    {
+        $h = Mage::helper('ysrtech_emailcampaigns');
+
+        if (!$model->getId()) {
+            return '<span>' . $h->__('Save the campaign first, then you can send yourself a test.') . '</span>';
+        }
+
+        $url   = $this->getUrl('*/*/sendTest', ['id' => $model->getId()]);
+        $email = $this->escapeHtml((string) Mage::getSingleton('admin/session')->getUser()->getEmail());
+        $key   = $this->escapeHtml(Mage::getSingleton('core/session')->getFormKey());
+
+        /*
+         * No <form> here. This markup sits inside the campaign's own form, and
+         * HTML has no nested forms - the browser drops the inner one, so the
+         * button submitted the campaign instead and the click saved the
+         * record rather than sending anything. The post is built and
+         * submitted from outside the form instead.
+         */
+        return '<input type="email" id="test_email" name="test_email" value="' . $email . '"'
+            . ' class="input-text" style="width:280px" />'
+            . ' <button type="button" class="scalable" id="send_test_button"><span><span><span>'
+            . $h->__('Send Test') . '</span></span></span></button>'
+            . $this->_testSendScript($url, $key)
+            . '<p class="note"><span>'
+            . $h->__('One copy through the provider you have configured, on the same path the real send uses. Nothing is queued and the campaign is not marked sent. Unsaved changes above are not included - save first.')
+            . '</span></p>'
+            . '<p class="note"><span>'
+            . $h->__('The unsubscribe link in a test is the real one. Clicking it opts that address out on the sending domain, and Mailgun will refuse to deliver to it afterwards - so read the link, do not follow it.')
+            . '</span></p>';
+    }
+
+    /**
+     * @param  string $url
+     * @param  string $formKey
+     * @return string
+     */
+    protected function _testSendScript(string $url, string $formKey): string
+    {
+        $confirm = Mage::helper('ysrtech_emailcampaigns')->__('Send a test copy to');
+
+        return <<<HTML
+<script type="text/javascript">
+//<![CDATA[
+(function () {
+    var button = \$('send_test_button'),
+        field  = \$('test_email');
+
+    if (!button || !field) {
+        return;
+    }
+
+    button.observe('click', function () {
+        var address = field.value.strip();
+
+        if (!address) {
+            field.focus();
+            return;
+        }
+
+        if (!confirm('{$confirm} ' + address + '?')) {
+            return;
+        }
+
+        // Built and appended outside the campaign form, so submitting it
+        // cannot carry the campaign's own fields along with it
+        var form = new Element('form', {action: '{$url}', method: 'post'});
+        form.insert(new Element('input', {type: 'hidden', name: 'form_key', value: '{$formKey}'}));
+        form.insert(new Element('input', {type: 'hidden', name: 'test_email', value: address}));
+        document.body.appendChild(form);
+        form.submit();
+    });
+}());
+//]]>
+</script>
+HTML;
+    }
+
     /**
      * Segments to choose from, each carrying its own size.
      *

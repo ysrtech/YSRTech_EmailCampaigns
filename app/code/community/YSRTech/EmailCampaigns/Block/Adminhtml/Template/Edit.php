@@ -19,6 +19,17 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Edit extends Mage_Adminhtm
         $this->_controller = 'adminhtml_template';
         $this->_mode       = 'edit';
 
+        /** @var YSRTech_EmailCampaigns_Model_Template $model */
+        $model = Mage::registry('ysrtech_emailcampaigns_template');
+
+        if ($model && $model->getId()) {
+            $this->_addButton('preview', [
+                'label'   => Mage::helper('ysrtech_emailcampaigns')->__('Preview'),
+                // A new tab, so an edit in progress is not lost to it
+                'onclick' => "window.open('" . $this->getUrl('*/*/preview', ['id' => $model->getId()]) . "')",
+                'class'   => 'go',
+            ], 0);
+        }
     }
 
     public function getHeaderText()
