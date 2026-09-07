@@ -1,5 +1,14 @@
 <?php
-/** Container for template edit page, with "Open in Designer" button. */
+/**
+ * Container for the template edit page.
+ *
+ * There was an "Open in Designer" button here pointing at a drag and drop
+ * editor that was never built: its block referenced a phtml that does not
+ * exist, so the button led to a blank page. A control that does nothing is
+ * worse than an absent one - somebody clicks it, loses the page they were
+ * on, and has no way to tell whether the feature broke or never existed.
+ * Content is edited as HTML on the form itself.
+ */
 class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Edit extends Mage_Adminhtml_Block_Widget_Form_Container
 {
     public function __construct()
@@ -10,17 +19,6 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Edit extends Mage_Adminhtm
         $this->_controller = 'adminhtml_template';
         $this->_mode       = 'edit';
 
-        /** @var YSRTech_EmailCampaigns_Model_Template $model */
-        $model = Mage::registry('ysrtech_emailcampaigns_template');
-        if ($model && $model->getId()) {
-            $this->_addButton('designer', [
-                'label'   => Mage::helper('ysrtech_emailcampaigns')->__('Open in Designer'),
-                'onclick' => 'setLocation(\'' . $this->getUrl('*/*/edit', [
-                    'id' => $model->getId(), 'editor' => 1,
-                ]) . '\')',
-                'class'   => 'go',
-            ], 0);
-        }
     }
 
     public function getHeaderText()

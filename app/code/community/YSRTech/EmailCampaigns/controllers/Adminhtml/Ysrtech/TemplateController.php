@@ -40,15 +40,12 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_TemplateController
         }
         Mage::register('ysrtech_emailcampaigns_template', $model);
 
-        // Editor mode loads the full-screen drag & drop editor.
-        if ($this->getRequest()->getParam('editor')) {
-            $this->_title($model->getName() ?: $this->__('Email Designer'));
-            $this->loadLayout()
-                ->_setActiveMenu('ysrtech_emailcampaigns/template')
-                ->_addContent($this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_template_editor'))
-                ->renderLayout();
-            return;
-        }
+        /*
+         * ?editor=1 used to render a drag and drop designer here. The block it
+         * created pointed at a phtml that was never written, so the branch
+         * produced a blank page. Anyone still holding such a url now gets the
+         * normal edit form, which can do the job.
+         */
 
         $this->_title($model->getId() ? $model->getName() : $this->__('New Template'));
         $this->loadLayout();
@@ -85,10 +82,6 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_TemplateController
             Mage::logException($e);
         }
 
-        if ($this->getRequest()->getParam('back') === 'editor') {
-            $this->_redirect('*/*/edit', ['id' => $model->getId(), 'editor' => 1]);
-            return;
-        }
         $this->_redirect('*/*/index');
     }
 

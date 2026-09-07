@@ -69,20 +69,38 @@ class YSRTech_EmailCampaigns_Model_Renderer
             . implode('', $out) . '</table>';
     }
 
+    /**
+     * Make sure the email carries exactly one way out.
+     *
+     * The merge pass has already run, so a template that wrote
+     * {{ unsubscribe_url }} into its own markup now holds the real link. It
+     * used to get the automatic footer on top of that, which put two
+     * unsubscribe links in front of every recipient - the same duplication the
+     * Mailgun transport warns about when the sending domain has a footer of
+     * its own configured.
+     */
     private function _injectUnsubscribe(string $html, array $vars): string
     {
-        if (!empty($vars['unsubscribe_url'])) {
-            $url = htmlspecialchars((string) $vars['unsubscribe_url'], ENT_QUOTES);
-            $footer = '<div style="margin-top:24px;padding-top:12px;border-top:1px solid #eeeeee;'
-                . 'font-size:11px;color:#999999;text-align:center;">'
-                . "<a href=\"{$url}\" style=\"color:#999999;\">Unsubscribe</a></div>";
-            if (str_contains($html, '{{unsubscribe}}')) {
-                $html = str_replace('{{unsubscribe}}', $footer, $html);
-            } else {
-                $html .= $footer;
-            }
+        if (empty($vars['unsubscribe_url'])) {
+            return $html;
         }
-        return $html;
+
+        $url    = htmlspecialchars((string) $vars['unsubscribe_url'], ENT_QUOTES);
+        $footer = '<div style="margin-top:24px;padding-top:12px;border-top:1px solid #eeeeee;'
+            . 'font-size:11px;color:#999999;text-align:center;">'
+            . "<a href=\"{$url}\" style=\"color:#999999;\">Unsubscribe</a></div>";
+
+        // An explicit marker says where the standard footer goes
+        if (str_contains($html, '{{unsubscribe}}')) {
+            return str_replace('{{unsubscribe}}', $footer, $html);
+        }
+
+        // The template placed the link itself, so leave it alone
+        if (str_contains($html, (string) $vars['unsubscribe_url']) || str_contains($html, $url)) {
+            return $html;
+        }
+
+        return $html . $footer;
     }
 
     private function _wrapDocument(string $body, array $vars): string
