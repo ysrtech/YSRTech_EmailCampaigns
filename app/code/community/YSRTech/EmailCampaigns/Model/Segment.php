@@ -1,8 +1,12 @@
 <?php
 /**
  * Segment model built on Magento's rule engine (same as catalog/sales promo rules).
- * Conditions support the full customer attribute set plus order-history aggregates
- * via the salesrule condition combine.
+ *
+ * The condition tree is the module's own rather than salesrule's. Salesrule's
+ * conditions describe a basket at checkout - Subtotal, Shipping Method - and a
+ * subscriber has none of those, so a segment built from them matched nobody and
+ * threw on validate() as soon as a reindex ran. Segment_Condition_Subscriber
+ * offers the fields _matches() actually supplies.
  */
 class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
 {
@@ -16,7 +20,7 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
      */
     public function getConditionsInstance()
     {
-        return Mage::getModel('salesrule/rule_condition_combine');
+        return Mage::getModel('ysrtech_emailcampaigns/segment_condition_combine');
     }
 
     /**
@@ -38,6 +42,25 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
      * - meant the very next getConditions() fed JSON to unserialize and the
      * save died with "Error unserializing data." Nothing to override here.
      */
+
+    /**
+     * Drop the serialized conditions once they are safely in the row.
+     *
+     * _beforeSave() writes conditions_serialized back onto the model, and
+     * Mage_Rule's getConditions() loads that string into the condition tree it
+     * is already holding - appending to it rather than replacing it. So saving
+     * the same instance twice doubles every condition, and reindex() saves the
+     * instance the controller just saved. A segment edited twice ended up with
+     * each of its rules listed four times.
+     *
+     * @return $this
+     */
+    protected function _afterSave()
+    {
+        $this->unsConditionsSerialized();
+
+        return parent::_afterSave();
+    }
 
     /**
      * The subscribers this segment's rule matches.

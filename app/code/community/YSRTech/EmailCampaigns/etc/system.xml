@@ -41,9 +41,11 @@
                             <frontend_type>text</frontend_type>
                             <comment>The domain campaigns are sent from, e.g. mg-news.example.com. Use a subdomain kept separate from the one that sends order emails: a campaign that trips spam filters must not take receipts down with it.</comment>
                             <sort_order>25</sort_order>
+                            <!-- Global, like the api key and the from address
+                                 beside it: one Mailgun account sends for the
+                                 whole store, and a per-website domain here
+                                 would not match the key it is used with. -->
                             <show_in_default>1</show_in_default>
-                            <show_in_website>1</show_in_website>
-                            <show_in_store>0</show_in_store>
                         </mailgun_domain>
                         <from_name translate="label">
                             <label>Default From Name</label>

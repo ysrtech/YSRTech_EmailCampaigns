@@ -35,27 +35,37 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Segment_Edit_Form extends Mage_Admi
         // ---- Rule conditions tree ----
         $ruleFieldset = $form->addFieldset('rule', ['legend' => $h->__('Conditions')]);
         $ruleFieldset->addField('reindex', 'checkbox', [
-            'label'  => $h->__('Recalculate matching customers after save'),
+            'label'  => $h->__('Recalculate matching subscribers after save'),
             'name'   => 'reindex',
             'value'  => 1,
             'checked'=> true,
         ]);
 
-        /** @var Mage_SalesRule_Model_Rule_Condition_Combine $conditions */
         $conditions = $model->getConditions();
+
         if ($conditions instanceof Mage_Rule_Model_Condition_Interface) {
-            $renderer = Mage::getBlockSingleton('adminhtml/widget_form_renderer_fieldset')
-                ->setTemplate('promo/fieldset.phtml')
-                ->setNewChildUrl($this->getUrl('*/*/newConditionHtml/form/rule_conditions_fieldset'));
-            $ruleFieldset->setRenderer($renderer);
+            // The fieldset renderer draws the tree's chrome and knows where to
+            // fetch a newly added row from
+            $ruleFieldset->setRenderer(
+                Mage::getBlockSingleton('adminhtml/widget_form_renderer_fieldset')
+                    ->setTemplate('promo/fieldset.phtml')
+                    ->setNewChildUrl($this->getUrl('*/*/newConditionHtml', ['form' => 'rule_conditions_fieldset']))
+            );
 
             $element = $ruleFieldset->addField('conditions', 'text', [
                 'name'     => 'rule[conditions]',
-                'label'    => $h->__('Apply to customers matching'),
+                'label'    => $h->__('Apply to subscribers matching'),
                 'title'    => $h->__('Conditions'),
                 'required' => true,
             ]);
-            $element->setRule($model)->setElement($renderer);
+
+            /*
+             * setRenderer, not setElement. Without the rule/conditions renderer
+             * on the field itself the whole builder collapsed to a bare text
+             * input: no tree, no "+" to add anything, so no segment could be
+             * given a condition and every one of them matched the entire list.
+             */
+            $element->setRule($model)->setRenderer(Mage::getBlockSingleton('rule/conditions'));
         }
 
         $this->setForm($form);

@@ -30,7 +30,7 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Segment_Grid extends Mage_Adminhtml
             'header' => $h->__('Name'), 'index' => 'name',
         ]);
         $this->addColumn('customer_count', [
-            'header' => $h->__('Customers'), 'index' => 'customer_count', 'width' => '100px',
+            'header' => $h->__('Subscribers'), 'index' => 'customer_count', 'width' => '100px',
         ]);
         $this->addColumn('last_reindexed_at', [
             'header' => $h->__('Last Reindexed'), 'index' => 'last_reindexed_at',

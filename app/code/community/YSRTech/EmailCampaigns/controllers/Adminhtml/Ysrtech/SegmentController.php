@@ -47,6 +47,35 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SegmentController
         $this->renderLayout();
     }
 
+    /**
+     * The rule builder asks for each newly added condition row over ajax. The
+     * form pointed the "+" button here, but the action did not exist, so
+     * adding a condition returned the admin 404 page.
+     */
+    public function newConditionHtmlAction()
+    {
+        $id = $this->getRequest()->getParam('id');
+
+        $type = explode('|', str_replace('-', '/', $this->getRequest()->getParam('type')));
+
+        $model = Mage::getModel(strtolower($type[0]))
+            ->setId($id)
+            ->setType($type[0])
+            ->setRule(Mage::getModel('ysrtech_emailcampaigns/segment'))
+            ->setPrefix('conditions');
+
+        if (!empty($type[1])) {
+            $model->setAttribute($type[1]);
+        }
+
+        if ($model instanceof Mage_Rule_Model_Condition_Abstract) {
+            $model->setJsFormObject($this->getRequest()->getParam('form'));
+            $this->getResponse()->setBody($model->asHtmlRecursive());
+        } else {
+            $this->getResponse()->setBody('');
+        }
+    }
+
     public function saveAction()
     {
         if (!$this->getRequest()->isPost()) {
@@ -79,7 +108,7 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SegmentController
             if (!empty($data['reindex'])) {
                 $count = $model->reindex();
                 $this->_getSession()->addSuccess(
-                    $this->__('Segment saved. %d customers matched.', $count)
+                    $this->__('Segment saved. %d subscribers matched.', $count)
                 );
             } else {
                 $this->_getSession()->addSuccess($this->__('Segment saved.'));
@@ -96,7 +125,7 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SegmentController
         $id = (int) $this->getRequest()->getParam('id');
         try {
             $count = Mage::getModel('ysrtech_emailcampaigns/segment')->load($id)->reindex();
-            $this->_getSession()->addSuccess($this->__('Reindexed: %d customers matched.', $count));
+            $this->_getSession()->addSuccess($this->__('Reindexed: %d subscribers matched.', $count));
         } catch (Exception $e) {
             $this->_getSession()->addError($e->getMessage());
         }
