@@ -31,13 +31,20 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Automation_Grid extends Mage_Adminh
             'type'    => 'options',
             'options' => Mage::getSingleton('ysrtech_emailcampaigns/system_config_source_automation_event')->toArray(),
         ]);
-        $this->addColumn('send_moment', [
-            'header'   => $h->__('When'),
-            'index'    => 'send_moment',
-            'width'    => '140px',
+        $this->addColumn('chain', [
+            'header'   => $h->__('Messages'),
+            'index'    => 'automation_id',
+            'width'    => '220px',
             'filter'   => false,
             'sortable' => false,
-            'renderer' => 'ysrtech_emailcampaigns/adminhtml_automation_grid_renderer_delay',
+            'renderer' => 'ysrtech_emailcampaigns/adminhtml_automation_grid_renderer_chain',
+        ]);
+        $this->addColumn('cancel_on', [
+            'header'  => $h->__('Stops If'),
+            'index'   => 'cancel_on',
+            'type'    => 'options',
+            'width'   => '140px',
+            'options' => ['never' => $h->__('Never'), 'order_placed' => $h->__('They order')],
         ]);
         $this->addColumn('respect_subscription', [
             'header'  => $h->__('Kind'),

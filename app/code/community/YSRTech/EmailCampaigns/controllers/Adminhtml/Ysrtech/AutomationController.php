@@ -79,15 +79,18 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_AutomationController
                 Mage::throwException($this->__('Give the product id this should watch for.'));
             }
 
+            $steps = $this->_readSteps($data['steps'] ?? []);
+
+            if (!$steps) {
+                Mage::throwException($this->__('A chain needs at least one message.'));
+            }
+
             $model->addData([
                 'name'                 => (string) ($data['name'] ?? ''),
                 'event'                => $event,
                 'order_status'         => (string) ($data['order_status'] ?? '') ?: null,
                 'product_id'           => !empty($data['product_id']) ? (int) $data['product_id'] : null,
-                'template_id'          => (int) ($data['template_id'] ?? 0),
-                'send_moment'          => ($data['send_moment'] ?? 'immediate') === 'after' ? 'after' : 'immediate',
-                'after_days'           => max(0, (int) ($data['after_days'] ?? 0)),
-                'after_hours'          => max(0, (int) ($data['after_hours'] ?? 0)),
+                'cancel_on'            => ($data['cancel_on'] ?? 'never') === 'order_placed' ? 'order_placed' : 'never',
                 'respect_subscription' => (int) !empty($data['respect_subscription']),
                 'store_id'             => (int) ($data['store_id'] ?? 0),
                 'active_from'          => !empty($data['active_from']) ? $data['active_from'] : null,
@@ -96,6 +99,8 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_AutomationController
             ]);
 
             $model->save();
+
+            $this->_saveSteps($model, $steps);
 
             $this->_getSession()->addSuccess($this->__('Automation saved.'));
         } catch (Exception $e) {
@@ -106,6 +111,71 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_AutomationController
         }
 
         $this->_redirect('*/*/index');
+    }
+
+    /**
+     * @param  mixed $posted
+     * @return array
+     */
+    protected function _readSteps($posted): array
+    {
+        $steps = [];
+
+        foreach ((array) $posted as $row) {
+            if (empty($row['template_id'])) {
+                continue;
+            }
+
+            $steps[] = [
+                'template_id' => (int) $row['template_id'],
+                'after_days'  => max(0, (int) ($row['after_days'] ?? 0)),
+                'after_hours' => max(0, (int) ($row['after_hours'] ?? 0)),
+            ];
+        }
+
+        // Earliest first, whatever order the rows were typed in
+        usort(
+            $steps,
+            static fn($a, $b) => ($a['after_days'] * 24 + $a['after_hours']) <=> ($b['after_days'] * 24 + $b['after_hours'])
+        );
+
+        return $steps;
+    }
+
+    /**
+     * Rewrite the chain's steps from the form.
+     *
+     * Steps that survive keep their ids, because queue rows point at them: a
+     * delete-and-recreate would cascade away everything already waiting to be
+     * sent, silently emptying a chain that was halfway through for hundreds of
+     * people.
+     *
+     * @param  YSRTech_EmailCampaigns_Model_Automation $model
+     * @param  array                                   $steps
+     * @return void
+     */
+    protected function _saveSteps($model, array $steps): void
+    {
+        $existing = [];
+
+        foreach (Mage::getResourceModel('ysrtech_emailcampaigns/automation_step_collection')
+                     ->addAutomationFilter((int) $model->getId()) as $step) {
+            $existing[] = $step;
+        }
+
+        foreach ($steps as $position => $values) {
+            $step = array_shift($existing) ?: Mage::getModel('ysrtech_emailcampaigns/automation_step');
+
+            $step->addData($values)
+                ->setAutomationId($model->getId())
+                ->setSortOrder($position)
+                ->save();
+        }
+
+        // Anything left over was removed from the form
+        foreach ($existing as $step) {
+            $step->delete();
+        }
     }
 
     public function deleteAction()

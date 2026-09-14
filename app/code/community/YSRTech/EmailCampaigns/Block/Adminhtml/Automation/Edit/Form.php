@@ -49,37 +49,22 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Automation_Edit_Form extends Mage_A
             'note'  => $h->__('Only for the "Bought a particular product" trigger.'),
         ]);
 
-        $fieldset->addField('template_id', 'select', [
-            'label'    => $h->__('Template'),
-            'name'     => 'template_id',
-            'required' => true,
-            'values'   => $this->_templateOptions(),
-            'value'    => $model->getTemplateId(),
+        $chain = $form->addFieldset('chain', ['legend' => $h->__('Messages')]);
+
+        $chain->addField('steps', 'note', [
+            'label' => $h->__('The Chain'),
+            'text'  => $this->_stepsHtml($model),
         ]);
 
-        $delay = $form->addFieldset('delay', ['legend' => $h->__('Timing')]);
-
-        $delay->addField('send_moment', 'select', [
-            'label'  => $h->__('Send'),
-            'name'   => 'send_moment',
+        $chain->addField('cancel_on', 'select', [
+            'label'  => $h->__('Stop The Chain If'),
+            'name'   => 'cancel_on',
             'values' => [
-                ['value' => 'immediate', 'label' => $h->__('Straight away')],
-                ['value' => 'after',     'label' => $h->__('After a delay')],
+                ['value' => 'never',        'label' => $h->__('Nothing - send every message')],
+                ['value' => 'order_placed', 'label' => $h->__('They place an order')],
             ],
-            'value'  => $model->getSendMoment() ?: 'immediate',
-        ]);
-
-        $delay->addField('after_days', 'text', [
-            'label' => $h->__('Days'),
-            'name'  => 'after_days',
-            'value' => (int) $model->getAfterDays(),
-        ]);
-
-        $delay->addField('after_hours', 'text', [
-            'label' => $h->__('Hours'),
-            'name'  => 'after_hours',
-            'value' => (int) $model->getAfterHours(),
-            'note'  => $h->__('Added to the days above. The message waits in the queue until then, so a delay costs nothing while it waits.'),
+            'value'  => $model->getCancelOn() ?: 'never',
+            'note'   => $h->__('Checked as each message comes due, not on a schedule, so somebody who orders an hour before a nudge will not receive it. Messages already sent are unaffected.'),
         ]);
 
         $scope = $form->addFieldset('scope', ['legend' => $h->__('Who And When')]);
@@ -129,6 +114,120 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Automation_Edit_Form extends Mage_A
         $this->setForm($form);
 
         return parent::_prepareForm();
+    }
+
+    /**
+     * The chain, as rows that can be added to and taken away.
+     *
+     * Its own little table rather than a fieldset per step: a chain is a list,
+     * and the number of messages in it is the thing being edited.
+     *
+     * @param  YSRTech_EmailCampaigns_Model_Automation $model
+     * @return string
+     */
+    protected function _stepsHtml($model): string
+    {
+        $h    = Mage::helper('ysrtech_emailcampaigns');
+        $rows = [];
+
+        foreach ($model->getSteps() as $step) {
+            $rows[] = [
+                'template_id' => (int) $step->getTemplateId(),
+                'after_days'  => (int) $step->getAfterDays(),
+                'after_hours' => (int) $step->getAfterHours(),
+            ];
+        }
+
+        if (!$rows) {
+            // A new automation starts as a chain of one, sent immediately
+            $rows[] = ['template_id' => '', 'after_days' => 0, 'after_hours' => 0];
+        }
+
+        $options = '';
+
+        foreach ($this->_templateOptions() as $option) {
+            $options .= '<option value="' . (int) $option['value'] . '">'
+                . $this->escapeHtml($option['label']) . '</option>';
+        }
+
+        $html = '<table class="border" id="ec-steps" cellspacing="0" style="width:auto">'
+            . '<thead><tr class="headings">'
+            . '<th style="padding:4px 10px">' . $h->__('#') . '</th>'
+            . '<th style="padding:4px 10px">' . $h->__('Send This') . '</th>'
+            . '<th style="padding:4px 10px">' . $h->__('Days') . '</th>'
+            . '<th style="padding:4px 10px">' . $h->__('Hours') . '</th>'
+            . '<th></th></tr></thead><tbody></tbody></table>'
+            . '<button type="button" class="scalable add" id="ec-step-add" style="margin-top:8px">'
+            . '<span><span><span>' . $h->__('Add a message') . '</span></span></span></button>'
+            . '<p class="note"><span>'
+            . $h->__('Each delay is counted from the moment the chain is triggered, not from the message before it - so 0, 2 and 7 days means day 0, day 2 and day 7.')
+            . '</span></p>';
+
+        return $html . $this->_stepsScript($options, $rows);
+    }
+
+    /**
+     * @param  string $options
+     * @param  array  $rows
+     * @return string
+     */
+    protected function _stepsScript(string $options, array $rows): string
+    {
+        $json   = Mage::helper('core')->jsonEncode($rows);
+        $remove = $this->jsQuoteEscape(Mage::helper('ysrtech_emailcampaigns')->__('Remove'));
+
+        return <<<HTML
+<script type="text/javascript">
+//<![CDATA[
+(function () {
+    var body    = \$\$('#ec-steps tbody')[0],
+        add     = \$('ec-step-add'),
+        options = '{$options}',
+        rows    = {$json},
+        index   = 0;
+
+    function draw(row) {
+        var i = index++,
+            tr = new Element('tr');
+
+        tr.insert('<td class="ec-step-no" style="padding:4px 10px"></td>');
+        tr.insert('<td style="padding:4px 10px"><select name="steps[' + i + '][template_id]" class="required-entry select">'
+            + '<option value=""></option>' + options + '</select></td>');
+        tr.insert('<td style="padding:4px 10px"><input type="text" class="input-text validate-digits" style="width:60px"'
+            + ' name="steps[' + i + '][after_days]" value="' + (row.after_days || 0) + '" /></td>');
+        tr.insert('<td style="padding:4px 10px"><input type="text" class="input-text validate-digits" style="width:60px"'
+            + ' name="steps[' + i + '][after_hours]" value="' + (row.after_hours || 0) + '" /></td>');
+        tr.insert('<td style="padding:4px 10px"><button type="button" class="scalable delete"><span><span><span>{$remove}</span></span></span></button></td>');
+
+        body.appendChild(tr);
+
+        if (row.template_id) {
+            tr.down('select').value = row.template_id;
+        }
+
+        tr.down('button').observe('click', function () {
+            // A chain with no messages is a rule that does nothing; keep one
+            if (body.select('tr').length > 1) {
+                tr.remove();
+                renumber();
+            }
+        });
+
+        renumber();
+    }
+
+    function renumber() {
+        body.select('tr').each(function (tr, n) {
+            tr.down('.ec-step-no').update(n + 1);
+        });
+    }
+
+    rows.each(draw);
+    add.observe('click', function () { draw({template_id: '', after_days: 0, after_hours: 0}); });
+}());
+//]]>
+</script>
+HTML;
     }
 
     /**

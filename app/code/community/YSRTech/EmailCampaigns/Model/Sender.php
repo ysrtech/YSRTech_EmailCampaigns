@@ -121,11 +121,33 @@ class YSRTech_EmailCampaigns_Model_Sender
             Mage::throwException('The automation behind this message no longer exists.');
         }
 
+        /*
+         * The last possible moment to call the chain off. Somebody who ordered
+         * an hour ago should not receive the nudge that was queued a week ago
+         * to tempt them into ordering.
+         */
+        if ($automation->shouldCancelFor($item)) {
+            $item->setStatus('cancelled')
+                ->setErrorMessage('Chain stopped: they ordered after this was queued.')
+                ->setLockToken(null)
+                ->setLockedAt(null)
+                ->save();
+
+            return;
+        }
+
+        /** @var YSRTech_EmailCampaigns_Model_Automation_Step $step */
+        $step = Mage::getModel('ysrtech_emailcampaigns/automation_step')->load($item->getStepId());
+
+        if (!$step->getId()) {
+            Mage::throwException('The step behind this message no longer exists.');
+        }
+
         /** @var YSRTech_EmailCampaigns_Model_Template $template */
-        $template = Mage::getModel('ysrtech_emailcampaigns/template')->load($automation->getTemplateId());
+        $template = Mage::getModel('ysrtech_emailcampaigns/template')->load($step->getTemplateId());
 
         if (!$template->getId()) {
-            Mage::throwException('The automation has no template to send.');
+            Mage::throwException('The step has no template to send.');
         }
 
         $storeId = $automation->getStoreId() ?: null;

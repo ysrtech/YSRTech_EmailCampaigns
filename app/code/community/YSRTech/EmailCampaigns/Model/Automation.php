@@ -43,24 +43,28 @@ class YSRTech_EmailCampaigns_Model_Automation extends Mage_Core_Model_Abstract
     }
 
     /**
-     * When a message triggered now should actually go out.
+     * The messages this automation sends, in order.
      *
-     * @return string
+     * @return YSRTech_EmailCampaigns_Model_Resource_Automation_Step_Collection
      */
-    public function getSendAt(): string
+    public function getSteps()
     {
-        if ($this->getSendMoment() !== 'after') {
-            return Varien_Date::now();
+        if (!$this->hasData('steps')) {
+            $this->setData('steps', Mage::getResourceModel('ysrtech_emailcampaigns/automation_step_collection')
+                ->addAutomationFilter((int) $this->getId()));
         }
 
-        $seconds = ((int) $this->getAfterDays() * 86400) + ((int) $this->getAfterHours() * 3600);
+        return $this->getData('steps');
+    }
 
-        /*
-         * gmdate, not core/date: the queue stores and compares UTC, and
-         * core/date would hand back store-local time to be compared against
-         * it - which quietly shifts every delay by the store's offset.
-         */
-        return gmdate('Y-m-d H:i:s', time() + $seconds);
+    /**
+     * Whether a later order should stop the rest of the chain.
+     *
+     * @return bool
+     */
+    public function cancelsOnOrder(): bool
+    {
+        return $this->getCancelOn() === 'order_placed';
     }
 
     /**
@@ -78,47 +82,104 @@ class YSRTech_EmailCampaigns_Model_Automation extends Mage_Core_Model_Abstract
      * @param  int|null      $storeId
      * @return bool
      */
-    public function queue(string $email, string $objectType, int $objectId, $customerId = null, $storeId = null): bool
+    public function queue(string $email, string $objectType, int $objectId, $customerId = null, $storeId = null): int
     {
         $email = trim($email);
 
         if ($email === '' || !$this->getId()) {
-            return false;
+            return 0;
         }
 
         if ($this->getRespectSubscription() && !$this->_maySendMarketingTo($email)) {
-            return false;
+            return 0;
+        }
+
+        $steps = $this->getSteps();
+
+        if (!count($steps)) {
+            return 0;
         }
 
         $resource = Mage::getSingleton('core/resource');
         $adapter  = $resource->getConnection('core_write');
+        $table    = $resource->getTableName('ysrtech_emailcampaigns/queue');
 
-        try {
-            /*
-             * The unique key on (automation_id, object_type, object_id) is
-             * what stops one order being mailed twice by the same rule - two
-             * observers firing on the same save, a retroactive run covering
-             * ground the live trigger already did. Letting the database say no
-             * is cheaper and more reliable than asking it first.
-             */
-            $adapter->insert($resource->getTableName('ysrtech_emailcampaigns/queue'), [
-                'automation_id'  => (int) $this->getId(),
-                'campaign_id'    => null,
-                'object_type'    => $objectType,
-                'object_id'      => $objectId,
-                'email'          => $email,
-                'customer_id'    => $customerId ? (int) $customerId : null,
-                'subscriber_id'  => $this->_subscriberIdFor($email),
-                'status'         => 'pending',
-                'send_at'        => $this->getSendAt(),
-                'tracking_token' => Mage::helper('core')->getRandomString(32),
-            ]);
-        } catch (Exception $e) {
-            // Duplicate key: already queued for this object, which is fine
+        /*
+         * Every step is queued now, each with its own due time, rather than
+         * the next being added as the previous one sends. A chain that only
+         * advances while the cron keeps running is a chain that quietly stops
+         * halfway when something goes wrong for a day; laid down in full, the
+         * later steps are simply due later.
+         */
+        $triggeredAt = time();
+        $queuedAt    = gmdate('Y-m-d H:i:s', $triggeredAt);
+        $subscriber  = $this->_subscriberIdFor($email);
+        $queued      = 0;
+
+        foreach ($steps as $step) {
+            try {
+                /*
+                 * The unique key - now including the step - is what stops one
+                 * order being mailed twice by the same rule when two observers
+                 * fire on the same save. Letting the database say no is
+                 * cheaper and more reliable than asking it first.
+                 */
+                $adapter->insert($table, [
+                    'automation_id'  => (int) $this->getId(),
+                    'step_id'        => (int) $step->getId(),
+                    'campaign_id'    => null,
+                    'object_type'    => $objectType,
+                    'object_id'      => $objectId,
+                    'email'          => $email,
+                    'customer_id'    => $customerId ? (int) $customerId : null,
+                    'subscriber_id'  => $subscriber,
+                    'status'         => 'pending',
+                    'queued_at'      => $queuedAt,
+                    'send_at'        => $step->getSendAt($triggeredAt),
+                    'tracking_token' => Mage::helper('core')->getRandomString(32),
+                ]);
+
+                $queued++;
+            } catch (Exception $e) {
+                // Duplicate: this step is already queued for this object
+                continue;
+            }
+        }
+
+        return $queued;
+    }
+
+    /**
+     * Whether the rest of this chain should be abandoned for one recipient.
+     *
+     * Asked as each message comes due rather than on a schedule of its own,
+     * so the answer is as late as it can be: somebody who orders an hour
+     * before the day-seven nudge should not receive it.
+     *
+     * @param  YSRTech_EmailCampaigns_Model_Queue $item
+     * @return bool
+     */
+    public function shouldCancelFor($item): bool
+    {
+        if (!$this->cancelsOnOrder() || !$item->getQueuedAt()) {
             return false;
         }
 
-        return true;
+        $resource = Mage::getSingleton('core/resource');
+        $adapter  = $resource->getConnection('core_read');
+
+        $select = $adapter->select()
+            ->from($resource->getTableName('sales/order'), [new Zend_Db_Expr('1')])
+            ->where('customer_email = ?', (string) $item->getEmail())
+            ->where('created_at > ?', (string) $item->getQueuedAt())
+            ->limit(1);
+
+        /*
+         * Matched on the address rather than the customer id: the cart that
+         * started this may have been a guest's, and the order that answers it
+         * may be a guest order too.
+         */
+        return (bool) $adapter->fetchOne($select);
     }
 
     /**

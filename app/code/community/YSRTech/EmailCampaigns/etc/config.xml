@@ -2,7 +2,7 @@
 <config>
     <modules>
         <YSRTech_EmailCampaigns>
-            <version>0.4.0</version>
+            <version>0.5.0</version>
         </YSRTech_EmailCampaigns>
     </modules>
 
@@ -30,6 +30,9 @@
                     <automation>
                         <table>ysrtech_emailcampaigns_automation</table>
                     </automation>
+                    <automation_step>
+                        <table>ysrtech_emailcampaigns_automation_step</table>
+                    </automation_step>
                     <!-- Kept declared so the 0.1.0 install script and the
                          upgrade that drops it can still resolve the name. -->
                     <segment_customer>
