@@ -67,9 +67,14 @@ class YSRTech_EmailCampaigns_Model_Sender
             ->addFieldToFilter('lock_token', $token);
 
         $byCampaign = [];
+        $triggered  = [];
 
         foreach ($queue as $item) {
-            $byCampaign[(int) $item->getCampaignId()][] = $item;
+            if ($item->getAutomationId()) {
+                $triggered[] = $item;
+            } else {
+                $byCampaign[(int) $item->getCampaignId()][] = $item;
+            }
         }
 
         foreach ($byCampaign as $items) {
@@ -83,6 +88,70 @@ class YSRTech_EmailCampaigns_Model_Sender
                 }
             }
         }
+
+        /*
+         * One at a time, deliberately. A campaign is one body for thousands of
+         * people, which is what makes batching worth it; triggered mail is one
+         * body per person - their order, their cart - so there is nothing to
+         * share and a failure should cost one message rather than a batch.
+         */
+        foreach ($triggered as $item) {
+            try {
+                $this->_sendTriggered($item);
+            } catch (Throwable $e) {
+                Mage::logException($e);
+                $this->_markFailure($item, $e->getMessage(), $maxAttempts);
+            }
+        }
+    }
+
+    /**
+     * Send one triggered message.
+     *
+     * @param  YSRTech_EmailCampaigns_Model_Queue $item
+     * @return void
+     * @throws Mage_Core_Exception
+     */
+    protected function _sendTriggered($item): void
+    {
+        /** @var YSRTech_EmailCampaigns_Model_Automation $automation */
+        $automation = Mage::getModel('ysrtech_emailcampaigns/automation')->load($item->getAutomationId());
+
+        if (!$automation->getId()) {
+            Mage::throwException('The automation behind this message no longer exists.');
+        }
+
+        /** @var YSRTech_EmailCampaigns_Model_Template $template */
+        $template = Mage::getModel('ysrtech_emailcampaigns/template')->load($automation->getTemplateId());
+
+        if (!$template->getId()) {
+            Mage::throwException('The automation has no template to send.');
+        }
+
+        $storeId = $automation->getStoreId() ?: null;
+        $vars    = Mage::getSingleton('ysrtech_emailcampaigns/automation_variables')
+            ->forQueueItem($item, $storeId);
+
+        $html = Mage::getSingleton('ysrtech_emailcampaigns/renderer')->render($template, $vars);
+
+        $transport = Mage::getSingleton('ysrtech_emailcampaigns/transport_factory')->get();
+
+        $transport->sendBatch(
+            [[
+                'email' => (string) $item->getEmail(),
+                'name'  => trim(($vars['customer']['firstname'] ?? '') . ' ' . ($vars['customer']['lastname'] ?? '')),
+                'vars'  => $vars,
+                'html'  => $html,
+            ]],
+            (string) ($template->getSubject() ?: $automation->getName()),
+            $html
+        );
+
+        $item->setStatus('sent')
+            ->setSentAt(Varien_Date::now())
+            ->setLockToken(null)
+            ->setLockedAt(null)
+            ->save();
     }
 
     /**
@@ -118,9 +187,11 @@ class YSRTech_EmailCampaigns_Model_Sender
               WHERE status = 'pending'
                 AND lock_token IS NULL
                 AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+                -- Triggered mail carries a delay; campaign rows leave it null
+                AND (send_at IS NULL OR send_at <= ?)
               ORDER BY queue_id
               LIMIT {$batchSize}",
-            [$token, $now, $now]
+            [$token, $now, $now, $now]
         )->rowCount();
 
         return $claimed > 0 ? $token : null;

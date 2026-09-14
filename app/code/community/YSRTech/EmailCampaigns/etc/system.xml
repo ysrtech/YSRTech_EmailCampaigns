@@ -64,6 +64,13 @@
                             <sort_order>50</sort_order>
                             <show_in_default>1</show_in_default>
                         </batch_size>
+                        <abandoned_cart_hours translate="label comment">
+                            <label>Abandoned Cart After (hours)</label>
+                            <frontend_type>text</frontend_type>
+                            <comment>How long a cart must sit untouched before it counts as abandoned. Too short and you nudge people who are still shopping.</comment>
+                            <sort_order>55</sort_order>
+                            <show_in_default>1</show_in_default>
+                        </abandoned_cart_hours>
                         <max_attempts translate="label">
                             <label>Max Send Attempts</label>
                             <frontend_type>text</frontend_type>
