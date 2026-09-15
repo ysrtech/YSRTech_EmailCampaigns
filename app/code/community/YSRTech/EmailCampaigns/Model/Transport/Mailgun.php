@@ -67,6 +67,11 @@ class YSRTech_EmailCampaigns_Model_Transport_Mailgun
             'o:tracking' => Mage::helper('ysrtech_emailcampaigns')->getConfig('tracking/enabled') ? 'yes' : 'no',
             'o:tracking-opens'   => 'yes',
             'o:tracking-clicks'  => 'htmlonly',
+            // Substituted per-recipient from recipient-variables (Sender.php sets
+            // 'tracking_token' there) and echoed back on every subsequent webhook
+            // event for this send, so WebhookController can match an "opened" or
+            // "clicked" event back to the exact queue row.
+            'v:tracking_token'   => '%recipient.tracking_token%',
         ];
         if ($timestamp !== null) {
             $params['o:deliverytime'] = gmdate('D, d M Y H:i:s', $timestamp) . ' +0000';

@@ -55,7 +55,11 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Segment_Edit_Form extends Mage_Admi
                 'title'    => $h->__('Conditions'),
                 'required' => true,
             ]);
-            $element->setRule($model)->setElement($renderer);
+            // setElement() doesn't affect rendering at all — the field needs its actual
+            // renderer set to rule/conditions, whose render() calls
+            // getRule()->getConditions()->asHtmlRecursive() to draw the interactive tree.
+            // Without it the field falls back to a plain, non-interactive text input.
+            $element->setRule($model)->setRenderer(Mage::getBlockSingleton('rule/conditions'));
         }
 
         $this->setForm($form);

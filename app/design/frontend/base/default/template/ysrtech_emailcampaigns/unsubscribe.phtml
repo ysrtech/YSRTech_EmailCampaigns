@@ -1,0 +1,12 @@
+<?php
+/** @var YSRTech_EmailCampaigns_Block_Unsubscribe $this */
+?>
+<div class="ysr-unsubscribe-page" style="max-width:480px;margin:60px auto;text-align:center;font-family:Arial,Helvetica,sans-serif;">
+<?php if ($this->wasUnsubscribed()): ?>
+    <h1><?php echo $this->__('You have been unsubscribed') ?></h1>
+    <p><?php echo $this->__("%s will no longer receive marketing emails from us.", $this->escapeHtml($this->getEmail())) ?></p>
+<?php else: ?>
+    <h1><?php echo $this->__('Unsubscribe link expired') ?></h1>
+    <p><?php echo $this->__("This unsubscribe link is no longer valid. If you continue to receive emails you don't want, please contact us.") ?></p>
+<?php endif ?>
+</div>

@@ -56,7 +56,7 @@ class YSRTech_EmailCampaigns_Model_Sender
 
         foreach ($byCampaign as $campaignId => $items) {
             try {
-                $this->_sendCampaignBatch((int) $campaignId, $items, $maxAttempts);
+                $this->_sendCampaignBatch($items, $maxAttempts);
             } catch (Exception $e) {
                 Mage::logException($e);
                 // Mark all items in this failed batch for retry.
@@ -78,8 +78,17 @@ class YSRTech_EmailCampaigns_Model_Sender
         /** @var YSRTech_EmailCampaigns_Model_Template $template */
         $template = Mage::getModel('ysrtech_emailcampaigns/template')->load($campaign->getTemplateId());
         $renderer = Mage::getSingleton('ysrtech_emailcampaigns/renderer');
+        $helper = Mage::helper('ysrtech_emailcampaigns');
         $transport = Mage::getSingleton('ysrtech_emailcampaigns/transport_factory')->get();
         $now = Varien_Date::now();
+
+        // Mailgun expands this per-recipient token itself at send time and fires the
+        // "unsubscribed" webhook (see WebhookController::mailgunAction) when it's
+        // clicked, so it needs to reach the API as this literal string, not a URL we
+        // build here. Other transports have no hosted equivalent, so they use the
+        // module's own preferences controller instead.
+        $isMailgun = $helper->getConfig('sending/transport') === 'mailgun';
+        $unsubscribeUrl = $isMailgun ? '%recipient.unsubscribe_url%' : null;
 
         $recipients = [];
         foreach ($items as $item) {
@@ -91,9 +100,14 @@ class YSRTech_EmailCampaigns_Model_Sender
                     'email'     => $customer->getEmail(),
                 ],
                 'store' => ['name' => Mage::app()->getStore($campaign->getStoreId())->getName()],
-                'unsubscribe_url' => Mage::getUrl('emailcampaigns/preferences/unsubscribe', [
+                'unsubscribe_url' => $unsubscribeUrl ?? Mage::getUrl('emailcampaigns/preferences/unsubscribe', [
                     '_token' => $item->getTrackingToken(),
                 ]),
+                // Echoed back by Mailgun in every webhook event for this send (as
+                // event-data.user-variables.tracking_token, via Transport/Mailgun.php's
+                // v:tracking_token param) so opened/clicked events can be matched back
+                // to this exact queue row.
+                'tracking_token' => $item->getTrackingToken(),
             ];
             $html = $renderer->render($template, $vars);
 
@@ -116,7 +130,9 @@ class YSRTech_EmailCampaigns_Model_Sender
         foreach ($recipients as $r) {
             /** @var YSRTech_EmailCampaigns_Model_Queue $item */
             $item = $r['_item'];
-            $item->setData([
+            // setData() with an array replaces the whole record (id included), which
+            // would turn this save into an INSERT of a duplicate row; addData() merges.
+            $item->addData([
                 'status'   => 'sent',
                 'sent_at'  => $now,
                 'attempts' => (int) $item->getAttempts() + 1,
