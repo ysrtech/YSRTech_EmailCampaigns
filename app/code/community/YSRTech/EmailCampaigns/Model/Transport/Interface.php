@@ -18,9 +18,24 @@ interface YSRTech_EmailCampaigns_Model_Transport_Interface
     /**
      * Batch send the same content to many recipients.
      *
-     * @param string[][] $recipients [['email' => ..., 'name' => ..., 'vars' => [...]], ...]
+     * Providers cap how many addresses one call may carry, so a batch larger
+     * than that cap goes out as several calls and a failure can land with some
+     * of them already delivered. $onChunkSent is called with each chunk that
+     * the provider accepted, as it is accepted, so the caller can record those
+     * recipients before the throw that follows: without it the caller can only
+     * fail the whole batch, and retrying it mails the delivered chunks twice.
+     *
+     * @param string[][]    $recipients  [['email' => ..., 'name' => ..., 'vars' => [...]], ...]
+     * @param callable|null $onChunkSent fn(array $chunk): void, $chunk being a
+     *                                   slice of $recipients the provider took
      */
-    public function sendBatch(array $recipients, string $subject, string $html, ?int $timestamp = null);
+    public function sendBatch(
+        array $recipients,
+        string $subject,
+        string $html,
+        ?int $timestamp = null,
+        ?callable $onChunkSent = null
+    );
 
     /**
      * Whether this provider expands per-recipient variables itself.

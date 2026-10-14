@@ -17,6 +17,24 @@ class YSRTech_EmailCampaigns_Model_Sender
         foreach ($collection as $campaign) {
             try {
                 $count = $campaign->buildQueue();
+
+                if ($count === 0) {
+                    /*
+                     * Nobody matched. Marking it sending would strand it: the
+                     * queue reconciles a campaign from its rows, and this one
+                     * has none, so it would sit in "sending" for good.
+                     */
+                    $campaign
+                        ->setStatus(YSRTech_EmailCampaigns_Model_Campaign::STATUS_FAILED)
+                        ->save();
+                    Mage::log(
+                        "EmailCampaigns: campaign #{$campaign->getId()} matched no recipients; not sent.",
+                        Zend_Log::WARN
+                    );
+
+                    continue;
+                }
+
                 $campaign
                     ->setStatus(YSRTech_EmailCampaigns_Model_Campaign::STATUS_SENDING)
                     ->save();
@@ -77,14 +95,36 @@ class YSRTech_EmailCampaigns_Model_Sender
             }
         }
 
-        foreach ($byCampaign as $items) {
+        foreach ($byCampaign as $campaignId => $items) {
             try {
                 $this->_sendCampaignBatch($items, $maxAttempts);
             } catch (Throwable $e) {
                 Mage::logException($e);
 
+                /*
+                 * Only what did not go out. _sendCampaignBatch marks each
+                 * chunk the provider accepted as it is accepted, so failing
+                 * the whole batch here would put delivered recipients back in
+                 * the queue and mail them a second time on the retry.
+                 */
                 foreach ($items as $item) {
+                    if ($item->getStatus() === 'sent') {
+                        continue;
+                    }
+
                     $this->_markFailure($item, $e->getMessage(), $maxAttempts);
+                }
+            } finally {
+                try {
+                    // On the failure path too: a campaign whose every row
+                    // ended up failed is finished, and nothing else would
+                    // ever say so.
+                    $this->_reconcileCampaign((int) $campaignId);
+                } catch (Throwable $e) {
+                    // Thrown from finally this would leave this tick's other
+                    // campaigns and every triggered message claimed but
+                    // unsent until the stale-claim sweep half an hour later.
+                    Mage::logException($e);
                 }
             }
         }
@@ -295,6 +335,40 @@ class YSRTech_EmailCampaigns_Model_Sender
             ];
         }
 
+        /*
+         * The queue row behind each recipient, so a chunk the provider has
+         * accepted can be written off straight away. The transport reports
+         * chunks as they land rather than once at the end, because a batch
+         * bigger than the provider's per-call cap goes out in several calls
+         * and the last one can fail with the earlier ones delivered.
+         */
+        $itemsByEmail = [];
+
+        foreach ($recipients as $r) {
+            $itemsByEmail[strtolower($r['email'])][] = $r['_item'];
+        }
+
+        $markSent = function (array $chunk) use ($itemsByEmail, $now): void {
+            foreach ($chunk as $recipient) {
+                foreach ($itemsByEmail[strtolower((string) $recipient['email'])] ?? [] as $item) {
+                    if ($item->getStatus() === 'sent') {
+                        continue;
+                    }
+
+                    // addData: setData given an array replaces the row's data
+                    // outright, dropping queue_id and turning the save into an
+                    // insert.
+                    $item->addData([
+                        'status'     => 'sent',
+                        'sent_at'    => $now,
+                        'attempts'   => (int) $item->getAttempts() + 1,
+                        'lock_token' => null,
+                        'locked_at'  => null,
+                    ])->save();
+                }
+            }
+        };
+
         $transport->sendBatch(
             array_map(static fn ($r) => [
                 'email' => $r['email'],
@@ -303,36 +377,69 @@ class YSRTech_EmailCampaigns_Model_Sender
                 'html'  => $r['html'],
             ], $recipients),
             (string) $campaign->getSubject(),
-            $delegates ? $sharedHtml : $recipients[0]['html']
+            $delegates ? $sharedHtml : $recipients[0]['html'],
+            null,
+            $markSent
         );
 
-        foreach ($recipients as $r) {
-            /** @var YSRTech_EmailCampaigns_Model_Queue $item */
-            $item = $r['_item'];
+        /*
+         * A transport that reports no chunks at all - an older one, or one
+         * written against the interface before the callback existed - still
+         * returned without throwing, which means it delivered. Fall back to
+         * marking everything, or its recipients would be retried forever.
+         */
+        $markSent(array_map(static fn ($r) => ['email' => $r['email']], $recipients));
+    }
 
-            // addData: setData given an array replaces the row's data
-            // outright, dropping queue_id and turning the save into an insert.
-            $item->addData([
-                'status'     => 'sent',
-                'sent_at'    => $now,
-                'attempts'   => (int) $item->getAttempts() + 1,
-                'lock_token' => null,
-                'locked_at'  => null,
-            ])->save();
+    /**
+     * Settle a campaign's status once nothing of its queue is still in play.
+     *
+     * The old check ran only after a batch had been sent successfully, and it
+     * counted pending and sending rows alone - so a campaign whose rows all
+     * ended up failed never met it and sat in "sending" for good, with nothing
+     * to pick it up again: launchScheduledCampaigns only looks at scheduled
+     * ones, and the queue only claims pending rows.
+     */
+    private function _reconcileCampaign(int $campaignId): void
+    {
+        if ($campaignId <= 0) {
+            return;
         }
 
-        // If no pending rows remain for this campaign, mark it sent.
-        $remaining = Mage::getResourceModel('ysrtech_emailcampaigns/queue_collection')
-            ->addFieldToFilter('campaign_id', $campaign->getId())
-            ->addFieldToFilter('status', ['in' => ['pending', 'sending']])
-            ->getSize();
+        /** @var YSRTech_EmailCampaigns_Model_Campaign $campaign */
+        $campaign = Mage::getModel('ysrtech_emailcampaigns/campaign')->load($campaignId);
 
-        if ($remaining === 0 && $campaign->getStatus() === YSRTech_EmailCampaigns_Model_Campaign::STATUS_SENDING) {
+        if (!$campaign->getId()
+            || $campaign->getStatus() !== YSRTech_EmailCampaigns_Model_Campaign::STATUS_SENDING
+        ) {
+            return;
+        }
+
+        $counts = Mage::getResourceModel('ysrtech_emailcampaigns/queue_collection')
+            ->countByStatusForCampaign($campaignId);
+
+        // Still work to do, including rows waiting out their retry backoff.
+        if (($counts['pending'] ?? 0) > 0 || ($counts['sending'] ?? 0) > 0) {
+            return;
+        }
+
+        /*
+         * Sent if anybody received it, failed if nobody did. "Partly sent" is
+         * not a status worth adding: the campaign's own analytics already
+         * break the queue down by row, and what matters here is that the
+         * campaign stops claiming to be in progress.
+         */
+        if (($counts['sent'] ?? 0) > 0) {
             $campaign
                 ->setStatus(YSRTech_EmailCampaigns_Model_Campaign::STATUS_SENT)
-                ->setSentAt($now)
-                ->save();
+                ->setSentAt(Varien_Date::now());
+        } else {
+            // sent_at left alone: nothing was sent, and a timestamp there
+            // reads as a send that happened.
+            $campaign->setStatus(YSRTech_EmailCampaigns_Model_Campaign::STATUS_FAILED);
         }
+
+        $campaign->save();
     }
 
     /**

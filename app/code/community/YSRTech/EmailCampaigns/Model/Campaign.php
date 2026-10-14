@@ -7,6 +7,8 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
     public const STATUS_SENT      = 'sent';
     public const STATUS_PAUSED    = 'paused';
     public const STATUS_CANCELLED = 'cancelled';
+    /** Queued, attempted, and nobody received it */
+    public const STATUS_FAILED    = 'failed';
 
     protected function _construct()
     {

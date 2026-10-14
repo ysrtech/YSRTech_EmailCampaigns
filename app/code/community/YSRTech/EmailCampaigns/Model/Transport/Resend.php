@@ -7,6 +7,9 @@ class YSRTech_EmailCampaigns_Model_Transport_Resend
 {
     private const API_BASE = 'https://api.resend.com/';
 
+    /** Resend's cap on messages per /emails/batch call */
+    private const MAX_PER_CALL = 100;
+
     private function getApiKey(): string
     {
         $key = (string) Mage::helper('ysrtech_emailcampaigns')->getSecret('sending/api_key');
@@ -42,23 +45,48 @@ class YSRTech_EmailCampaigns_Model_Transport_Resend
         return $this->request('POST', 'emails', $payload);
     }
 
-    public function sendBatch(array $recipients, string $subject, string $html, ?int $timestamp = null)
-    {
+    public function sendBatch(
+        array $recipients,
+        string $subject,
+        string $html,
+        ?int $timestamp = null,
+        ?callable $onChunkSent = null
+    ) {
         if (!$recipients) {
             return null;
         }
-        $messages = [];
-        foreach (array_slice($recipients, 0, 100) as $r) {
-            $messages[] = [
-                'from'    => $this->getFrom(),
-                'to'      => [$r['email']],
-                'subject' => $subject,
-                // Their own copy. Using the shared body posted the first
-                // recipient's email - greeting and all - to everybody.
-                'html'    => isset($r['html']) ? (string) $r['html'] : $html,
-            ];
+
+        $result = null;
+
+        /*
+         * Chunked, not truncated. This took the first hundred and dropped the
+         * rest on the floor, and the caller marks the whole batch sent on
+         * return - so with a batch size above a hundred everyone past the
+         * hundredth was recorded as mailed without a message ever being built
+         * for them.
+         */
+        foreach (array_chunk($recipients, self::MAX_PER_CALL) as $chunk) {
+            $messages = [];
+
+            foreach ($chunk as $r) {
+                $messages[] = [
+                    'from'    => $this->getFrom(),
+                    'to'      => [$r['email']],
+                    'subject' => $subject,
+                    // Their own copy. Using the shared body posted the first
+                    // recipient's email - greeting and all - to everybody.
+                    'html'    => isset($r['html']) ? (string) $r['html'] : $html,
+                ];
+            }
+
+            $result = $this->request('POST', 'emails/batch', $messages);
+
+            if ($onChunkSent !== null) {
+                $onChunkSent($chunk);
+            }
         }
-        return $this->request('POST', 'emails/batch', $messages);
+
+        return $result;
     }
 
     private function getFrom(): string

@@ -74,8 +74,13 @@ class YSRTech_EmailCampaigns_Model_Transport_Mailgun
     /**
      * @inheritdoc
      */
-    public function sendBatch(array $recipients, string $subject, string $html, ?int $timestamp = null)
-    {
+    public function sendBatch(
+        array $recipients,
+        string $subject,
+        string $html,
+        ?int $timestamp = null,
+        ?callable $onChunkSent = null
+    ) {
         if (!$recipients) {
             return null;
         }
@@ -84,6 +89,13 @@ class YSRTech_EmailCampaigns_Model_Transport_Mailgun
 
         foreach (array_chunk($recipients, self::MAX_PER_CALL) as $chunk) {
             $result = $this->_postChunk($chunk, $subject, $html, $timestamp);
+
+            // Reported before the next chunk can throw, so a failure halfway
+            // through a large batch does not put the delivered chunks back in
+            // the queue to be mailed a second time.
+            if ($onChunkSent !== null) {
+                $onChunkSent($chunk);
+            }
         }
 
         return $result;

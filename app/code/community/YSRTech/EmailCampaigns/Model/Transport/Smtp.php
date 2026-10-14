@@ -71,8 +71,13 @@ class YSRTech_EmailCampaigns_Model_Transport_Smtp
      * variables, so each person gets the copy rendered for them - which is
      * also why a recipient's own html is used when the caller supplies it.
      */
-    public function sendBatch(array $recipients, string $subject, string $html, ?int $timestamp = null)
-    {
+    public function sendBatch(
+        array $recipients,
+        string $subject,
+        string $html,
+        ?int $timestamp = null,
+        ?callable $onChunkSent = null
+    ) {
         foreach ($recipients as $recipient) {
             $this->send(
                 (string) $recipient['email'],
@@ -80,6 +85,13 @@ class YSRTech_EmailCampaigns_Model_Transport_Smtp
                 isset($recipient['html']) ? (string) $recipient['html'] : $html,
                 isset($recipient['vars']) ? (array) $recipient['vars'] : []
             );
+
+            // One at a time here, so the chunk is a single recipient: a relay
+            // that starts refusing partway through a batch has still delivered
+            // everybody before it, and none of them should be mailed again.
+            if ($onChunkSent !== null) {
+                $onChunkSent([$recipient]);
+            }
         }
 
         return null;

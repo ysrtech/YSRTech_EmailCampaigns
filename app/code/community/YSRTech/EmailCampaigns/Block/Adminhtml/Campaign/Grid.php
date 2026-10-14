@@ -43,6 +43,7 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Grid extends Mage_Adminhtm
                 'sent'      => $h->__('Sent'),
                 'paused'    => $h->__('Paused'),
                 'cancelled' => $h->__('Cancelled'),
+                'failed'    => $h->__('Failed'),
             ],
         ]);
         $this->addColumn('scheduled_at', [
