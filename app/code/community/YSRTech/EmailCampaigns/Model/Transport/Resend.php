@@ -9,7 +9,7 @@ class YSRTech_EmailCampaigns_Model_Transport_Resend
 
     private function getApiKey(): string
     {
-        $key = (string) Mage::helper('ysrtech_emailcampaigns')->getConfig('sending/api_key');
+        $key = (string) Mage::helper('ysrtech_emailcampaigns')->getSecret('sending/api_key');
         if ($key === '') {
             Mage::throwException('Resend API key is not configured.');
         }

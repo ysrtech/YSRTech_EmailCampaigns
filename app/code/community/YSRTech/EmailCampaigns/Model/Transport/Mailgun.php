@@ -41,7 +41,7 @@ class YSRTech_EmailCampaigns_Model_Transport_Mailgun
 
     private function getApiKey(): string
     {
-        $key = (string) Mage::helper('ysrtech_emailcampaigns')->getConfig('sending/api_key');
+        $key = (string) Mage::helper('ysrtech_emailcampaigns')->getSecret('sending/api_key');
 
         if ($key === '') {
             Mage::throwException('Mailgun API key is not configured.');

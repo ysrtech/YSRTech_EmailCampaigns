@@ -131,7 +131,7 @@ class YSRTech_EmailCampaigns_Model_Suppressions
      */
     protected function _get(string $url): array
     {
-        $key = (string) Mage::helper('ysrtech_emailcampaigns')->getConfig('sending/api_key');
+        $key = (string) Mage::helper('ysrtech_emailcampaigns')->getSecret('sending/api_key');
 
         if ($key === '') {
             Mage::throwException('Mailgun API key is not configured.');
