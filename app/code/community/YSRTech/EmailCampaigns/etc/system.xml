@@ -29,13 +29,22 @@
                             <sort_order>10</sort_order>
                             <show_in_default>1</show_in_default>
                         </transport>
-                        <api_key translate="label">
+                        <api_key translate="label comment">
                             <label>Provider API Key</label>
                             <frontend_type>obscure</frontend_type>
                             <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
+                            <comment>Used to send. A Mailgun domain sending key is enough and is what Mailgun recommends here, since it can do nothing but send from one domain.</comment>
                             <sort_order>20</sort_order>
                             <show_in_default>1</show_in_default>
                         </api_key>
+                        <suppression_api_key translate="label comment">
+                            <label>Suppression API Key (Mailgun)</label>
+                            <frontend_type>obscure</frontend_type>
+                            <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
+                            <comment><![CDATA[Used only by the hourly job that reads unsubscribes, bounces and complaints back from Mailgun. Those lists sit outside a sending key's scope, so that key answers 401 here and needs an account key, or a role key with suppression permissions. Keeping it separate means the key that sends - the one in the request on every campaign - does not have to be the account-wide one. Leave blank to use the sending key above.]]></comment>
+                            <sort_order>22</sort_order>
+                            <show_in_default>1</show_in_default>
+                        </suppression_api_key>
                         <mailgun_domain translate="label comment">
                             <label>Mailgun Sending Domain</label>
                             <frontend_type>text</frontend_type>

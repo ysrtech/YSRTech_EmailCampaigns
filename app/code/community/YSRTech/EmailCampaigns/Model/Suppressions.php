@@ -42,6 +42,17 @@ class YSRTech_EmailCampaigns_Model_Suppressions
                 // One list failing should not stop the others
                 Mage::logException($e);
                 $counts[$list] = 0;
+
+                /*
+                 * Except when the credential is the problem: the other lists
+                 * are behind the same key and will fail identically. Trying
+                 * them anyway is what turned one misconfigured key into three
+                 * exceptions an hour, 438 of them over six days, all saying
+                 * the same thing.
+                 */
+                if ($e instanceof YSRTech_EmailCampaigns_Exception_Auth) {
+                    break;
+                }
             }
         }
 
@@ -111,6 +122,44 @@ class YSRTech_EmailCampaigns_Model_Suppressions
     }
 
     /**
+     * The key these lists are read with.
+     *
+     * Separate from the sending key on purpose. Reading suppressions needs
+     * account-level access, and making that the one credential on the box
+     * would mean the key posted with every campaign is also the key that can
+     * administer the whole Mailgun account. The sending key stays the narrow
+     * one; this is the only thing that needs the broad one.
+     *
+     * @return string
+     */
+    protected function _getKey(): string
+    {
+        $helper = Mage::helper('ysrtech_emailcampaigns');
+        $key    = trim((string) $helper->getSecret('sending/suppression_api_key'));
+
+        if ($key === '') {
+            // Not set: an account key may well be in the sending field already,
+            // which is how this worked before the two were told apart.
+            $key = trim((string) $helper->getSecret('sending/api_key'));
+        }
+
+        if ($key === '') {
+            Mage::throwException('Mailgun API key is not configured.');
+        }
+
+        return $key;
+    }
+
+    /**
+     * Whether a dedicated suppression key is configured, for the error message.
+     */
+    protected function _usingOwnKey(): bool
+    {
+        return trim((string) Mage::helper('ysrtech_emailcampaigns')
+            ->getSecret('sending/suppression_api_key')) !== '';
+    }
+
+    /**
      * @return string
      */
     protected function _getDomain(): string
@@ -131,11 +180,7 @@ class YSRTech_EmailCampaigns_Model_Suppressions
      */
     protected function _get(string $url): array
     {
-        $key = (string) Mage::helper('ysrtech_emailcampaigns')->getSecret('sending/api_key');
-
-        if ($key === '') {
-            Mage::throwException('Mailgun API key is not configured.');
-        }
+        $key = $this->_getKey();
 
         $ch = curl_init($url);
 
@@ -153,6 +198,25 @@ class YSRTech_EmailCampaigns_Model_Suppressions
 
         if ($body === false) {
             Mage::throwException('Mailgun request failed: ' . $error);
+        }
+
+        if ($status === 401 || $status === 403) {
+            /*
+             * Worth spelling out, because the key is usually not wrong - it is
+             * the wrong kind of key. Mailgun's domain sending keys reach the
+             * sending endpoints and nothing else, so one of them answers 200
+             * on /v3/domains/<domain> and 401 on the suppression lists, which
+             * reads exactly like a bad credential.
+             */
+            throw new YSRTech_EmailCampaigns_Exception_Auth(sprintf(
+                'Mailgun refused the %s key for the suppression lists (HTTP %d): %s. '
+                . 'These lists are outside a domain sending key\'s scope: set a '
+                . 'Suppression API Key under Email Campaigns > Sending using an '
+                . 'account key, or a role key with suppression permissions.',
+                $this->_usingOwnKey() ? 'suppression' : 'sending',
+                $status,
+                substr((string) $body, 0, 200)
+            ));
         }
 
         if ($status < 200 || $status >= 300) {
