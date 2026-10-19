@@ -20,6 +20,18 @@ class YSRTech_EmailCampaigns_Model_Observer
      *
      * @return $this
      */
+    /**
+     * Nightly: drop the queue rows that have nothing left to say.
+     *
+     * @return $this
+     */
+    public function cleanupQueue()
+    {
+        Mage::getSingleton('ysrtech_emailcampaigns/retention')->purge();
+
+        return $this;
+    }
+
     public function syncSuppressions()
     {
         $counts = Mage::getSingleton('ysrtech_emailcampaigns/suppressions')->sync();

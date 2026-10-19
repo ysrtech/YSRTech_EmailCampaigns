@@ -33,12 +33,20 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Analytics_Grid extends Mage_Adminht
             ->joinLeft(
                 array('q' => $queue),
                 'q.campaign_id = main_table.campaign_id',
+                /*
+                 * COALESCE because the rows do not last for ever. Once the
+                 * retention sweep has rolled a campaign's totals onto it and
+                 * removed its queue, the sums are all zero and the stored
+                 * figures are the only record; until then the stored figures
+                 * are null and the sums are the live truth. Pending is counted
+                 * either way: a purged campaign has none by definition.
+                 */
                 array(
-                    'queued'  => new Zend_Db_Expr('COUNT(q.queue_id)'),
-                    'sent'    => new Zend_Db_Expr("SUM(CASE WHEN q.status = 'sent' THEN 1 ELSE 0 END)"),
+                    'queued'  => new Zend_Db_Expr('COALESCE(main_table.stat_queued, COUNT(q.queue_id))'),
+                    'sent'    => new Zend_Db_Expr("COALESCE(main_table.stat_sent, SUM(CASE WHEN q.status = 'sent' THEN 1 ELSE 0 END))"),
                     'pending' => new Zend_Db_Expr("SUM(CASE WHEN q.status = 'pending' THEN 1 ELSE 0 END)"),
-                    'failed'  => new Zend_Db_Expr("SUM(CASE WHEN q.status = 'failed' THEN 1 ELSE 0 END)"),
-                    'cancelled' => new Zend_Db_Expr("SUM(CASE WHEN q.status = 'cancelled' THEN 1 ELSE 0 END)"),
+                    'failed'  => new Zend_Db_Expr("COALESCE(main_table.stat_failed, SUM(CASE WHEN q.status = 'failed' THEN 1 ELSE 0 END))"),
+                    'cancelled' => new Zend_Db_Expr("COALESCE(main_table.stat_cancelled, SUM(CASE WHEN q.status = 'cancelled' THEN 1 ELSE 0 END))"),
                 )
             )
             ->group('main_table.campaign_id');

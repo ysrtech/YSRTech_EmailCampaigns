@@ -2,7 +2,7 @@
 <config>
     <modules>
         <YSRTech_EmailCampaigns>
-            <version>0.5.0</version>
+            <version>0.6.0</version>
         </YSRTech_EmailCampaigns>
     </modules>
 
@@ -244,6 +244,10 @@
                 <batch_size>100</batch_size>
                 <max_attempts>3</max_attempts>
             </sending>
+            <cleanup>
+                <enabled>1</enabled>
+                <keep_days>90</keep_days>
+            </cleanup>
             <tracking>
                 <enabled>1</enabled>
             </tracking>
@@ -269,6 +273,10 @@
                 <schedule><cron_expr>*/15 * * * *</cron_expr></schedule>
                 <run><model>ysrtech_emailcampaigns/observer::processAbandonedCarts</model></run>
             </ysrtech_emailcampaigns_abandoned_carts>
+            <ysrtech_emailcampaigns_queue_cleanup>
+                <schedule><cron_expr>40 3 * * *</cron_expr></schedule>
+                <run><model>ysrtech_emailcampaigns/observer::cleanupQueue</model></run>
+            </ysrtech_emailcampaigns_queue_cleanup>
             <ysrtech_emailcampaigns_sync_suppressions>
                 <schedule><cron_expr>15 * * * *</cron_expr></schedule>
                 <run><model>ysrtech_emailcampaigns/observer::syncSuppressions</model></run>

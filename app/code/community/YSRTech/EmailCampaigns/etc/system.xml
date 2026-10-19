@@ -88,6 +88,29 @@
                         </max_attempts>
                     </fields>
                 </sending>
+                <cleanup translate="label">
+                    <label>Queue Cleanup</label>
+                    <frontend_type>text</frontend_type>
+                    <sort_order>20</sort_order>
+                    <show_in_default>1</show_in_default>
+                    <fields>
+                        <enabled translate="label comment">
+                            <label>Remove Finished Queue Rows</label>
+                            <frontend_type>select</frontend_type>
+                            <source_model>adminhtml/system_config_source_yesno</source_model>
+                            <comment><![CDATA[A send leaves one row per recipient and the sender scans that table every five minutes, so they are not free to keep. A campaign's totals are written onto the campaign before its rows go and the analytics page reads those instead, so the figures survive the cleanup.]]></comment>
+                            <sort_order>10</sort_order>
+                            <show_in_default>1</show_in_default>
+                        </enabled>
+                        <keep_days translate="label comment">
+                            <label>Keep Finished Rows For (days)</label>
+                            <frontend_type>text</frontend_type>
+                            <comment><![CDATA[Counted from when a row was sent. Only rows that will not change again are removed, and only once their campaign has nothing left pending: a row still waiting out a retry is never touched, however old the campaign.]]></comment>
+                            <sort_order>20</sort_order>
+                            <show_in_default>1</show_in_default>
+                        </keep_days>
+                    </fields>
+                </cleanup>
                 <tracking translate="label">
                     <label>Tracking</label>
                     <sort_order>20</sort_order>
