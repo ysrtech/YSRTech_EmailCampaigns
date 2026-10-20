@@ -43,7 +43,7 @@ $segmentCustomerTable = $installer->getConnection()
     ->addForeignKey(
         $installer->getFkName('ysrtech_emailcampaigns/segment_customer', 'segment_id', 'ysrtech_emailcampaigns/segment', 'segment_id'),
         'segment_id', $installer->getTable('ysrtech_emailcampaigns/segment'), 'segment_id',
-        Varien_Db_Ddl_Table::ACTION_CASCADE, Varien_Db_Ddl_Table::ACTION_CASCADE
+        Varien_Db_Adapter_Interface::FK_ACTION_CASCADE, Varien_Db_Adapter_Interface::FK_ACTION_CASCADE
     )
     ->setComment('Segment membership');
 
@@ -66,7 +66,7 @@ $campaignTable = $installer->getConnection()
     ->addForeignKey(
         $installer->getFkName('ysrtech_emailcampaigns/campaign', 'template_id', 'ysrtech_emailcampaigns/template', 'template_id'),
         'template_id', $installer->getTable('ysrtech_emailcampaigns/template'), 'template_id',
-        Varien_Db_Ddl_Table::ACTION_SET_NULL, Varien_Db_Ddl_Table::ACTION_CASCADE
+        Varien_Db_Adapter_Interface::FK_ACTION_SET_NULL, Varien_Db_Adapter_Interface::FK_ACTION_CASCADE
     )
     ->setComment('Campaigns');
 
@@ -87,6 +87,16 @@ $queueTable = $installer->getConnection()
     ->addColumn('tracking_token', Varien_Db_Ddl_Table::TYPE_TEXT, 64, [], 'Unique tracking token')
     ->addIndex('idx_campaign_status', ['campaign_id', 'status'])
     ->addIndex('idx_next_attempt', ['status', 'next_attempt_at'])
+    // buildQueue() writes with insertOnDuplicate, which needs a unique key to
+    // detect a duplicate against. Without one a campaign queued twice - which
+    // is what happens whenever the scheduler picks up a campaign whose status
+    // has not moved on yet - puts every recipient in the queue a second time
+    // and mails them all twice.
+    ->addIndex(
+        'unq_campaign_email',
+        ['campaign_id', 'email'],
+        ['type' => Varien_Db_Adapter_Interface::INDEX_TYPE_UNIQUE]
+    )
     ->setComment('Send queue');
 
 /* ---------- Subscriber preferences / unsubscribe ---------- */

@@ -19,11 +19,9 @@ class YSRTech_EmailCampaigns_Model_Renderer
             Mage::throwException('Template has no content to render.');
         }
 
+        $html = $this->_unwrapDocument($html);
+
         $helper = Mage::helper('ysrtech_emailcampaigns');
-        // Catalog markers ({{product.<id>.field}}) must resolve before renderMergeVars(),
-        // whose broader {{a.b.c}} regex would otherwise match them too and, finding no
-        // "product"/"category" key in $vars, silently blank them out.
-        $html = $this->_injectCatalogData($html);
         $html = $helper->renderMergeVars($html, $vars);
         $html = $this->_injectUnsubscribe($html, $vars);
 
@@ -31,46 +29,37 @@ class YSRTech_EmailCampaigns_Model_Renderer
     }
 
     /**
-     * Resolves {{product.<id>.field}} / {{category.<id>.field}} markers left by
-     * the editor's Product/Category blocks against the live catalog, so price
-     * and stock stay current between when a campaign is designed and when a
-     * (possibly scheduled) send actually goes out. Loads are cached per process
-     * since the same block renders once per recipient in a batch send.
+     * Reduce a whole document to the markup inside its body.
+     *
+     * The template is wrapped in <html><body> further down, so content that
+     * already carries its own produces a document with two bodies - which is
+     * what the designer's inlined export gives, and what somebody pasting a
+     * full email from elsewhere gives too. Nested body tags are invalid, and
+     * clients disagree about how to cope.
+     *
+     * Any <style> from the head is carried into the body rather than dropped:
+     * a pasted template would otherwise lose all of its styling. Style blocks
+     * inside the body are well supported by the clients that support style
+     * blocks at all.
+     *
+     * @param  string $html
+     * @return string
      */
-    private function _injectCatalogData(string $html): string
+    protected function _unwrapDocument(string $html): string
     {
-        static $cache = [];
+        if (!preg_match('#<body\b[^>]*>(.*)</body>#is', $html, $body)) {
+            return $html;
+        }
 
-        return preg_replace_callback(
-            '/\{\{(product|category)\.(\d+)\.(image|name|price|url)\}\}/',
-            static function (array $m) use (&$cache) {
-                [, $type, $id, $field] = $m;
-                $cacheKey = "{$type}:{$id}";
-                if (!isset($cache[$cacheKey])) {
-                    $cache[$cacheKey] = $type === 'product'
-                        ? Mage::getModel('catalog/product')->load((int) $id)
-                        : Mage::getModel('catalog/category')->load((int) $id);
-                }
-                $item = $cache[$cacheKey];
-                if (!$item->getId()) {
-                    return '';
-                }
-                return match ($field) {
-                    'name' => htmlspecialchars((string) $item->getName(), ENT_QUOTES),
-                    'price' => $type === 'product'
-                        ? Mage::helper('core')->currency($item->getPrice(), true, false)
-                        : '',
-                    'image' => $type === 'product'
-                        ? ($item->getSmallImage() && $item->getSmallImage() !== 'no_selection'
-                            ? (string) Mage::helper('catalog/image')->init($item, 'small_image')->resize(300)
-                            : '')
-                        : (string) $item->getImageUrl(),
-                    'url' => $type === 'product' ? (string) $item->getProductUrl() : (string) $item->getUrl(),
-                    default => '',
-                };
-            },
-            $html
-        );
+        $styles = '';
+
+        if (preg_match('#<head\b[^>]*>(.*)</head>#is', $html, $head)
+            && preg_match_all('#<style\b[^>]*>.*?</style>#is', $head[1], $found)
+        ) {
+            $styles = implode("\n", $found[0]);
+        }
+
+        return $styles . $body[1];
     }
 
     /**
@@ -116,20 +105,38 @@ class YSRTech_EmailCampaigns_Model_Renderer
             . implode('', $out) . '</table>';
     }
 
+    /**
+     * Make sure the email carries exactly one way out.
+     *
+     * The merge pass has already run, so a template that wrote
+     * {{ unsubscribe_url }} into its own markup now holds the real link. It
+     * used to get the automatic footer on top of that, which put two
+     * unsubscribe links in front of every recipient - the same duplication the
+     * Mailgun transport warns about when the sending domain has a footer of
+     * its own configured.
+     */
     private function _injectUnsubscribe(string $html, array $vars): string
     {
-        if (!empty($vars['unsubscribe_url'])) {
-            $url = htmlspecialchars((string) $vars['unsubscribe_url'], ENT_QUOTES);
-            $footer = '<div style="margin-top:24px;padding-top:12px;border-top:1px solid #eeeeee;'
-                . 'font-size:11px;color:#999999;text-align:center;">'
-                . "<a href=\"{$url}\" style=\"color:#999999;\">Unsubscribe</a></div>";
-            if (str_contains($html, '{{unsubscribe}}')) {
-                $html = str_replace('{{unsubscribe}}', $footer, $html);
-            } else {
-                $html .= $footer;
-            }
+        if (empty($vars['unsubscribe_url'])) {
+            return $html;
         }
-        return $html;
+
+        $url    = htmlspecialchars((string) $vars['unsubscribe_url'], ENT_QUOTES);
+        $footer = '<div style="margin-top:24px;padding-top:12px;border-top:1px solid #eeeeee;'
+            . 'font-size:11px;color:#999999;text-align:center;">'
+            . "<a href=\"{$url}\" style=\"color:#999999;\">Unsubscribe</a></div>";
+
+        // An explicit marker says where the standard footer goes
+        if (str_contains($html, '{{unsubscribe}}')) {
+            return str_replace('{{unsubscribe}}', $footer, $html);
+        }
+
+        // The template placed the link itself, so leave it alone
+        if (str_contains($html, (string) $vars['unsubscribe_url']) || str_contains($html, $url)) {
+            return $html;
+        }
+
+        return $html . $footer;
     }
 
     private function _wrapDocument(string $body, array $vars): string

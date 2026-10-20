@@ -1,12 +1,32 @@
 <?php
 /** @var YSRTech_EmailCampaigns_Block_Unsubscribe $this */
 ?>
-<div class="ysr-unsubscribe-page" style="max-width:480px;margin:60px auto;text-align:center;font-family:Arial,Helvetica,sans-serif;">
+<div class="ysr-unsubscribe">
 <?php if ($this->wasUnsubscribed()): ?>
     <h1><?php echo $this->__('You have been unsubscribed') ?></h1>
-    <p><?php echo $this->__("%s will no longer receive marketing emails from us.", $this->escapeHtml($this->getEmail())) ?></p>
+    <p><?php echo $this->__(
+        '%s will not receive further campaign emails from us.',
+        $this->escapeHtml($this->getEmail())
+    ) ?></p>
+    <p class="ysr-unsubscribe-note"><?php echo $this->__(
+        'Order confirmations and other messages about purchases you make will still be sent.'
+    ) ?></p>
 <?php else: ?>
-    <h1><?php echo $this->__('Unsubscribe link expired') ?></h1>
-    <p><?php echo $this->__("This unsubscribe link is no longer valid. If you continue to receive emails you don't want, please contact us.") ?></p>
+    <h1><?php echo $this->__('That link is no longer valid') ?></h1>
+    <p><?php echo $this->__(
+        'It may already have been used. If you keep receiving emails you did not ask for, please get in touch and we will sort it out.'
+    ) ?></p>
 <?php endif ?>
 </div>
+
+<style>
+/*
+ * Inline rather than in the theme's stylesheet: this page is reached from an
+ * email by people who may never have visited the site, it has to read on a
+ * phone, and it must not depend on a theme being deployed to look deliberate.
+ */
+.ysr-unsubscribe { max-width: 34em; margin: 4em auto; padding: 0 1em; text-align: center; }
+.ysr-unsubscribe h1 { font-size: 1.5em; line-height: 1.3; margin: 0 0 .75em; }
+.ysr-unsubscribe p { line-height: 1.6; margin: 0 0 1em; }
+.ysr-unsubscribe-note { font-size: .9em; opacity: .75; }
+</style>

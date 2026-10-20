@@ -1,0 +1,69 @@
+<?php
+/** @var YSRTech_EmailCampaigns_Block_Adminhtml_Automation_Canvas $this */
+$automation = $this->getAutomation();
+$skin       = $this->getSkinUrl('ysrtech/emailcampaigns/flowbuilder/');
+?>
+<div class="content-header">
+    <h3 class="icon-head"><?php echo $this->escapeHtml(
+        $automation->getId()
+            ? $this->__('Flow: %s', $automation->getName())
+            : $this->__('New Flow')
+    ) ?></h3>
+    <p class="ysr-canvas-note"><?php echo $this->__(
+        'The trigger, the waits and the messages are drawn here. Who it goes to, what cancels it, and whether it counts as marketing stay on the %s.',
+        '<a href="' . $this->escapeHtml($this->getBackUrl()) . '">' . $this->__('settings form') . '</a>'
+    ) ?></p>
+</div>
+
+<?php
+/*
+ * One global, read once on mount. The bundle is unmodified from the branch it
+ * came from, so this contract is its contract: changing a name here means
+ * rebuilding it from frontend/.
+ */
+?>
+<div id="ysr-flow-editor-root"
+     data-save-url="<?php echo $this->escapeHtml($this->getSaveUrl()) ?>"
+     data-form-key="<?php echo $this->escapeHtml(Mage::getSingleton('core/session')->getFormKey()) ?>"
+     data-flow-id="<?php echo (int) $automation->getId() ?>"
+     data-flow-name="<?php echo $this->escapeHtml((string) $automation->getName()) ?>"
+     data-flow-status="<?php echo $this->escapeHtml($this->getStatus()) ?>"
+     data-flow-trigger-type="<?php echo $this->escapeHtml((string) ($automation->getEvent() ?: 'order_placed')) ?>"
+     data-flow-graph-json="<?php echo $this->escapeHtml($this->getGraphJson()) ?>"
+     data-flow-store-id="<?php echo (int) $automation->getStoreId() ?>"
+     data-templates-json="<?php echo $this->escapeHtml($this->getTemplatesJson()) ?>"
+     data-store-options-json="<?php echo $this->escapeHtml($this->getStoreOptionsJson()) ?>"></div>
+
+<script>
+    (function () {
+        var root = document.getElementById('ysr-flow-editor-root');
+
+        window.YsrFlowEditorConfig = {
+            saveUrl:      root.getAttribute('data-save-url'),
+            formKey:      root.getAttribute('data-form-key'),
+            flowId:       parseInt(root.getAttribute('data-flow-id'), 10),
+            name:         root.getAttribute('data-flow-name'),
+            status:       root.getAttribute('data-flow-status'),
+            triggerType:  root.getAttribute('data-flow-trigger-type'),
+            storeId:      parseInt(root.getAttribute('data-flow-store-id'), 10) || 0,
+            graph:        root.getAttribute('data-flow-graph-json')
+                ? JSON.parse(root.getAttribute('data-flow-graph-json'))
+                : null,
+            templates:    JSON.parse(root.getAttribute('data-templates-json') || '[]'),
+            storeOptions: JSON.parse(root.getAttribute('data-store-options-json') || '[]')
+        };
+    })();
+</script>
+<link rel="stylesheet" href="<?php echo $skin ?>flowBuilder.css" />
+<script src="<?php echo $skin ?>flowBuilder.js"></script>
+
+<style>
+    .ysr-canvas-note { margin: .4em 0 1em; color: #666; }
+    /*
+     * React Flow measures its container, so it needs a height it can read -
+     * a percentage against a parent of auto resolves to zero and the canvas
+     * renders as nothing. The same mistake cost an afternoon on the GrapesJS
+     * editor; viewport units avoid depending on any ancestor at all.
+     */
+    #ysr-flow-editor-root { height: 72vh; min-height: 420px; border: 1px solid #d6d6d6; background: #fafafa; }
+</style>

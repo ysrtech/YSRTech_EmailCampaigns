@@ -2,17 +2,20 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 
-// Sibling build to vite.config.js: a separate bundle for the automation-flow
-// canvas (React Flow), kept out of the drag & drop email editor's bundle
-// since they're different admin pages with an unrelated dependency (React
-// Flow vs easy-email-*) — no reason to ship one to a page that never uses it.
+// Builds the automation canvas bundle (React Flow) into the skin, where
+// Block/Adminhtml/Automation/Canvas.php serves it from. Its own bundle rather
+// than part of the email designer's: different admin page, unrelated
+// dependency, and no reason to ship one to a page that never uses it.
+//
+// adminhtml/default/default, not base/default, because that is where this
+// branch's skin assets live - the GrapesJS bundle sits beside it.
 const outDir = fileURLToPath(
-  new URL('../skin/adminhtml/base/default/ysrtech/emailcampaigns/', import.meta.url)
+  new URL('../skin/adminhtml/default/default/ysrtech/emailcampaigns/flowbuilder/', import.meta.url)
 );
 
 export default defineConfig({
   plugins: [react()],
-  base: '/skin/adminhtml/base/default/ysrtech/emailcampaigns/',
+  base: '/skin/adminhtml/default/default/ysrtech/emailcampaigns/flowbuilder/',
   // Same fix as vite.config.js: some dependency in the chain assumes a
   // Node-like `process.env`, which Vite doesn't polyfill for the browser.
   define: {

@@ -1,8 +1,12 @@
 <?php
 /**
  * Segment model built on Magento's rule engine (same as catalog/sales promo rules).
- * Conditions support customer attributes plus order-history aggregates via this
- * module's own condition combine (Model/Segment/Condition/*).
+ *
+ * The condition tree is the module's own rather than salesrule's. Salesrule's
+ * conditions describe a basket at checkout - Subtotal, Shipping Method - and a
+ * subscriber has none of those, so a segment built from them matched nobody and
+ * threw on validate() as soon as a reindex ran. Segment_Condition_Subscriber
+ * offers the fields _matches() actually supplies.
  */
 class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
 {
@@ -20,111 +24,294 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
     }
 
     /**
-     * Mage_Rule integration: segments only filter membership, they have no
-     * actions to run, so this is the generic empty action collection.
+     * Mage_Rule_Model_Abstract declares this abstract alongside
+     * getConditionsInstance(), so the class does not load without it. A segment
+     * only ever selects customers - there is nothing for a rule action to do -
+     * so this is the empty collection the rule engine expects.
      */
     public function getActionsInstance()
     {
         return Mage::getModel('rule/action_collection');
     }
 
-    /**
-     * Build the SELECT of matching customer IDs by evaluating the rule
-     * against every active customer.
+    /*
+     * conditions_serialized is Mage_Rule_Model_Abstract's own column and it
+     * handles both ends: _beforeSave() writes serialize($conditions->asArray())
+     * and getConditions() reads it back through core/unserializeArray. Writing
+     * JSON into it instead - as this model and the save controller both used to
+     * - meant the very next getConditions() fed JSON to unserialize and the
+     * save died with "Error unserializing data." Nothing to override here.
      */
-    public function getMatchingCustomerIds(): array
-    {
-        /** @var Mage_Customer_Model_Resource_Customer_Collection $collection */
-        $collection = Mage::getResourceModel('customer/customer_collection')
-            ->addAttributeToSelect('*');
 
+    /**
+     * Drop the serialized conditions once they are safely in the row.
+     *
+     * _beforeSave() writes conditions_serialized back onto the model, and
+     * Mage_Rule's getConditions() loads that string into the condition tree it
+     * is already holding - appending to it rather than replacing it. So saving
+     * the same instance twice doubles every condition, and reindex() saves the
+     * instance the controller just saved. A segment edited twice ended up with
+     * each of its rules listed four times.
+     *
+     * @return $this
+     */
+    protected function _afterSave()
+    {
+        $this->unsConditionsSerialized();
+
+        return parent::_afterSave();
+    }
+
+    /**
+     * Campaigns that name this segment, described the way the admin will read
+     * them: the campaign's name and whether it includes or excludes it.
+     *
+     * @return string[]
+     */
+    public function getCampaignUsage(): array
+    {
+        if (!$this->getId()) {
+            return [];
+        }
+
+        $resource = Mage::getSingleton('core/resource');
+        $adapter  = $resource->getConnection('core_read');
+
+        $rows = $adapter->fetchAll(
+            $adapter->select()
+                ->from(['cs' => $resource->getTableName('ysrtech_emailcampaigns/campaign_segment')], ['is_excluded'])
+                ->join(
+                    ['c' => $resource->getTableName('ysrtech_emailcampaigns/campaign')],
+                    'c.campaign_id = cs.campaign_id',
+                    ['name']
+                )
+                ->where('cs.segment_id = ?', (int) $this->getId())
+                ->order('c.name')
+        );
+
+        $helper = Mage::helper('ysrtech_emailcampaigns');
+
+        return array_map(
+            static fn($row) => sprintf(
+                '%s (%s)',
+                $row['name'],
+                $row['is_excluded'] ? $helper->__('excluded') : $helper->__('included')
+            ),
+            $rows
+        );
+    }
+
+    /**
+     * The subscribers this segment's rule matches.
+     *
+     * The audience is the newsletter, not the customer table: customers are
+     * subscribed automatically, so subscribers are the superset, and on this
+     * store most of them have no customer account at all. Keying this on
+     * customers made every one of those unreachable.
+     *
+     * @return int[] Subscriber IDs
+     */
+    public function getMatchingSubscriberIds(): array
+    {
         $ids = [];
-        foreach ($collection as $customer) {
-            if ($this->_matchesCustomer($customer)) {
-                $ids[] = (int) $customer->getId();
+
+        foreach ($this->_streamCandidates() as $row) {
+            if ($this->_matches($row)) {
+                $ids[] = (int) $row['subscriber_id'];
             }
         }
+
         return $ids;
     }
 
-    private function _matchesCustomer(Mage_Customer_Model_Customer $customer): bool
+    /**
+     * Walk every subscribed address with its order history attached.
+     *
+     * One query, read a row at a time. The previous version loaded every
+     * customer as a full EAV model and then ran a separate aggregate query per
+     * customer - 12,001 queries and ~92 MB at this store's size. The order
+     * figures are now a single grouped join, and nothing is held but the row
+     * in hand.
+     *
+     * @return Generator
+     */
+    protected function _streamCandidates()
     {
-        // Enrich with order history aggregates used by order conditions.
-        $agg = $this->_getOrderAggregates((int) $customer->getId());
-        $data = array_merge($customer->getData(), [
-            'order_count'         => $agg['count'],
-            'total_spent'         => $agg['total'],
-            'last_order_days_ago' => $agg['days_since_last'],
-            'average_order_value' => $agg['count'] > 0 ? $agg['total'] / $agg['count'] : 0,
-        ]);
+        /** @var Mage_Core_Model_Resource $resource */
+        $resource = Mage::getSingleton('core/resource');
+        $adapter  = $resource->getConnection('core_read');
 
-        $conditions = $this->getConditions();
-        if (!$conditions instanceof Mage_Rule_Model_Condition_Interface) {
-            return true; // empty rule matches everyone
-        }
-        return (bool) $conditions->validate(new Varien_Object($data));
-    }
+        $orders = $adapter->select()
+            ->from(
+                ['o' => $resource->getTableName('sales/order')],
+                [
+                    'customer_id',
+                    'order_count'   => new Zend_Db_Expr('COUNT(o.entity_id)'),
+                    'total_spent'   => new Zend_Db_Expr('COALESCE(SUM(o.base_grand_total), 0)'),
+                    'last_order_at' => new Zend_Db_Expr('MAX(o.created_at)'),
+                ]
+            )
+            ->where('o.customer_id IS NOT NULL')
+            ->where("o.state NOT IN ('canceled')")
+            ->group('o.customer_id');
 
-    private function _getOrderAggregates(int $customerId): array
-    {
-        static $cache = [];
-        if (isset($cache[$customerId])) {
-            return $cache[$customerId];
+        $select = $adapter->select()
+            ->from(
+                ['ns' => $resource->getTableName('newsletter/subscriber')],
+                [
+                    'subscriber_id',
+                    'email'     => 'subscriber_email',
+                    'firstname' => 'subscriber_firstname',
+                    'lastname'  => 'subscriber_lastname',
+                    'customer_id',
+                    'store_id',
+                ]
+            )
+            ->joinLeft(
+                ['agg' => new Zend_Db_Expr('(' . $orders . ')')],
+                'agg.customer_id = ns.customer_id',
+                [
+                    'order_count'   => new Zend_Db_Expr('COALESCE(agg.order_count, 0)'),
+                    'total_spent'   => new Zend_Db_Expr('COALESCE(agg.total_spent, 0)'),
+                    'last_order_at' => 'last_order_at',
+                ]
+            )
+            /*
+             * The customer account behind the subscriber, where there is one.
+             * Left join because most of this list are not customers, and a
+             * guest simply has no group - which is the right answer for a rule
+             * that asks about one, rather than a reason to exclude them from
+             * every other rule.
+             *
+             * Only what no other source can answer: the subscriber row already
+             * carries the name and email, and the order aggregates above cover
+             * the history.
+             */
+            ->joinLeft(
+                ['ce' => $resource->getTableName('customer/entity')],
+                'ce.entity_id = ns.customer_id',
+                ['group_id', 'customer_created_at' => 'created_at']
+            )
+            ->where('ns.subscriber_status = ?', Mage_Newsletter_Model_Subscriber::STATUS_SUBSCRIBED);
+
+        $statement = $adapter->query($select);
+
+        while ($row = $statement->fetch()) {
+            yield $row;
         }
-        /** @var Mage_Core_Model_Resource $res */
-        $res = Mage::getSingleton('core/resource');
-        $conn = $res->getConnection('core_read');
-        $row = $conn->fetchRow(
-            $conn->select()
-                ->from(['o' => $res->getTableName('sales/order')], [
-                    'count'           => new Zend_Db_Expr('COUNT(entity_id)'),
-                    'total'           => new Zend_Db_Expr('COALESCE(SUM(base_grand_total),0)'),
-                    'days_since_last' => new Zend_Db_Expr('COALESCE(DATEDIFF(NOW(), MAX(created_at)), 99999)'),
-                ])
-                ->where('customer_id = ?', $customerId)
-                ->where("state NOT IN ('canceled')")
-        );
-        return $cache[$customerId] = [
-            'count'           => (int) $row['count'],
-            'total'           => (float) $row['total'],
-            'days_since_last' => (int) $row['days_since_last'],
-        ];
     }
 
     /**
-     * Recalculate membership: replace segment_customer rows and cache count.
+     * @param  array $row
+     * @return bool
+     */
+    protected function _matches(array $row): bool
+    {
+        $conditions = $this->getConditions();
+
+        if (!$conditions instanceof Mage_Rule_Model_Condition_Interface) {
+            return true; // an empty rule matches everyone
+        }
+
+        $lastOrderAt = $row['last_order_at'] ?: null;
+
+        $data = [
+            'subscriber_id'       => (int) $row['subscriber_id'],
+            'email'               => $row['email'],
+            'firstname'           => $row['firstname'],
+            'lastname'            => $row['lastname'],
+            'customer_id'         => $row['customer_id'] ? (int) $row['customer_id'] : null,
+            'is_customer'         => $row['customer_id'] ? 1 : 0,
+            'store_id'            => (int) $row['store_id'],
+            'order_count'         => (int) $row['order_count'],
+            'total_spent'         => (float) $row['total_spent'],
+            'average_order_value' => $row['order_count'] > 0
+                ? $row['total_spent'] / $row['order_count']
+                : 0,
+            'last_order_at'       => $lastOrderAt,
+            /*
+             * Kept as a number because that is what a rule can compare.
+             * Somebody who has never ordered is not "0 days ago" - a large
+             * sentinel keeps them out of "ordered recently" and inside
+             * "has not ordered in a while", which is how a reader expects
+             * both rules to behave.
+             */
+            'last_order_days_ago' => $lastOrderAt
+                ? (int) floor((time() - strtotime($lastOrderAt)) / 86400)
+                : 99999,
+            /*
+             * Customer-account fields, for Segment_Condition_Customer. Null for
+             * a guest subscriber rather than 0: group 0 is NOT LOGGED IN, a
+             * real group, and letting guests fall into it would quietly put
+             * every non-customer inside a rule about it.
+             */
+            'group_id'            => $row['group_id'] !== null ? (int) $row['group_id'] : null,
+            'customer_days_old'   => $row['customer_created_at']
+                ? (int) floor((time() - strtotime($row['customer_created_at'])) / 86400)
+                : null,
+        ];
+
+        // Mage_Rule reads its operands off a Varien_Object via getData()
+        return (bool) $conditions->validate(new Varien_Object($data));
+    }
+
+    /**
+     * Recalculate membership and cache the count.
+     *
+     * @return int Subscribers matched
      */
     public function reindex(): int
     {
-        /** @var Mage_Core_Model_Resource $res */
-        $res = Mage::getSingleton('core/resource');
-        $conn = $res->getConnection('core_write');
-        $linkTable = $res->getTableName('ysrtech_emailcampaigns/segment_customer');
+        /** @var Mage_Core_Model_Resource $resource */
+        $resource = Mage::getSingleton('core/resource');
+        $adapter  = $resource->getConnection('core_write');
+        $table    = $resource->getTableName('ysrtech_emailcampaigns/segment_subscriber');
 
-        $conn->beginTransaction();
+        // Read once and close over it: the mapping closure below is static,
+        // so it has no $this to ask.
+        $segmentId = (int) $this->getId();
+
+        if (!$segmentId) {
+            Mage::throwException('Save the segment before reindexing it.');
+        }
+
+        $ids = $this->getMatchingSubscriberIds();
+
+        $adapter->beginTransaction();
+
         try {
-            $conn->delete($linkTable, ['segment_id = ?' => (int) $this->getId()]);
-            $ids = $this->getMatchingCustomerIds();
-            if ($ids) {
-                foreach (array_chunk($ids, 500) as $chunk) {
-                    $segmentId = (int) $this->getId();
-                    $conn->insertArray($linkTable, ['segment_id', 'customer_id'], array_map(
-                        static fn ($id) => [$segmentId, (int) $id],
-                        $chunk
-                    ));
-                }
+            $adapter->delete($table, ['segment_id = ?' => $segmentId]);
+
+            foreach (array_chunk($ids, 500) as $chunk) {
+                $adapter->insertArray(
+                    $table,
+                    ['segment_id', 'subscriber_id'],
+                    array_map(static fn ($id) => [$segmentId, (int) $id], $chunk)
+                );
             }
-            // setData() with an array replaces the whole record (id included), which
-            // would turn this save into an INSERT; addData() merges instead.
+
+            /*
+             * addData, not setData: setData given an array replaces the
+             * object's data outright, which would drop segment_id and turn
+             * this save into an insert of a second, nameless segment.
+             */
             $this->addData([
                 'customer_count'    => count($ids),
                 'last_reindexed_at' => Varien_Date::now(),
             ]);
             $this->save();
-            $conn->commit();
+
+            $adapter->commit();
+
             return count($ids);
         } catch (Throwable $e) {
-            $conn->rollBack();
+            /*
+             * Throwable, not Exception: a TypeError from a condition is an
+             * Error, which an Exception catch lets past - leaving the
+             * transaction open until the connection is destroyed and the
+             * adapter throws over it, burying the real cause.
+             */
+            $adapter->rollBack();
             throw $e;
         }
     }

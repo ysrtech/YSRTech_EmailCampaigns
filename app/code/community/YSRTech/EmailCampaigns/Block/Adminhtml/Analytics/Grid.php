@@ -1,84 +1,116 @@
 <?php
 /**
- * Per-campaign send/open/click stats. Open/click counts only ever populate for
- * campaigns sent through Mailgun (see WebhookController::mailgunAction) — other
- * transports have no tracking source yet, so those columns stay at zero.
+ * One row per campaign, with its queue counted by status.
  */
 class YSRTech_EmailCampaigns_Block_Adminhtml_Analytics_Grid extends Mage_Adminhtml_Block_Widget_Grid
 {
     public function __construct()
     {
         parent::__construct();
-        $this->setId('ysrtechEmailcampaignsAnalyticsGrid');
+        $this->setId('ysrtech_emailcampaigns_analytics_grid');
         $this->setDefaultSort('campaign_id');
         $this->setDefaultDir('DESC');
+        $this->setSaveParametersInSession(true);
         $this->setUseAjax(true);
-        $this->setFilterVisibility(false);
     }
 
+    #[Override]
     protected function _prepareCollection()
     {
-        $collection = Mage::getResourceModel('ysrtech_emailcampaigns/campaign_collection')->addQueueStats();
+        /** @var YSRTech_EmailCampaigns_Model_Resource_Campaign_Collection $collection */
+        $collection = Mage::getResourceModel('ysrtech_emailcampaigns/campaign_collection');
+
+        /** @var Mage_Core_Model_Resource $resource */
+        $resource = Mage::getSingleton('core/resource');
+        $queue    = $resource->getTableName('ysrtech_emailcampaigns/queue');
+
+        /*
+         * Counted with conditional sums over one join rather than a subquery
+         * per column, so the grid stays one query however many campaigns there
+         * are. The left join keeps campaigns that have never been queued.
+         */
+        $collection->getSelect()
+            ->joinLeft(
+                array('q' => $queue),
+                'q.campaign_id = main_table.campaign_id',
+                /*
+                 * COALESCE because the rows do not last for ever. Once the
+                 * retention sweep has rolled a campaign's totals onto it and
+                 * removed its queue, the sums are all zero and the stored
+                 * figures are the only record; until then the stored figures
+                 * are null and the sums are the live truth. Pending is counted
+                 * either way: a purged campaign has none by definition.
+                 */
+                array(
+                    'queued'  => new Zend_Db_Expr('COALESCE(main_table.stat_queued, COUNT(q.queue_id))'),
+                    'sent'    => new Zend_Db_Expr("COALESCE(main_table.stat_sent, SUM(CASE WHEN q.status = 'sent' THEN 1 ELSE 0 END))"),
+                    'pending' => new Zend_Db_Expr("SUM(CASE WHEN q.status = 'pending' THEN 1 ELSE 0 END)"),
+                    'failed'  => new Zend_Db_Expr("COALESCE(main_table.stat_failed, SUM(CASE WHEN q.status = 'failed' THEN 1 ELSE 0 END))"),
+                    'cancelled' => new Zend_Db_Expr("COALESCE(main_table.stat_cancelled, SUM(CASE WHEN q.status = 'cancelled' THEN 1 ELSE 0 END))"),
+                    /*
+                     * People, not events: somebody who opens the same email
+                     * six times is one person who read it, and a rate built
+                     * on the event count would read above a hundred per cent.
+                     * Not rolled onto the campaign by the retention sweep, so
+                     * these go blank once a campaign's rows are purged - the
+                     * figures that survive are the ones about delivery.
+                     */
+                    'opened'  => new Zend_Db_Expr('SUM(CASE WHEN q.open_count > 0 THEN 1 ELSE 0 END)'),
+                    'clicked' => new Zend_Db_Expr('SUM(CASE WHEN q.click_count > 0 THEN 1 ELSE 0 END)'),
+                )
+            )
+            ->group('main_table.campaign_id');
+
         $this->setCollection($collection);
         return parent::_prepareCollection();
     }
 
+    #[Override]
     protected function _prepareColumns()
     {
-        $h = Mage::helper('ysrtech_emailcampaigns');
+        $helper = Mage::helper('ysrtech_emailcampaigns');
 
-        $this->addColumn('campaign_id', [
-            'header' => $h->__('ID'), 'index' => 'campaign_id', 'width' => '60px', 'filter' => false,
-        ]);
-        $this->addColumn('name', [
-            'header' => $h->__('Campaign'), 'index' => 'name', 'filter' => false,
-        ]);
-        $this->addColumn('status', [
-            'header' => $h->__('Status'), 'index' => 'status', 'filter' => false, 'sortable' => false,
-        ]);
-        $this->addColumn('sent_at', [
-            'header' => $h->__('Sent At'), 'index' => 'sent_at',
-            'type'   => 'datetime', 'width' => '160px', 'filter' => false,
-        ]);
-        $this->addColumn('recipients_count', [
-            'header' => $h->__('Recipients'), 'index' => 'recipients_count',
-            'type' => 'number', 'width' => '100px', 'filter' => false, 'sortable' => false,
-        ]);
-        $this->addColumn('sent_count', [
-            'header' => $h->__('Sent'), 'index' => 'sent_count',
-            'type' => 'number', 'width' => '90px', 'filter' => false, 'sortable' => false,
-        ]);
-        $this->addColumn('failed_count', [
-            'header' => $h->__('Failed'), 'index' => 'failed_count',
-            'type' => 'number', 'width' => '90px', 'filter' => false, 'sortable' => false,
-        ]);
-        $this->addColumn('opened_count', [
-            'header' => $h->__('Opened'), 'index' => 'opened_count',
-            'type' => 'number', 'width' => '90px', 'filter' => false, 'sortable' => false,
-        ]);
-        $this->addColumn('open_rate', [
-            'header' => $h->__('Open Rate %'), 'index' => 'open_rate',
-            'type' => 'number', 'width' => '110px', 'filter' => false, 'sortable' => false,
-        ]);
-        $this->addColumn('clicked_count', [
-            'header' => $h->__('Clicked'), 'index' => 'clicked_count',
-            'type' => 'number', 'width' => '90px', 'filter' => false, 'sortable' => false,
-        ]);
-        $this->addColumn('click_rate', [
-            'header' => $h->__('Click Rate %'), 'index' => 'click_rate',
-            'type' => 'number', 'width' => '110px', 'filter' => false, 'sortable' => false,
-        ]);
+        $this->addColumn('campaign_id', array(
+            'header' => $helper->__('ID'), 'index' => 'campaign_id', 'type' => 'number', 'width' => '60px',
+        ));
+        $this->addColumn('name', array('header' => $helper->__('Campaign'), 'index' => 'name'));
+        $this->addColumn('status', array('header' => $helper->__('Status'), 'index' => 'status', 'width' => '90px'));
+        $this->addColumn('sent_at', array(
+            'header' => $helper->__('Sent At'), 'index' => 'sent_at', 'type' => 'datetime', 'width' => '140px',
+        ));
+
+        foreach (array(
+            'queued'    => $helper->__('Recipients'),
+            'sent'      => $helper->__('Sent'),
+            'pending'   => $helper->__('Pending'),
+            'failed'    => $helper->__('Failed'),
+            'cancelled' => $helper->__('Unsubscribed'),
+            'opened'    => $helper->__('Opened'),
+            'clicked'   => $helper->__('Clicked'),
+        ) as $index => $label) {
+            $this->addColumn($index, array(
+                'header'   => $label,
+                'index'    => $index,
+                'type'     => 'number',
+                'width'    => '80px',
+                // Computed in the select, so there is nothing to filter or sort on
+                'filter'   => false,
+                'sortable' => false,
+            ));
+        }
 
         return parent::_prepareColumns();
     }
 
-    public function getRowUrl($row)
-    {
-        return $this->getUrl('*/ysrtech_campaign/edit', ['id' => $row->getId()]);
-    }
-
+    #[Override]
     public function getGridUrl()
     {
-        return $this->getUrl('*/*/grid', ['_current' => true]);
+        return $this->getUrl('*/*/grid', array('_current' => true));
+    }
+
+    #[Override]
+    public function getRowUrl($row)
+    {
+        return $this->getUrl('*/ysrtech_campaign/edit', array('id' => $row->getId()));
     }
 }

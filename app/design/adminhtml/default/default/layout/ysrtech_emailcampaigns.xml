@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * YSRTech EmailCampaigns - admin layout.
+ *
+ * @category  YSRTech
+ * @package   YSRTech_EmailCampaigns
+ */
+-->
+<layout>
+    <!--
+        The segment editor is built on Mage_Rule, whose condition tree is driven
+        by VarienRulesForm in mage/adminhtml/rules.js. That file is added by the
+        core "main" layout only where this flag is set, so without it the
+        conditions fieldset renders and then does nothing.
+    -->
+    <adminhtml_ysrtech_segment_new>
+        <reference name="head">
+            <action method="setCanLoadRulesJs"><flag>1</flag></action>
+        </reference>
+    </adminhtml_ysrtech_segment_new>
+
+    <adminhtml_ysrtech_segment_edit>
+        <reference name="head">
+            <action method="setCanLoadRulesJs"><flag>1</flag></action>
+        </reference>
+    </adminhtml_ysrtech_segment_edit>
+</layout>

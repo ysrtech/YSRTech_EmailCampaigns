@@ -1,0 +1,25 @@
+<?php
+/** @var YSRTech_EmailCampaigns_Block_Adminhtml_Template_Editor $this */
+/** @var YSRTech_EmailCampaigns_Model_Template $template */
+$template = $this->getTemplateModel();
+$skin = $this->getSkinUrl('adminhtml/default/default/ysrtech/emailcampaigns/');
+?>
+<div id="ysr-email-editor-root"
+     data-save-url="<?php echo Mage::helper('core')->jsQuoteEscape($this->getSaveUrl()) ?>"
+     data-form-key="<?php echo $this->escapeHtml(Mage::getSingleton('core/session')->getFormKey()) ?>"
+     data-template-id="<?php echo (int) $template->getId() ?>"
+     data-design-json="<?php echo Mage::helper('core')->jsQuoteEscape((string) $template->getDesignJson()) ?>"></div>
+
+<script>
+    var ysrRoot = document.getElementById('ysr-email-editor-root');
+    window.YsrEmailEditorConfig = {
+        saveUrl:     ysrRoot.getAttribute('data-save-url'),
+        formKey:     ysrRoot.getAttribute('data-form-key'),
+        templateId:  parseInt(ysrRoot.getAttribute('data-template-id'), 10),
+        designJson:  ysrRoot.getAttribute('data-design-json')
+            ? JSON.parse(ysrRoot.getAttribute('data-design-json'))
+            : null
+    };
+</script>
+<script src="<?php echo $skin ?>editor.js"></script>
+<link rel="stylesheet" href="<?php echo $skin ?>editor.css" />

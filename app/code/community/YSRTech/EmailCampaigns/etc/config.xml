@@ -2,7 +2,7 @@
 <config>
     <modules>
         <YSRTech_EmailCampaigns>
-            <version>0.4.0</version>
+            <version>0.8.0</version>
         </YSRTech_EmailCampaigns>
     </modules>
 
@@ -21,6 +21,20 @@
                     <segment>
                         <table>ysrtech_emailcampaigns_segment</table>
                     </segment>
+                    <segment_subscriber>
+                        <table>ysrtech_emailcampaigns_segment_subscriber</table>
+                    </segment_subscriber>
+                    <campaign_segment>
+                        <table>ysrtech_emailcampaigns_campaign_segment</table>
+                    </campaign_segment>
+                    <automation>
+                        <table>ysrtech_emailcampaigns_automation</table>
+                    </automation>
+                    <automation_step>
+                        <table>ysrtech_emailcampaigns_automation_step</table>
+                    </automation_step>
+                    <!-- Kept declared so the 0.1.0 install script and the
+                         upgrade that drops it can still resolve the name. -->
                     <segment_customer>
                         <table>ysrtech_emailcampaigns_segment_customer</table>
                     </segment_customer>
@@ -33,15 +47,6 @@
                     <subscriber_pref>
                         <table>ysrtech_emailcampaigns_subscriber_preference</table>
                     </subscriber_pref>
-                    <flow>
-                        <table>ysrtech_emailcampaigns_flow</table>
-                    </flow>
-                    <flow_enrollment>
-                        <table>ysrtech_emailcampaigns_flow_enrollment</table>
-                    </flow_enrollment>
-                    <flow_log>
-                        <table>ysrtech_emailcampaigns_flow_log</table>
-                    </flow_log>
                 </entities>
             </ysrtech_emailcampaigns_resource>
         </models>
@@ -68,6 +73,51 @@
 
         <events>
             <!-- Recalculate segment membership nightly -->
+            <sales_order_place_after>
+                <observers>
+                    <ysrtech_emailcampaigns_order_placed>
+                        <class>ysrtech_emailcampaigns/observer</class>
+                        <method>orderPlaced</method>
+                    </ysrtech_emailcampaigns_order_placed>
+                </observers>
+            </sales_order_place_after>
+            <!--
+                save_commit_after, not save_after: the latter can fire inside a
+                transaction that later rolls back, which would mail somebody
+                about an order that no longer exists.
+            -->
+            <sales_order_save_commit_after>
+                <observers>
+                    <ysrtech_emailcampaigns_order_status>
+                        <class>ysrtech_emailcampaigns/observer</class>
+                        <method>orderStatusChanged</method>
+                    </ysrtech_emailcampaigns_order_status>
+                </observers>
+            </sales_order_save_commit_after>
+            <sales_order_shipment_save_commit_after>
+                <observers>
+                    <ysrtech_emailcampaigns_shipment>
+                        <class>ysrtech_emailcampaigns/observer</class>
+                        <method>orderDocumentCreated</method>
+                    </ysrtech_emailcampaigns_shipment>
+                </observers>
+            </sales_order_shipment_save_commit_after>
+            <sales_order_invoice_save_commit_after>
+                <observers>
+                    <ysrtech_emailcampaigns_invoice>
+                        <class>ysrtech_emailcampaigns/observer</class>
+                        <method>orderDocumentCreated</method>
+                    </ysrtech_emailcampaigns_invoice>
+                </observers>
+            </sales_order_invoice_save_commit_after>
+            <sales_order_creditmemo_save_commit_after>
+                <observers>
+                    <ysrtech_emailcampaigns_creditmemo>
+                        <class>ysrtech_emailcampaigns/observer</class>
+                        <method>orderDocumentCreated</method>
+                    </ysrtech_emailcampaigns_creditmemo>
+                </observers>
+            </sales_order_creditmemo_save_commit_after>
             <ysrtech_emailcampaigns_reindex_segments>
                 <observers>
                     <ysrtech_emailcampaigns_reindex>
@@ -76,15 +126,6 @@
                     </ysrtech_emailcampaigns_reindex>
                 </observers>
             </ysrtech_emailcampaigns_reindex_segments>
-            <!-- Enroll customers into active order_placed automation flows -->
-            <sales_order_place_after>
-                <observers>
-                    <ysrtech_emailcampaigns_flow_order_placed>
-                        <class>ysrtech_emailcampaigns/observer</class>
-                        <method>onOrderPlaced</method>
-                    </ysrtech_emailcampaigns_flow_order_placed>
-                </observers>
-            </sales_order_place_after>
         </events>
     </global>
 
@@ -122,6 +163,14 @@
     </admin>
 
     <adminhtml>
+        <layout>
+            <updates>
+                <ysrtech_emailcampaigns>
+                    <file>ysrtech_emailcampaigns.xml</file>
+                </ysrtech_emailcampaigns>
+            </updates>
+        </layout>
+
         <menu>
             <ysrtech_emailcampaigns translate="title" module="ysrtech_emailcampaigns">
                 <title>Email Campaigns</title>
@@ -132,6 +181,11 @@
                         <action>adminhtml/ysrtech_campaign/index</action>
                         <sort_order>10</sort_order>
                     </campaign>
+                    <automation translate="title" module="ysrtech_emailcampaigns">
+                        <title>Automations</title>
+                        <action>adminhtml/ysrtech_automation/index</action>
+                        <sort_order>15</sort_order>
+                    </automation>
                     <template translate="title" module="ysrtech_emailcampaigns">
                         <title>Templates</title>
                         <action>adminhtml/ysrtech_template/index</action>
@@ -142,11 +196,6 @@
                         <action>adminhtml/ysrtech_segment/index</action>
                         <sort_order>30</sort_order>
                     </segment>
-                    <flow translate="title" module="ysrtech_emailcampaigns">
-                        <title>Automation Flows</title>
-                        <action>adminhtml/ysrtech_flow/index</action>
-                        <sort_order>35</sort_order>
-                    </flow>
                     <analytics translate="title" module="ysrtech_emailcampaigns">
                         <title>Analytics</title>
                         <action>adminhtml/ysrtech_analytics/index</action>
@@ -191,10 +240,14 @@
     <default>
         <ysrtech_emailcampaigns>
             <sending>
-                <transport>smtp_api</transport>
+                <transport>smtp</transport>
                 <batch_size>100</batch_size>
                 <max_attempts>3</max_attempts>
             </sending>
+            <cleanup>
+                <enabled>1</enabled>
+                <keep_days>90</keep_days>
+            </cleanup>
             <tracking>
                 <enabled>1</enabled>
             </tracking>
@@ -215,10 +268,19 @@
                 <schedule><cron_expr>0 2 * * *</cron_expr></schedule>
                 <run><model>ysrtech_emailcampaigns/observer::reindexSegments</model></run>
             </ysrtech_emailcampaigns_reindex_segments>
-            <ysrtech_emailcampaigns_process_flows>
-                <schedule><cron_expr>*/5 * * * *</cron_expr></schedule>
-                <run><model>ysrtech_emailcampaigns/observer::processFlowEnrollments</model></run>
-            </ysrtech_emailcampaigns_process_flows>
+            <!-- Pull back who unsubscribed, bounced or complained on Mailgun -->
+            <ysrtech_emailcampaigns_abandoned_carts>
+                <schedule><cron_expr>*/15 * * * *</cron_expr></schedule>
+                <run><model>ysrtech_emailcampaigns/observer::processAbandonedCarts</model></run>
+            </ysrtech_emailcampaigns_abandoned_carts>
+            <ysrtech_emailcampaigns_queue_cleanup>
+                <schedule><cron_expr>40 3 * * *</cron_expr></schedule>
+                <run><model>ysrtech_emailcampaigns/observer::cleanupQueue</model></run>
+            </ysrtech_emailcampaigns_queue_cleanup>
+            <ysrtech_emailcampaigns_sync_suppressions>
+                <schedule><cron_expr>15 * * * *</cron_expr></schedule>
+                <run><model>ysrtech_emailcampaigns/observer::syncSuppressions</model></run>
+            </ysrtech_emailcampaigns_sync_suppressions>
         </jobs>
     </crontab>
 </config>

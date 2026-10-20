@@ -1,87 +1,90 @@
 <?php
 /**
- * Adds the trigger-based automation ("drip flow") engine: flow definitions,
- * per-customer enrollment state, and a node-traversal log for debugging why
- * a given customer did or didn't get a step's email.
+ * A campaign targets any number of segments, and can exclude segments too.
  *
- * Also loosens the send queue so flow-triggered sends can record themselves
- * there too (campaign_id becomes optional, flow_id/flow_enrollment_id added)
- * — reusing the queue as the one place unsubscribe links and open/click
- * tracking resolve a tracking_token back to a recipient, rather than
- * inventing a second tracking mechanism just for flows.
+ * One segment per campaign forced a new segment for every combination anybody
+ * wanted to mail - "past customers", then "past customers except lapsed", then
+ * the same again minus staff - each one its own rule to keep in step with the
+ * others. Included and excluded lists express that directly, and exclusion is
+ * the half that cannot be built out of includes at all.
+ *
+ * @var Mage_Core_Model_Resource_Setup $this
  */
-/** @var Mage_Core_Model_Resource_Setup $installer */
 $installer = $this;
 $installer->startSetup();
+
 $connection = $installer->getConnection();
+$linkTable  = $installer->getTable('ysrtech_emailcampaigns/campaign_segment');
 
-$flowTable = $connection->newTable($installer->getTable('ysrtech_emailcampaigns/flow'))
-    ->addColumn('flow_id', Varien_Db_Ddl_Table::TYPE_INTEGER, null, [
-        'identity' => true, 'unsigned' => true, 'nullable' => false, 'primary' => true,
-    ], 'Flow ID')
-    ->addColumn('name', Varien_Db_Ddl_Table::TYPE_TEXT, 255, ['nullable' => false], 'Name')
-    ->addColumn('status', Varien_Db_Ddl_Table::TYPE_TEXT, 20, ['default' => 'draft'], 'draft/active/paused')
-    ->addColumn('trigger_type', Varien_Db_Ddl_Table::TYPE_TEXT, 40, [], 'order_placed/customer_registered/cart_abandoned/...')
-    ->addColumn('graph_json', Varien_Db_Ddl_Table::TYPE_TEXT, '2M', [], 'React Flow nodes+edges')
-    ->addColumn('created_at', Varien_Db_Ddl_Table::TYPE_TIMESTAMP, null, ['default' => Varien_Db_Ddl_Table::TIMESTAMP_INIT], 'Created At')
-    ->addColumn('updated_at', Varien_Db_Ddl_Table::TYPE_TIMESTAMP, null, ['default' => Varien_Db_Ddl_Table::TIMESTAMP_INIT_UPDATE], 'Updated At')
-    ->addIndex('idx_status_trigger', ['status', 'trigger_type'])
-    ->setComment('Automation flows');
+if (!$connection->isTableExists($linkTable)) {
+    $table = $connection->newTable($linkTable)
+        ->addColumn('campaign_id', Varien_Db_Ddl_Table::TYPE_INTEGER, null, [
+            'unsigned' => true, 'nullable' => false,
+        ], 'Campaign ID')
+        ->addColumn('segment_id', Varien_Db_Ddl_Table::TYPE_INTEGER, null, [
+            'unsigned' => true, 'nullable' => false,
+        ], 'Segment ID')
+        ->addColumn('is_excluded', Varien_Db_Ddl_Table::TYPE_SMALLINT, null, [
+            'unsigned' => true, 'nullable' => false, 'default' => 0,
+        ], 'Excluded rather than included')
+        /*
+         * Campaign and segment alone are the key, so one segment cannot be
+         * both included and excluded on the same campaign - a state with no
+         * sensible reading, and one a form could otherwise post.
+         */
+        ->addIndex(
+            $installer->getIdxName('ysrtech_emailcampaigns/campaign_segment', ['campaign_id', 'segment_id']),
+            ['campaign_id', 'segment_id'],
+            ['type' => Varien_Db_Adapter_Interface::INDEX_TYPE_PRIMARY]
+        )
+        ->addIndex(
+            $installer->getIdxName('ysrtech_emailcampaigns/campaign_segment', ['segment_id']),
+            ['segment_id']
+        )
+        ->addForeignKey(
+            $installer->getFkName('ysrtech_emailcampaigns/campaign_segment', 'campaign_id', 'ysrtech_emailcampaigns/campaign', 'campaign_id'),
+            'campaign_id',
+            $installer->getTable('ysrtech_emailcampaigns/campaign'),
+            'campaign_id',
+            Varien_Db_Adapter_Interface::FK_ACTION_CASCADE,
+            Varien_Db_Adapter_Interface::FK_ACTION_CASCADE
+        )
+        ->addForeignKey(
+            $installer->getFkName('ysrtech_emailcampaigns/campaign_segment', 'segment_id', 'ysrtech_emailcampaigns/segment', 'segment_id'),
+            'segment_id',
+            $installer->getTable('ysrtech_emailcampaigns/segment'),
+            'segment_id',
+            Varien_Db_Adapter_Interface::FK_ACTION_CASCADE,
+            Varien_Db_Adapter_Interface::FK_ACTION_CASCADE
+        )
+        ->setComment('Segments a campaign includes or excludes');
 
-$enrollmentTable = $connection->newTable($installer->getTable('ysrtech_emailcampaigns/flow_enrollment'))
-    ->addColumn('enrollment_id', Varien_Db_Ddl_Table::TYPE_BIGINT, null, [
-        'identity' => true, 'unsigned' => true, 'nullable' => false, 'primary' => true,
-    ], 'Enrollment ID')
-    ->addColumn('flow_id', Varien_Db_Ddl_Table::TYPE_INTEGER, null, ['unsigned' => true, 'nullable' => false], 'Flow ID')
-    ->addColumn('customer_id', Varien_Db_Ddl_Table::TYPE_INTEGER, null, ['unsigned' => true], 'Customer ID')
-    ->addColumn('email', Varien_Db_Ddl_Table::TYPE_TEXT, 255, ['nullable' => false], 'Recipient Email')
-    ->addColumn('current_node_id', Varien_Db_Ddl_Table::TYPE_TEXT, 64, [], 'Current graph node id')
-    ->addColumn('status', Varien_Db_Ddl_Table::TYPE_TEXT, 20, ['default' => 'active'], 'active/waiting/completed/exited')
-    ->addColumn('wait_until', Varien_Db_Ddl_Table::TYPE_DATETIME, null, [], 'Due At (for waiting enrollments)')
-    ->addColumn('enrolled_at', Varien_Db_Ddl_Table::TYPE_DATETIME, null, [], 'Enrolled At')
-    ->addColumn('context_json', Varien_Db_Ddl_Table::TYPE_TEXT, '16K', [], 'Trigger-time context (order id, etc.)')
-    ->addIndex('idx_status_wait', ['status', 'wait_until'])
-    ->addIndex('idx_flow', ['flow_id'])
-    ->addForeignKey(
-        $installer->getFkName('ysrtech_emailcampaigns/flow_enrollment', 'flow_id', 'ysrtech_emailcampaigns/flow', 'flow_id'),
-        'flow_id', $installer->getTable('ysrtech_emailcampaigns/flow'), 'flow_id',
-        Varien_Db_Ddl_Table::ACTION_CASCADE, Varien_Db_Ddl_Table::ACTION_CASCADE
-    )
-    ->setComment('Per-customer flow enrollment state');
-
-$logTable = $connection->newTable($installer->getTable('ysrtech_emailcampaigns/flow_log'))
-    ->addColumn('log_id', Varien_Db_Ddl_Table::TYPE_BIGINT, null, [
-        'identity' => true, 'unsigned' => true, 'nullable' => false, 'primary' => true,
-    ], 'Log ID')
-    ->addColumn('enrollment_id', Varien_Db_Ddl_Table::TYPE_BIGINT, null, ['unsigned' => true, 'nullable' => false], 'Enrollment ID')
-    ->addColumn('node_id', Varien_Db_Ddl_Table::TYPE_TEXT, 64, [], 'Graph node id')
-    ->addColumn('action', Varien_Db_Ddl_Table::TYPE_TEXT, 20, [], 'entered/sent/skipped/exited')
-    ->addColumn('message', Varien_Db_Ddl_Table::TYPE_TEXT, '64K', [], 'Detail (e.g. skip reason)')
-    ->addColumn('entered_at', Varien_Db_Ddl_Table::TYPE_TIMESTAMP, null, ['default' => Varien_Db_Ddl_Table::TIMESTAMP_INIT], 'Entered At')
-    ->addIndex('idx_enrollment', ['enrollment_id'])
-    ->addForeignKey(
-        $installer->getFkName('ysrtech_emailcampaigns/flow_log', 'enrollment_id', 'ysrtech_emailcampaigns/flow_enrollment', 'enrollment_id'),
-        'enrollment_id', $installer->getTable('ysrtech_emailcampaigns/flow_enrollment'), 'enrollment_id',
-        Varien_Db_Ddl_Table::ACTION_CASCADE, Varien_Db_Ddl_Table::ACTION_CASCADE
-    )
-    ->setComment('Flow node traversal log');
-
-foreach ([$flowTable, $enrollmentTable, $logTable] as $table) {
     $connection->createTable($table);
 }
 
-$queueTable = $installer->getTable('ysrtech_emailcampaigns/queue');
-$connection->changeColumn($queueTable, 'campaign_id', 'campaign_id', [
-    'type' => Varien_Db_Ddl_Table::TYPE_INTEGER, 'unsigned' => true, 'nullable' => true,
-    'comment' => 'Campaign ID (null for flow-triggered sends)',
-]);
-$connection->addColumn($queueTable, 'flow_id', [
-    'type' => Varien_Db_Ddl_Table::TYPE_INTEGER, 'unsigned' => true, 'nullable' => true,
-    'comment' => 'Flow ID (for flow-triggered sends)',
-]);
-$connection->addColumn($queueTable, 'flow_enrollment_id', [
-    'type' => Varien_Db_Ddl_Table::TYPE_BIGINT, 'unsigned' => true, 'nullable' => true,
-    'comment' => 'Flow Enrollment ID (for flow-triggered sends)',
-]);
+$campaignTable = $installer->getTable('ysrtech_emailcampaigns/campaign');
+
+// Carry every existing campaign's single target over as an included segment,
+// before the column it lived in goes away.
+if ($connection->tableColumnExists($campaignTable, 'segment_id')) {
+    $connection->query(
+        "INSERT IGNORE INTO {$linkTable} (campaign_id, segment_id, is_excluded)
+         SELECT c.campaign_id, c.segment_id, 0
+         FROM {$campaignTable} c
+         WHERE c.segment_id IS NOT NULL
+           AND EXISTS (SELECT 1 FROM {$installer->getTable('ysrtech_emailcampaigns/segment')} s
+                       WHERE s.segment_id = c.segment_id)"
+    );
+
+    foreach ($connection->getForeignKeys($campaignTable) as $key) {
+        if (($key['COLUMN_NAME'] ?? null) === 'segment_id') {
+            $connection->dropForeignKey($campaignTable, $key['FK_NAME']);
+        }
+    }
+
+    // Dropped rather than left in place: two records of the same fact drift,
+    // and code reading the stale one sends to the wrong list.
+    $connection->dropColumn($campaignTable, 'segment_id');
+}
 
 $installer->endSetup();

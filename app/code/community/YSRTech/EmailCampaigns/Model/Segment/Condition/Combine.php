@@ -1,10 +1,14 @@
 <?php
 /**
- * Segment rule condition tree root. Offers the customer/order-attribute
- * condition plus nested combines, the same shape core's own catalog/cart
- * price rule combines use for their own attribute conditions.
+ * The root of a segment's condition tree.
+ *
+ * Offers nested combinations, subscriber conditions and customer conditions,
+ * and nothing else - the rule engine will render any class named here, so this
+ * list is what keeps an admin from building a segment out of attributes the
+ * matcher cannot answer.
  */
-class YSRTech_EmailCampaigns_Model_Segment_Condition_Combine extends Mage_Rule_Model_Condition_Combine
+class YSRTech_EmailCampaigns_Model_Segment_Condition_Combine
+    extends Mage_Rule_Model_Condition_Combine
 {
     public function __construct()
     {
@@ -12,20 +16,43 @@ class YSRTech_EmailCampaigns_Model_Segment_Condition_Combine extends Mage_Rule_M
         $this->setType('ysrtech_emailcampaigns/segment_condition_combine');
     }
 
+    /**
+     * @return array
+     */
     public function getNewChildSelectOptions()
     {
-        $customerCondition = Mage::getModel('ysrtech_emailcampaigns/segment_condition_customer');
-        $attributes = [];
-        foreach ($customerCondition->loadAttributeOptions()->getAttributeOption() as $code => $label) {
-            $attributes[] = ['value' => 'ysrtech_emailcampaigns/segment_condition_customer|' . $code, 'label' => $label];
+        $h = Mage::helper('ysrtech_emailcampaigns');
+
+        $groups = [];
+
+        foreach ([
+            'subscriber' => $h->__('Subscriber'),
+            'customer'   => $h->__('Customer Account'),
+        ] as $condition => $label) {
+            $model      = 'ysrtech_emailcampaigns/segment_condition_' . $condition;
+            $attributes = [];
+
+            foreach (Mage::getModel($model)->loadAttributeOptions()->getAttributeOption() as $code => $attributeLabel) {
+                $attributes[] = [
+                    'value' => $model . '|' . $code,
+                    'label' => $attributeLabel,
+                ];
+            }
+
+            $groups[] = ['label' => $label, 'value' => $attributes];
         }
 
-        $h = Mage::helper('ysrtech_emailcampaigns');
-        $conditions = parent::getNewChildSelectOptions();
-
-        return array_merge_recursive($conditions, [
-            ['value' => 'ysrtech_emailcampaigns/segment_condition_combine', 'label' => $h->__('Conditions Combination')],
-            ['label' => $h->__('Customer Attribute'), 'value' => $attributes],
-        ]);
+        return array_merge_recursive(
+            parent::getNewChildSelectOptions(),
+            array_merge(
+                [
+                    [
+                        'value' => 'ysrtech_emailcampaigns/segment_condition_combine',
+                        'label' => $h->__('Conditions Combination'),
+                    ],
+                ],
+                $groups
+            )
+        );
     }
 }
