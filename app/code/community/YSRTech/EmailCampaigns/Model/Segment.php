@@ -176,6 +176,22 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
                     'last_order_at' => 'last_order_at',
                 ]
             )
+            /*
+             * The customer account behind the subscriber, where there is one.
+             * Left join because most of this list are not customers, and a
+             * guest simply has no group - which is the right answer for a rule
+             * that asks about one, rather than a reason to exclude them from
+             * every other rule.
+             *
+             * Only what no other source can answer: the subscriber row already
+             * carries the name and email, and the order aggregates above cover
+             * the history.
+             */
+            ->joinLeft(
+                ['ce' => $resource->getTableName('customer/entity')],
+                'ce.entity_id = ns.customer_id',
+                ['group_id', 'customer_created_at' => 'created_at']
+            )
             ->where('ns.subscriber_status = ?', Mage_Newsletter_Model_Subscriber::STATUS_SUBSCRIBED);
 
         $statement = $adapter->query($select);
@@ -223,6 +239,16 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
             'last_order_days_ago' => $lastOrderAt
                 ? (int) floor((time() - strtotime($lastOrderAt)) / 86400)
                 : 99999,
+            /*
+             * Customer-account fields, for Segment_Condition_Customer. Null for
+             * a guest subscriber rather than 0: group 0 is NOT LOGGED IN, a
+             * real group, and letting guests fall into it would quietly put
+             * every non-customer inside a rule about it.
+             */
+            'group_id'            => $row['group_id'] !== null ? (int) $row['group_id'] : null,
+            'customer_days_old'   => $row['customer_created_at']
+                ? (int) floor((time() - strtotime($row['customer_created_at'])) / 86400)
+                : null,
         ];
 
         // Mage_Rule reads its operands off a Varien_Object via getData()
