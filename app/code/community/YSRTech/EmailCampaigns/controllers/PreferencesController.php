@@ -35,89 +35,48 @@ class YSRTech_EmailCampaigns_PreferencesController extends Mage_Core_Controller_
     }
 
     /**
-     * Record the unsubscribe and say so. Deliberately a GET: a mail client
-     * following the List-Unsubscribe header will not post a form, and a
-     * recipient who clicks the link expects it to be done.
+     * Record the unsubscribe and confirm it on a page of its own.
+     *
+     * Deliberately a GET: a mail client following the List-Unsubscribe header
+     * will not post a form, and a recipient who clicks the link expects it to
+     * be done rather than to be asked again.
      */
     public function unsubscribeAction()
     {
-        $helper  = Mage::helper('ysrtech_emailcampaigns');
-        $session = Mage::getSingleton('core/session');
+        $email = null;
+        $item  = $this->_loadByToken();
 
-        if (!$item = $this->_loadByToken()) {
-            $session->addError($helper->__('That unsubscribe link is not valid. It may already have been used.'));
-            $this->_redirect('');
-            return;
-        }
-
-        try {
-            $this->_unsubscribe((string) $item->getEmail(), (string) $item->getTrackingToken());
-            $session->addSuccess(
-                $helper->__('%s has been unsubscribed. You will not receive further campaign emails.', $item->getEmail())
-            );
-        } catch (Exception $e) {
-            Mage::logException($e);
-            $session->addError($helper->__('We could not record that. Please try again later.'));
-        }
-
-        $this->_redirect('');
-    }
-
-    /**
-     * @param string $email
-     * @param string $token
-     */
-    protected function _unsubscribe($email, $token)
-    {
-        /** @var Mage_Core_Model_Resource $resource */
-        $resource = Mage::getSingleton('core/resource');
-        $adapter  = $resource->getConnection('core_write');
-        $table    = $resource->getTableName('ysrtech_emailcampaigns/subscriber_pref');
-
-        /*
-         * insertOnDuplicate rather than a read then a write: the same address
-         * can hold links from several campaigns, and two of them clicked
-         * together should not race into two rows.
-         */
-        $adapter->insertOnDuplicate(
-            $table,
-            array(
-                'email'           => $email,
-                'token'           => $token,
-                'unsubscribed_at' => Varien_Date::now(),
-            ),
-            array('unsubscribed_at')
-        );
-
-        /*
-         * And through Magento's own newsletter status, which is what the rest
-         * of the store reads: the admin's Newsletter Subscribers grid, the
-         * account page, and this module's own queue builder. Recording the
-         * opt-out only in the table above would leave someone still marked
-         * subscribed everywhere a human would think to look.
-         */
-        $subscriber = Mage::getModel('newsletter/subscriber')->loadByEmail($email);
-
-        if ($subscriber->getId()
-            && (int) $subscriber->getStatus() !== Mage_Newsletter_Model_Subscriber::STATUS_UNSUBSCRIBED) {
+        if ($item) {
             try {
-                $subscriber->setStatus(Mage_Newsletter_Model_Subscriber::STATUS_UNSUBSCRIBED)->save();
+                /*
+                 * The same call the provider webhooks make, so a click here
+                 * and an unsubscribe recorded on Mailgun's own page have the
+                 * same effect rather than two thirds of it each.
+                 */
+                Mage::getModel('ysrtech_emailcampaigns/subscriber_pref')
+                    ->suppress((string) $item->getEmail(), 'unsubscribed');
+                $email = (string) $item->getEmail();
             } catch (Exception $e) {
-                // The module's own record above already stands; don't lose the
-                // opt-out over a newsletter save that failed.
                 Mage::logException($e);
             }
         }
 
-        /*
-         * Anything still queued for this address goes now. Without this the
-         * unsubscribe only takes effect for campaigns queued afterwards, and
-         * the messages already waiting are still delivered.
-         */
-        $adapter->update(
-            $resource->getTableName('ysrtech_emailcampaigns/queue'),
-            array('status' => 'cancelled'),
-            array('email = ?' => $email, 'status = ?' => 'pending')
-        );
+        // Null tells the page the link did not resolve, which reads the same
+        // to the recipient whether the token was wrong or the write failed:
+        // either way they are owed an honest "that did not work".
+        Mage::register('ysrtech_emailcampaigns_preferences_email', $email);
+
+        $this->loadLayout();
+
+        if ($head = $this->getLayout()->getBlock('head')) {
+            $head->setTitle(Mage::helper('ysrtech_emailcampaigns')->__('Unsubscribe'));
+        }
+
+        if ($content = $this->getLayout()->getBlock('content')) {
+            $content->append($this->getLayout()->createBlock('ysrtech_emailcampaigns/unsubscribe'));
+        }
+
+        $this->renderLayout();
     }
+
 }
