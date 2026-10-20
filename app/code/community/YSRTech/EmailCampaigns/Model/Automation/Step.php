@@ -19,7 +19,9 @@ class YSRTech_EmailCampaigns_Model_Automation_Step extends Mage_Core_Model_Abstr
      */
     public function getDelaySeconds(): int
     {
-        return ((int) $this->getAfterDays() * 86400) + ((int) $this->getAfterHours() * 3600);
+        return ((int) $this->getAfterDays() * 86400)
+            + ((int) $this->getAfterHours() * 3600)
+            + ((int) $this->getAfterMinutes() * 60);
     }
 
     /**
@@ -51,6 +53,10 @@ class YSRTech_EmailCampaigns_Model_Automation_Step extends Mage_Core_Model_Abstr
 
         if ((int) $this->getAfterHours()) {
             $parts[] = $h->__('%d hour(s)', (int) $this->getAfterHours());
+        }
+
+        if ((int) $this->getAfterMinutes()) {
+            $parts[] = $h->__('%d minute(s)', (int) $this->getAfterMinutes());
         }
 
         return $h->__('%s later', implode(', ', $parts));

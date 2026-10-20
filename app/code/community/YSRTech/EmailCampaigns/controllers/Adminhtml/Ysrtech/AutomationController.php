@@ -178,6 +178,139 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_AutomationController
         }
     }
 
+    /**
+     * The visual editor, on the same automation the form edits.
+     */
+    public function canvasAction()
+    {
+        $id = (int) $this->getRequest()->getParam('id');
+        /** @var YSRTech_EmailCampaigns_Model_Automation $model */
+        $model = Mage::getModel('ysrtech_emailcampaigns/automation');
+
+        if ($id) {
+            $model->load($id);
+
+            if (!$model->getId()) {
+                $this->_getSession()->addError($this->__('Automation no longer exists.'));
+                $this->_redirect('*/*/index');
+                return;
+            }
+        }
+
+        Mage::register('ysrtech_emailcampaigns_automation', $model);
+
+        $this->_title($model->getId() ? $model->getName() : $this->__('New Flow'));
+        $this->loadLayout();
+        $this->_setActiveMenu('ysrtech_emailcampaigns/automation');
+        $this->_addContent($this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_automation_canvas'));
+        $this->renderLayout();
+    }
+
+    /**
+     * Save from the canvas.
+     *
+     * Answers JSON rather than redirecting: the editor posts with fetch() and
+     * never navigates, which is also why the new automation's id goes back in
+     * the response - without it every later save on a new flow would insert
+     * another row instead of updating the one just made.
+     *
+     * Only what the canvas draws is written. The trigger's conditions, the
+     * cancellation rule, the marketing/transactional choice and the active
+     * dates have no nodes in the editor, so they are left exactly as the form
+     * left them; a canvas save must not quietly reset what it cannot show.
+     */
+    public function canvasSaveAction()
+    {
+        $this->getResponse()->setHeader('Content-Type', 'application/json', true);
+
+        if (!$this->getRequest()->isPost()) {
+            $this->getResponse()->setBody(Mage::helper('core')->jsonEncode([
+                'success' => false,
+                'message' => $this->__('Expected a POST.'),
+            ]));
+            return;
+        }
+
+        if (!$this->_validateFormKey()) {
+            $this->getResponse()->setBody(Mage::helper('core')->jsonEncode([
+                'success' => false,
+                'message' => $this->__('This page has been open a while. Reload it and try again.'),
+            ]));
+            return;
+        }
+
+        $data = $this->getRequest()->getPost();
+        $id   = (int) $this->getRequest()->getParam('id');
+
+        /** @var YSRTech_EmailCampaigns_Model_Automation $model */
+        $model = Mage::getModel('ysrtech_emailcampaigns/automation');
+
+        if ($id) {
+            $model->load($id);
+
+            if (!$model->getId()) {
+                $this->getResponse()->setBody(Mage::helper('core')->jsonEncode([
+                    'success' => false,
+                    'message' => $this->__('Automation no longer exists.'),
+                ]));
+                return;
+            }
+        }
+
+        try {
+            $graph = json_decode((string) ($data['graph_json'] ?? ''), true);
+
+            if (!is_array($graph)) {
+                Mage::throwException($this->__('The canvas sent something this could not read.'));
+            }
+
+            $translated = Mage::getSingleton('ysrtech_emailcampaigns/automation_graph')->toSteps($graph);
+
+            $name = trim((string) ($data['name'] ?? ''));
+
+            if ($name === '') {
+                Mage::throwException($this->__('Give the flow a name before saving.'));
+            }
+
+            /*
+             * The trigger comes from the graph's own trigger node when it has
+             * one, because that is what the person was looking at, and from
+             * the posted field otherwise.
+             */
+            $event = $translated['trigger'] ?: (string) ($data['trigger_type'] ?? $model->getEvent());
+
+            $model->addData([
+                'name'      => $name,
+                'event'     => $event ?: 'order_placed',
+                // The editor's selector offers draft, active and paused; this
+                // module has a flag, and anything that is not active is off.
+                'is_active' => ((string) ($data['status'] ?? 'draft')) === 'active' ? 1 : 0,
+                'store_id'  => (int) ($data['store_id'] ?? 0),
+            ])->save();
+
+            // Reuses the form's own step writer, so both editors leave the
+            // rows in the same shape and only one place knows how.
+            $this->_saveSteps($model, $translated['steps']);
+
+            $this->getResponse()->setBody(Mage::helper('core')->jsonEncode([
+                'success' => true,
+                'id'      => (int) $model->getId(),
+                'steps'   => count($translated['steps']),
+            ]));
+        } catch (Mage_Core_Exception $e) {
+            $this->getResponse()->setBody(Mage::helper('core')->jsonEncode([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ]));
+        } catch (Exception $e) {
+            Mage::logException($e);
+            $this->getResponse()->setBody(Mage::helper('core')->jsonEncode([
+                'success' => false,
+                'message' => $this->__('Could not save. See the exception log.'),
+            ]));
+        }
+    }
+
     public function deleteAction()
     {
         $id = (int) $this->getRequest()->getParam('id');
