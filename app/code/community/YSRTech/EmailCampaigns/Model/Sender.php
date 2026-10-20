@@ -193,6 +193,8 @@ class YSRTech_EmailCampaigns_Model_Sender
         $storeId = $automation->getStoreId() ?: null;
         $vars    = Mage::getSingleton('ysrtech_emailcampaigns/automation_variables')
             ->forQueueItem($item, $storeId);
+        // As for a campaign, so an open on a triggered message finds its row.
+        $vars['tracking_token'] = (string) $item->getTrackingToken();
 
         $html = Mage::getSingleton('ysrtech_emailcampaigns/renderer')->render($template, $vars);
 
@@ -324,6 +326,13 @@ class YSRTech_EmailCampaigns_Model_Sender
                 ],
                 'store'           => ['name' => $storeName],
                 'unsubscribe_url' => $this->_unsubscribeUrl($campaign, $item, $delegates),
+                /*
+                 * Carried so an open or a click coming back from the provider
+                 * can be matched to this exact row rather than guessed at from
+                 * the address. Transport_Mailgun turns it into a per-recipient
+                 * variable and a v: custom variable.
+                 */
+                'tracking_token'  => (string) $item->getTrackingToken(),
             ];
 
             $recipients[] = [

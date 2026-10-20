@@ -144,6 +144,19 @@ class YSRTech_EmailCampaigns_Model_Transport_Mailgun
         $params['o:tracking-opens']  = $tracking;
         $params['o:tracking-clicks'] = $tracking === 'yes' ? 'htmlonly' : 'no';
 
+        /*
+         * Mailgun echoes v: variables back in a webhook's user-variables, which
+         * is how an open gets matched to the row it belongs to. A custom
+         * variable is message-level and this message carries up to five hundred
+         * recipients, so the value is written as a recipient variable and left
+         * to Mailgun to substitute. Mailgun documents %recipient.x% in the
+         * subject, the body and the To header but not inside a v: variable, so
+         * this may well arrive as the literal placeholder - WebhookController
+         * falls back to the recipient's address when it does, and the only cost
+         * of sending it is a few bytes.
+         */
+        $params['v:tracking_token'] = '%recipient.tracking_token%';
+
         if ($timestamp !== null) {
             $params['o:deliverytime'] = gmdate('D, d M Y H:i:s', $timestamp) . ' +0000';
         }
@@ -166,6 +179,13 @@ class YSRTech_EmailCampaigns_Model_Transport_Mailgun
             'email'     => (string) $recipient['email'],
             'firstname' => isset($vars['customer']['firstname']) ? (string) $vars['customer']['firstname'] : '',
             'lastname'  => isset($vars['customer']['lastname']) ? (string) $vars['customer']['lastname'] : '',
+            /*
+             * Always present, even empty. v:tracking_token is written as
+             * %recipient.tracking_token% for every message, including a test
+             * send and triggered mail, and a recipient variable the recipient
+             * does not have is not something to find out about in production.
+             */
+            'tracking_token' => isset($vars['tracking_token']) ? (string) $vars['tracking_token'] : '',
         ];
 
         // Anything else scalar the caller attached, one level down.

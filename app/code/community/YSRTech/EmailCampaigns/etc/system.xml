@@ -37,6 +37,22 @@
                             <sort_order>20</sort_order>
                             <show_in_default>1</show_in_default>
                         </api_key>
+                        <mailgun_webhook_signing_key translate="label comment">
+                            <label>Mailgun Webhook Signing Key</label>
+                            <frontend_type>obscure</frontend_type>
+                            <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
+                            <comment><![CDATA[From Mailgun's webhook settings. The endpoint at /emailcampaigns/webhook/mailgun is open to the internet, so without this key every request to it is refused - which is also what happens when the key is wrong, so a webhook that silently does nothing is the first thing to check here. Webhooks report unsubscribes, complaints and hard bounces within seconds, and opens and clicks, which no suppression list carries.]]></comment>
+                            <sort_order>30</sort_order>
+                            <show_in_default>1</show_in_default>
+                        </mailgun_webhook_signing_key>
+                        <resend_webhook_signing_secret translate="label comment">
+                            <label>Resend Webhook Signing Secret</label>
+                            <frontend_type>obscure</frontend_type>
+                            <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
+                            <comment><![CDATA[From Resend's webhook settings, in the whsec_... form. Verifies /emailcampaigns/webhook/resend, which reports bounces and complaints. Only needed when Resend is the transport.]]></comment>
+                            <sort_order>32</sort_order>
+                            <show_in_default>1</show_in_default>
+                        </resend_webhook_signing_secret>
                         <suppression_api_key translate="label comment">
                             <label>Suppression API Key (Mailgun)</label>
                             <frontend_type>obscure</frontend_type>

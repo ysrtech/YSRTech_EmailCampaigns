@@ -47,6 +47,16 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Analytics_Grid extends Mage_Adminht
                     'pending' => new Zend_Db_Expr("SUM(CASE WHEN q.status = 'pending' THEN 1 ELSE 0 END)"),
                     'failed'  => new Zend_Db_Expr("COALESCE(main_table.stat_failed, SUM(CASE WHEN q.status = 'failed' THEN 1 ELSE 0 END))"),
                     'cancelled' => new Zend_Db_Expr("COALESCE(main_table.stat_cancelled, SUM(CASE WHEN q.status = 'cancelled' THEN 1 ELSE 0 END))"),
+                    /*
+                     * People, not events: somebody who opens the same email
+                     * six times is one person who read it, and a rate built
+                     * on the event count would read above a hundred per cent.
+                     * Not rolled onto the campaign by the retention sweep, so
+                     * these go blank once a campaign's rows are purged - the
+                     * figures that survive are the ones about delivery.
+                     */
+                    'opened'  => new Zend_Db_Expr('SUM(CASE WHEN q.open_count > 0 THEN 1 ELSE 0 END)'),
+                    'clicked' => new Zend_Db_Expr('SUM(CASE WHEN q.click_count > 0 THEN 1 ELSE 0 END)'),
                 )
             )
             ->group('main_table.campaign_id');
@@ -75,6 +85,8 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Analytics_Grid extends Mage_Adminht
             'pending'   => $helper->__('Pending'),
             'failed'    => $helper->__('Failed'),
             'cancelled' => $helper->__('Unsubscribed'),
+            'opened'    => $helper->__('Opened'),
+            'clicked'   => $helper->__('Clicked'),
         ) as $index => $label) {
             $this->addColumn($index, array(
                 'header'   => $label,
