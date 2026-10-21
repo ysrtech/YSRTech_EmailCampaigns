@@ -8,16 +8,26 @@ Mage::setIsDeveloperMode(true);
 Mage::app('admin');
 Mage::register('isSecureArea', true);
 
-// setup.sh always runs against a freshly created database, so these are
-// always new rows — no need to check for an existing customer first.
+// Loaded by email first, so this can be run on its own against an instance
+// that already exists. It was written assuming setup.sh had just created the
+// database, and re-running it then died on "This customer email already
+// exists" - which is what you hit the moment you want to re-seed after a
+// change rather than rebuild from scratch.
 foreach ([
     ['jane@example.com', 'Jane', 'Doe'],
     ['john@example.com', 'John', 'Smith'],
 ] as [$email, $first, $last]) {
-    $customer = Mage::getModel('customer/customer');
+    $customer = Mage::getModel('customer/customer')->setWebsiteId(1);
+    $customer->loadByEmail($email);
+
     $customer->setWebsiteId(1)->setStore(Mage::app()->getStore(0))
         ->setEmail($email)->setFirstname($first)->setLastname($last)
-        ->setPassword('Password123')->setGroupId(1);
+        ->setGroupId(1);
+
+    if (!$customer->getId()) {
+        $customer->setPassword('Password123');
+    }
+
     $customer->save();
     echo "customer id={$customer->getId()} email={$email}\n";
 }

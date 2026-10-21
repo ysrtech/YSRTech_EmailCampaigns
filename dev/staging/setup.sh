@@ -53,9 +53,27 @@ mkdir -p "$CORE_DIR/app/code/community"
 ln -sfn "$MODULE_DIR/app/code/community/YSRTech" "$CORE_DIR/app/code/community/YSRTech"
 ln -sfn "$MODULE_DIR/app/etc/modules/YSRTech_EmailCampaigns.xml" \
     "$CORE_DIR/app/etc/modules/YSRTech_EmailCampaigns.xml"
-mkdir -p "$CORE_DIR/app/design/adminhtml/default/default/template"
-ln -sfn "$MODULE_DIR/app/design/adminhtml/default/default/template/ysrtech" \
-    "$CORE_DIR/app/design/adminhtml/default/default/template/ysrtech"
+# Every design file the module ships, derived from the tree rather than listed,
+# so a new one does not silently fail to appear. Two ways this went wrong
+# before: linking template/ysrtech, which holds nothing any block asks for, so
+# the designer and the canvas rendered as nothing; and not linking layout/ at
+# all, so setCanLoadRulesJs never applied and the segment condition builder
+# loaded without VarienRulesForm - the markup rendered and then did nothing,
+# which looks like a working page until you click something.
+# Clear links a previous run left behind first. Without this the second run
+# fails: the old link is a directory symlink into the module, so creating a
+# file link underneath it resolves back to the module's own file and ln
+# refuses with "are the same file".
+if [ -d "$CORE_DIR/app/design" ]; then
+    find "$CORE_DIR/app/design" -type l -lname "$MODULE_DIR/*" -delete
+fi
+
+while IFS= read -r design_file; do
+    rel=${design_file#"$MODULE_DIR/app/design/"}
+    target="$CORE_DIR/app/design/$rel"
+    mkdir -p "$(dirname "$target")"
+    ln -sfn "$design_file" "$target"
+done < <(find "$MODULE_DIR/app/design" -type f)
 mkdir -p "$CORE_DIR/skin/adminhtml/default/default"
 ln -sfn "$MODULE_DIR/skin/adminhtml/default/default/ysrtech" \
     "$CORE_DIR/skin/adminhtml/default/default/ysrtech"
