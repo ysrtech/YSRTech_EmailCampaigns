@@ -80,6 +80,114 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_TemplateController
         $this->renderLayout();
     }
 
+    /**
+     * Search-as-you-type for the designer's Product/Category blocks.
+     *
+     * Only the display data a block's canvas preview needs (image/name/price
+     * or image/name/url) — not the merge-tag markers the block actually
+     * saves. Renderer.php re-resolves those against the live catalog at send
+     * time (see injectCatalogData()), so a price or stock change between
+     * designing a campaign and it going out is never frozen into the saved
+     * HTML.
+     */
+    public function catalogSearchAction()
+    {
+        $type  = (string) $this->getRequest()->getParam('type');
+        $query = trim((string) $this->getRequest()->getParam('q'));
+        // Reopening a saved template needs this too: the saved HTML only
+        // carries the picked id (inside its merge-tag markers), not the
+        // name/price/image a canvas preview needs, so the designer looks
+        // those back up by id rather than showing a blank or stale block.
+        $id    = (int) $this->getRequest()->getParam('id');
+
+        if ($type !== 'product' && $type !== 'category') {
+            $results = [];
+        } elseif ($id > 0) {
+            $results = array_filter([$this->_catalogItem($type, $id)]);
+        } elseif ($query !== '') {
+            $results = $this->_catalogSearch($type, $query);
+        } else {
+            $results = [];
+        }
+
+        $this->getResponse()
+            ->setHeader('Content-Type', 'application/json', true)
+            ->setBody(Mage::helper('core')->jsonEncode(array_values($results)));
+    }
+
+    /** @return array[] */
+    protected function _catalogSearch(string $type, string $query): array
+    {
+        $results = [];
+
+        if ($type === 'product') {
+            $collection = Mage::getResourceModel('catalog/product_collection')
+                ->addAttributeToSelect(['name', 'price', 'small_image'])
+                ->addAttributeToFilter('name', ['like' => "%{$query}%"])
+                ->setPageSize(20);
+
+            foreach ($collection as $product) {
+                $results[] = $this->_productData($product);
+            }
+        } else {
+            $collection = Mage::getResourceModel('catalog/category_collection')
+                ->addAttributeToSelect(['name', 'image'])
+                ->addAttributeToFilter('name', ['like' => "%{$query}%"])
+                ->setPageSize(20);
+
+            foreach ($collection as $category) {
+                $results[] = $this->_categoryData($category);
+            }
+        }
+
+        return $results;
+    }
+
+    /** @return array|null */
+    protected function _catalogItem(string $type, int $id)
+    {
+        if ($type === 'product') {
+            $product = Mage::getModel('catalog/product')->load($id);
+
+            return $product->getId() ? $this->_productData($product) : null;
+        }
+
+        $category = Mage::getModel('catalog/category')->load($id);
+
+        return $category->getId() ? $this->_categoryData($category) : null;
+    }
+
+    /** @return array */
+    protected function _productData($product): array
+    {
+        $hasImage = $product->getSmallImage() && $product->getSmallImage() !== 'no_selection';
+
+        return [
+            'id'    => (int) $product->getId(),
+            'name'  => $product->getName(),
+            'price' => Mage::helper('core')->currency($product->getPrice(), true, false),
+            // Mage_Catalog_Helper_Image throws "Image file was not found"
+            // when a product has none set, rather than returning an
+            // empty/placeholder string — guarded here and again in
+            // Renderer.php's send-time resolution.
+            'image' => $hasImage
+                ? (string) Mage::helper('catalog/image')->init($product, 'small_image')->resize(120)
+                : '',
+            'url'   => $product->getProductUrl(),
+        ];
+    }
+
+    /** @return array */
+    protected function _categoryData($category): array
+    {
+        return [
+            'id'    => (int) $category->getId(),
+            'name'  => $category->getName(),
+            'image' => (string) $category->getImageUrl(),
+            'url'   => (string) $category->getUrl(),
+        ];
+    }
+
     /** Where campaign images live, under the store's public media directory */
     private const ASSET_DIR = 'ysrtech/emailcampaigns';
 

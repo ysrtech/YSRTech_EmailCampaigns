@@ -61,6 +61,18 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Designer extends Mage_Admi
         return $this->getUrl('*/*/preview', ['id' => $this->getEmailTemplate()->getId()]);
     }
 
+    /** Where the Product/Category blocks' trait panel searches the catalog. */
+    public function getCatalogSearchUrl(): string
+    {
+        return $this->getUrl('*/*/catalogSearch');
+    }
+
+    /** catalog-blocks.{js,css}: this module's own code, not the vendored GrapesJS assets getAssetUrl() serves. */
+    public function getOwnAssetUrl(string $file): string
+    {
+        return $this->getSkinUrl('ysrtech/emailcampaigns/' . $file);
+    }
+
     /**
      * The content the editor opens with, as a json string safe to embed.
      *

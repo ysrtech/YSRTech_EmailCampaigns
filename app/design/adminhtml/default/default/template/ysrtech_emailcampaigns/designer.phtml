@@ -5,6 +5,7 @@
 $template = $this->getEmailTemplate();
 ?>
 <link rel="stylesheet" type="text/css" href="<?php echo $this->escapeHtml($this->getAssetUrl('grapes.min.css')) ?>" />
+<link rel="stylesheet" type="text/css" href="<?php echo $this->escapeHtml($this->getOwnAssetUrl('catalog-blocks.css')) ?>" />
 
 <style>
     /*
@@ -51,15 +52,17 @@ $template = $this->getEmailTemplate();
 
 <script type="text/javascript" src="<?php echo $this->escapeHtml($this->getAssetUrl('grapes.min.js')) ?>"></script>
 <script type="text/javascript" src="<?php echo $this->escapeHtml($this->getAssetUrl('preset-newsletter.js')) ?>"></script>
+<script type="text/javascript" src="<?php echo $this->escapeHtml($this->getOwnAssetUrl('catalog-blocks.js')) ?>"></script>
 
 <script type="text/javascript">
 //<![CDATA[
 (function () {
-    var startingHtml = <?php echo $this->getContentJson() ?>,
-        saveUrl      = '<?php echo $this->escapeHtml($this->getSaveUrl()) ?>',
-        backUrl      = '<?php echo $this->escapeHtml($this->getBackUrl()) ?>',
-        previewUrl   = '<?php echo $this->escapeHtml($this->getPreviewUrl()) ?>',
-        formKey      = '<?php echo $this->escapeHtml($this->getFormKey()) ?>';
+    var startingHtml     = <?php echo $this->getContentJson() ?>,
+        saveUrl          = '<?php echo $this->escapeHtml($this->getSaveUrl()) ?>',
+        backUrl          = '<?php echo $this->escapeHtml($this->getBackUrl()) ?>',
+        previewUrl       = '<?php echo $this->escapeHtml($this->getPreviewUrl()) ?>',
+        formKey          = '<?php echo $this->escapeHtml($this->getFormKey()) ?>',
+        catalogSearchUrl = '<?php echo $this->escapeHtml($this->getCatalogSearchUrl()) ?>';
 
     var editor = grapesjs.init({
         container: '#ec-designer',
@@ -111,6 +114,11 @@ $template = $this->getEmailTemplate();
         },
         components: startingHtml
     });
+
+    // Dynamic Product/Category blocks: live catalog data in the canvas
+    // preview, merge-tag markers in what actually gets saved — see
+    // catalog-blocks.js's file header for the full split.
+    window.ysrCatalogBlocks.register(editor, {searchUrl: catalogSearchUrl});
 
     function inlinedHtml() {
         // The preset's inliner: css moved into style attributes, which is the

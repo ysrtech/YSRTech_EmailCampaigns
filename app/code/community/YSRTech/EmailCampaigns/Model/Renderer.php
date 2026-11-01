@@ -21,11 +21,69 @@ class YSRTech_EmailCampaigns_Model_Renderer
 
         $html = $this->_unwrapDocument($html);
 
+        /*
+         * Before renderMergeVars(), not after: its {{a.b.c}} regex matches
+         * {{product.<id>.field}} too, and with no "product" key in $vars it
+         * would silently blank every catalog marker before this ever saw them.
+         */
+        $html = $this->_injectCatalogData($html);
+
         $helper = Mage::helper('ysrtech_emailcampaigns');
         $html = $helper->renderMergeVars($html, $vars);
         $html = $this->_injectUnsubscribe($html, $vars);
 
         return $this->_wrapDocument($html, $vars);
+    }
+
+    /**
+     * Resolves {{product.<id>.field}} / {{category.<id>.field}} markers the
+     * designer's Product/Category blocks leave behind, against the live
+     * catalog at send time — the same load-fresh-not-frozen principle as the
+     * order/cart variables in Automation/Variables.php, just for catalog data
+     * instead of order data. Loads are cached per process since the same
+     * block renders once per recipient in a batch send.
+     */
+    private function _injectCatalogData(string $html): string
+    {
+        static $cache = [];
+
+        return preg_replace_callback(
+            '/\{\{(product|category)\.(\d+)\.(image|name|price|url)\}\}/',
+            static function (array $m) use (&$cache) {
+                [, $type, $id, $field] = $m;
+                $cacheKey = "{$type}:{$id}";
+
+                if (!isset($cache[$cacheKey])) {
+                    $cache[$cacheKey] = $type === 'product'
+                        ? Mage::getModel('catalog/product')->load((int) $id)
+                        : Mage::getModel('catalog/category')->load((int) $id);
+                }
+
+                $item = $cache[$cacheKey];
+
+                if (!$item->getId()) {
+                    return '';
+                }
+
+                return match ($field) {
+                    'name'  => htmlspecialchars((string) $item->getName(), ENT_QUOTES),
+                    'price' => $type === 'product'
+                        ? Mage::helper('core')->currency($item->getPrice(), true, false)
+                        : '',
+                    // Guarded the same way as TemplateController::catalogSearchAction():
+                    // Mage_Catalog_Helper_Image throws rather than returning
+                    // empty/placeholder when a product has no image set.
+                    'image' => $type === 'product'
+                        ? ($item->getSmallImage() && $item->getSmallImage() !== 'no_selection'
+                            ? (string) Mage::helper('catalog/image')->init($item, 'small_image')->resize(300)
+                            : '')
+                        : (string) $item->getImageUrl(),
+                    'url'   => $type === 'product' ? (string) $item->getProductUrl() : (string) $item->getUrl(),
+                    default => '',
+                };
+            },
+            $html
+        );
     }
 
     /**
