@@ -76,7 +76,12 @@
             editor.DomComponents.addType(typeName, {
                 isComponent: function (el) {
                     if (el.getAttribute && el.getAttribute('data-ysr-type') === kind) {
-                        return {type: typeName};
+                        // Seeds catalogId straight from the saved marker
+                        // attribute, rather than leaving init() to go
+                        // digging for it — see the reopened-template note
+                        // on the model below.
+                        var savedId = parseInt(el.getAttribute('data-ysr-id'), 10) || null;
+                        return {type: typeName, catalogId: savedId};
                     }
                 },
                 model: {
@@ -88,6 +93,9 @@
                             style: 'margin:0 0 20px;'
                         },
                         removable: true, draggable: true, copyable: true,
+                        // Deliberately no `components` / children: see the
+                        // view below for why the inner markup is rendered as
+                        // opaque HTML instead of a child component tree.
                         traits: [{type: 'ysr-catalog-picker', name: 'catalog_id', catalogType: kind}],
                         // The picked item, cached for the canvas preview — see
                         // rowsHtml()'s useTags=false path. Not what gets saved;
@@ -100,14 +108,12 @@
                     },
 
                     init: function () {
-                        // A reopened template's isComponent() match sets
-                        // data-ysr-id but nothing else — refill the preview.
-                        var attrs = this.getAttributes();
-                        if (attrs['data-ysr-id'] && !this.get('catalogId')) {
-                            this.set('catalogId', parseInt(attrs['data-ysr-id'], 10));
+                        // A reopened template's isComponent() match seeds
+                        // catalogId but nothing else — the saved HTML only
+                        // ever had the merge-tag id, not the cached preview
+                        // fields — so look the rest back up by id.
+                        if (this.get('catalogId')) {
                             this._lookupPreview();
-                        } else {
-                            this.components(rowsHtml(kind, this, false));
                         }
                     },
 
@@ -120,7 +126,6 @@
                             catalogUrl: item.url || ''
                         });
                         this.addAttributes({'data-ysr-id': item.id});
-                        this.components(rowsHtml(kind, this, false));
                     },
 
                     _lookupPreview: function () {
@@ -145,6 +150,28 @@
                             return k + '="' + esc(attrs[k]) + '"';
                         }).join(' ');
                         return '<table ' + attrStr + '>' + rowsHtml(kind, this, true) + '</table>';
+                    }
+                },
+
+                // GrapesJS parses whatever this.components(htmlString) is
+                // given into its own real, independently selectable child
+                // components — an <img> inside becomes GrapesJS's own
+                // built-in "image" type, and a click on it then selects
+                // *that*, not this block, so the trait panel for the catalog
+                // picker never appears. Rendering the preview as raw,
+                // un-parsed innerHTML here instead keeps the whole block one
+                // opaque, atomic unit with nothing nested to steal a click.
+                view: {
+                    onRender: function () {
+                        this._updatePreview();
+                        this.listenTo(
+                            this.model,
+                            'change:catalogId change:catalogName change:catalogImage change:catalogPrice change:catalogUrl',
+                            this._updatePreview
+                        );
+                    },
+                    _updatePreview: function () {
+                        this.el.innerHTML = rowsHtml(kind, this.model, false);
                     }
                 }
             });
@@ -225,19 +252,34 @@
         });
     }
 
-    window.ysrCatalogBlocks = {
-        /**
-         * @param editor     a grapesjs.init() instance
-         * @param options    {searchUrl: string}
-         */
-        register: function (editor, options) {
-            // Read back by registerComponents()'s _lookupPreview() and the
-            // trait's createInput() — grapesjs exposes init options back out
-            // through getConfig(), so this is the one place options travel
-            // from designer.phtml into both without extra plumbing.
-            editor.getConfig().ysrCatalog = options || {};
-            registerTrait(editor);
-            registerComponents(editor);
-        }
+    /**
+     * A GrapesJS plugin, in the same shape grapesjs-preset-newsletter.js
+     * exports — not a function called after grapesjs.init() returns.
+     *
+     * That was the first version's real bug: registering addType() after
+     * init() meant the editor had already parsed `components: startingHtml`
+     * through its own default table/image/text types before these ever
+     * existed, so isComponent() never got a chance to match on load — a
+     * reopened template showed raw {{product.1.name}} text, not even the
+     * placeholder. A plugin passed in `plugins: [...]` runs as part of
+     * init()'s own setup, before that initial parse — same as how the
+     * newsletter preset's own blocks are already present for it.
+     *
+     * Referenced by the global name grapesjs resolves a string plugins[]
+     * entry against (confirmed in grapes.min.js: `window[e]` is its fallback
+     * when a plugin name isn't in its own registry) — same convention
+     * preset-newsletter.js's own UMD wrapper relies on.
+     *
+     * @param editor  the grapesjs.init() instance, mid-construction
+     * @param opts    pluginsOpts['ysrCatalogBlocks'] — {searchUrl: string}
+     */
+    window.ysrCatalogBlocks = function (editor, opts) {
+        // Read back by registerComponents()'s _lookupPreview() and the
+        // trait's createInput() — grapesjs exposes init options back out
+        // through getConfig(), so this is the one place options travel from
+        // designer.phtml into both without extra plumbing.
+        editor.getConfig().ysrCatalog = opts || {};
+        registerTrait(editor);
+        registerComponents(editor);
     };
 }());

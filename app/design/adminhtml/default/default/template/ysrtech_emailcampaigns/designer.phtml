@@ -103,22 +103,27 @@ $template = $this->getEmailTemplate();
         // The template lives in Magento's own table; letting the editor also
         // keep a copy in localStorage would give two answers to one question
         storageManager: false,
-        plugins: ['grapesjs-preset-newsletter'],
+        /*
+         * ysrCatalogBlocks (catalog-blocks.js) in this array, not called
+         * separately after init() returns: a plugin runs as part of init()'s
+         * own setup, before `components: startingHtml` below is parsed. A
+         * later call would register the Product/Category component types
+         * too late for that initial parse to ever recognize them — exactly
+         * the bug that made a reopened template show raw {{product.1.name}}
+         * text instead of a live preview.
+         */
+        plugins: ['grapesjs-preset-newsletter', 'ysrCatalogBlocks'],
         pluginsOpts: {
             'grapesjs-preset-newsletter': {
                 modalTitleImport: '<?php echo $this->jsQuoteEscape($this->__('Paste your HTML here')) ?>',
                 // The editor's own export/import already round-trips html,
                 // which is what this module needs from it
                 inlineCss: true
-            }
+            },
+            'ysrCatalogBlocks': {searchUrl: catalogSearchUrl}
         },
         components: startingHtml
     });
-
-    // Dynamic Product/Category blocks: live catalog data in the canvas
-    // preview, merge-tag markers in what actually gets saved — see
-    // catalog-blocks.js's file header for the full split.
-    window.ysrCatalogBlocks.register(editor, {searchUrl: catalogSearchUrl});
 
     function inlinedHtml() {
         // The preset's inliner: css moved into style attributes, which is the
