@@ -40,33 +40,95 @@
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    var FONT = 'font-family:Arial,Helvetica,sans-serif;';
+
+    function button(url, label) {
+        return '<tr><td align="center" style="padding:8px 0 0;">'
+            + '<a href="' + esc(url) + '" style="background:#2563eb;color:#ffffff;padding:12px 28px;border-radius:6px;'
+            + 'text-decoration:none;font-weight:bold;display:inline-block;' + FONT + '">' + esc(label) + '</a>'
+            + '</td></tr>';
+    }
+
     /** @param useTags  true for export (toHTML), false for the canvas preview */
-    function rowsHtml(kind, model, useTags) {
+    function productRowsHtml(model, useTags) {
         var id = model.get('catalogId');
         var hasId = id !== null && id !== undefined && id !== '';
-        var tag = function (field) { return '{{' + kind + '.' + id + '.' + field + '}}'; };
+        var tag = function (field) { return '{{product.' + id + '.' + field + '}}'; };
 
         var image = hasId && useTags ? tag('image') : (model.get('catalogImage') || PLACEHOLDER_IMAGE);
-        var name = hasId && useTags ? tag('name') : (model.get('catalogName') || ('Select a ' + kind + '…'));
-        var price = kind === 'product' ? (hasId && useTags ? tag('price') : (model.get('catalogPrice') || '')) : '';
+        var name = hasId && useTags ? tag('name') : (model.get('catalogName') || 'Select a product…');
+        var price = hasId && useTags ? tag('price') : (model.get('catalogPrice') || '');
         var url = hasId && useTags ? tag('url') : (model.get('catalogUrl') || '#');
-        var cta = kind === 'product' ? 'Shop Now' : 'Shop Category';
-        var font = 'font-family:Arial,Helvetica,sans-serif;';
 
         var html = '<tr><td align="center" style="padding:0 0 12px;">'
             + '<img src="' + esc(image) + '" alt="" width="300" style="max-width:100%;display:block;border:0;" />'
             + '</td></tr>';
-        html += '<tr><td align="center" style="' + font + 'font-weight:bold;font-size:16px;color:#000000;padding:0 0 4px;">'
+        html += '<tr><td align="center" style="' + FONT + 'font-weight:bold;font-size:16px;color:#000000;padding:0 0 4px;">'
             + esc(name) + '</td></tr>';
         if (price) {
-            html += '<tr><td align="center" style="' + font + 'color:#666666;font-size:14px;padding:0 0 12px;">'
+            html += '<tr><td align="center" style="' + FONT + 'color:#666666;font-size:14px;padding:0 0 12px;">'
                 + esc(price) + '</td></tr>';
         }
-        html += '<tr><td align="center">'
-            + '<a href="' + esc(url) + '" style="background:#2563eb;color:#ffffff;padding:12px 28px;border-radius:6px;'
-            + 'text-decoration:none;font-weight:bold;display:inline-block;' + font + '">' + esc(cta) + '</a>'
-            + '</td></tr>';
+        html += button(url, 'Shop Now');
         return html;
+    }
+
+    /** A 2-per-row cell for one sample product in the category grid's canvas preview. */
+    function sampleProductCell(product) {
+        var image = (product.image || PLACEHOLDER_IMAGE);
+        return '<td width="50%" align="center" style="padding:0 8px 16px;">'
+            + '<img src="' + esc(image) + '" alt="" width="150" style="max-width:100%;display:block;border:0;margin:0 auto 8px;" />'
+            + '<div style="' + FONT + 'font-weight:bold;font-size:14px;color:#000000;">' + esc(product.name) + '</div>'
+            + '<div style="' + FONT + 'color:#666666;font-size:13px;">' + esc(product.price || '') + '</div>'
+            + '</td>';
+    }
+
+    /**
+     * @param useTags  true for export (toHTML), false for the canvas preview.
+     *
+     * The grid itself (min 4 products, 2 per row) is one merge tag on
+     * export — {{category.<id>.products_html}} — not four nested product
+     * tags: Renderer.php's renderMergeVars() only substitutes scalar
+     * {{a.b.c}} leaves, so a whole sub-grid has to arrive pre-rendered the
+     * same way order.items_html (Automation/Variables.php) and
+     * product.items_html already do, rather than inventing a loop construct
+     * in the template syntax just for this one block.
+     */
+    function categoryRowsHtml(model, useTags) {
+        var id = model.get('catalogId');
+        var hasId = id !== null && id !== undefined && id !== '';
+        var tag = function (field) { return '{{category.' + id + '.' + field + '}}'; };
+
+        var name = hasId && useTags ? tag('name') : (model.get('catalogName') || 'Select a category…');
+        var url = hasId && useTags ? tag('url') : (model.get('catalogUrl') || '#');
+        var products = model.get('catalogProducts') || [];
+
+        var html = '<tr><td align="center" style="' + FONT + 'font-weight:bold;font-size:18px;color:#000000;padding:0 0 12px;">'
+            + esc(name) + '</td></tr>';
+
+        if (hasId && useTags) {
+            html += '<tr><td>' + tag('products_html') + '</td></tr>';
+        } else if (products.length) {
+            var rows = '';
+            for (var i = 0; i < products.length; i += 2) {
+                var pair = products.slice(i, i + 2);
+                var cells = pair.map(sampleProductCell).join('');
+                if (pair.length === 1) { cells += '<td width="50%">&nbsp;</td>'; }
+                rows += '<tr>' + cells + '</tr>';
+            }
+            html += '<tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">'
+                + rows + '</table></td></tr>';
+        } else {
+            html += '<tr><td align="center" style="' + FONT + 'color:#999999;font-size:13px;padding:0 0 12px;">'
+                + 'No products in this category yet</td></tr>';
+        }
+
+        html += button(url, 'Shop Category');
+        return html;
+    }
+
+    function rowsHtml(kind, model, useTags) {
+        return kind === 'product' ? productRowsHtml(model, useTags) : categoryRowsHtml(model, useTags);
     }
 
     function registerComponents(editor) {
@@ -104,7 +166,10 @@
                         catalogName: '',
                         catalogImage: '',
                         catalogPrice: '',
-                        catalogUrl: ''
+                        catalogUrl: '',
+                        // Category blocks only: up to 4 sample products for
+                        // the grid's canvas preview (categoryRowsHtml).
+                        catalogProducts: []
                     },
 
                     init: function () {
@@ -123,7 +188,8 @@
                             catalogName: item.name || '',
                             catalogImage: item.image || '',
                             catalogPrice: item.price || '',
-                            catalogUrl: item.url || ''
+                            catalogUrl: item.url || '',
+                            catalogProducts: item.products || []
                         });
                         this.addAttributes({'data-ysr-id': item.id});
                     },
@@ -166,7 +232,8 @@
                         this._updatePreview();
                         this.listenTo(
                             this.model,
-                            'change:catalogId change:catalogName change:catalogImage change:catalogPrice change:catalogUrl',
+                            'change:catalogId change:catalogName change:catalogImage change:catalogPrice '
+                                + 'change:catalogUrl change:catalogProducts',
                             this._updatePreview
                         );
                     },

@@ -177,14 +177,31 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_TemplateController
         ];
     }
 
+    /** How many products the Category block's grid shows, 2 per row. */
+    private const CATEGORY_GRID_SIZE = 4;
+
     /** @return array */
     protected function _categoryData($category): array
     {
+        $products = Mage::getResourceModel('catalog/product_collection')
+            ->addCategoryFilter($category)
+            ->addAttributeToSelect(['name', 'price', 'small_image'])
+            ->setPageSize(self::CATEGORY_GRID_SIZE);
+
         return [
-            'id'    => (int) $category->getId(),
-            'name'  => $category->getName(),
-            'image' => (string) $category->getImageUrl(),
-            'url'   => (string) $category->getUrl(),
+            'id'       => (int) $category->getId(),
+            'name'     => $category->getName(),
+            'image'    => (string) $category->getImageUrl(),
+            'url'      => (string) $category->getUrl(),
+            // The canvas-preview sample for the block's product grid —
+            // Renderer.php's send-time resolution re-queries this fresh
+            // rather than trusting what was cached here at design time.
+            // array_values(): a Magento collection's iterator_to_array() is
+            // keyed by entity id, not 0,1,2…, and json_encode() serializes a
+            // non-sequential-from-zero array as a JSON *object* — the
+            // frontend's `.length` check on it would then silently see
+            // `undefined`, not an empty-but-real array.
+            'products' => array_values(array_map([$this, '_productData'], iterator_to_array($products))),
         ];
     }
 

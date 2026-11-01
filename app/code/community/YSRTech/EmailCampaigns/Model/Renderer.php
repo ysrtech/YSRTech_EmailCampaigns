@@ -48,8 +48,8 @@ class YSRTech_EmailCampaigns_Model_Renderer
         static $cache = [];
 
         return preg_replace_callback(
-            '/\{\{(product|category)\.(\d+)\.(image|name|price|url)\}\}/',
-            static function (array $m) use (&$cache) {
+            '/\{\{(product|category)\.(\d+)\.(image|name|price|url|products_html)\}\}/',
+            function (array $m) use (&$cache) {
                 [, $type, $id, $field] = $m;
                 $cacheKey = "{$type}:{$id}";
 
@@ -79,11 +79,59 @@ class YSRTech_EmailCampaigns_Model_Renderer
                             : '')
                         : (string) $item->getImageUrl(),
                     'url'   => $type === 'product' ? (string) $item->getProductUrl() : (string) $item->getUrl(),
+                    // Category blocks only: the 2-per-row grid of its own
+                    // products. Queried fresh here rather than trusting
+                    // whatever the designer's canvas preview last cached, so
+                    // a product added or removed from the category after the
+                    // template was designed still shows up correctly.
+                    'products_html' => $type === 'category' ? $this->_categoryProductsGrid($item) : '',
                     default => '',
                 };
             },
             $html
         );
+    }
+
+    /** Up to 4 of a category's own products, 2 per row — the Category block's grid. */
+    private function _categoryProductsGrid($category): string
+    {
+        $products = Mage::getResourceModel('catalog/product_collection')
+            ->addCategoryFilter($category)
+            ->addAttributeToSelect(['name', 'price', 'small_image'])
+            ->setPageSize(4);
+
+        $cells = [];
+        foreach ($products as $product) {
+            $hasImage = $product->getSmallImage() && $product->getSmallImage() !== 'no_selection';
+            $image = $hasImage
+                ? (string) Mage::helper('catalog/image')->init($product, 'small_image')->resize(150)
+                : '';
+            $name = htmlspecialchars((string) $product->getName(), ENT_QUOTES);
+            $price = Mage::helper('core')->currency($product->getPrice(), true, false);
+            $url = htmlspecialchars((string) $product->getProductUrl(), ENT_QUOTES);
+
+            $cells[] = '<td width="50%" align="center" style="padding:0 8px 16px;">'
+                . "<a href=\"{$url}\" style=\"text-decoration:none;color:inherit;\">"
+                . ($image !== ''
+                    ? "<img src=\"" . htmlspecialchars($image, ENT_QUOTES) . "\" alt=\"\" width=\"150\" "
+                        . 'style="max-width:100%;display:block;border:0;margin:0 auto 8px;" />'
+                    : '')
+                . "<div style=\"font-weight:bold;font-size:14px;color:#000000;\">{$name}</div>"
+                . "<div style=\"color:#666666;font-size:13px;\">{$price}</div>"
+                . '</a></td>';
+        }
+
+        if (!$cells) {
+            return '';
+        }
+
+        // 2 per row, in the order the collection came back.
+        $rows = '';
+        foreach (array_chunk($cells, 2) as $pair) {
+            $rows .= '<tr>' . implode('', $pair) . (count($pair) === 1 ? '<td width="50%">&nbsp;</td>' : '') . '</tr>';
+        }
+
+        return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">' . $rows . '</table>';
     }
 
     /**
