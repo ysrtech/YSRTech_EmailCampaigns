@@ -6,13 +6,23 @@ abstract class YSRTech_EmailCampaigns_Adminhtml_Controller_Abstract
     extends Mage_Adminhtml_Controller_Action
 {
     /**
+     * The ACL node under "Email Campaigns" that this controller's page sits
+     * behind, e.g. "campaign". Empty checks the parent node alone.
+     *
+     * @var string
+     */
+    protected $_aclNode = '';
+
+    /**
      * OpenMage 20 types this on Mage_Adminhtml_Controller_Action, and PHP 8
      * treats an override that drops the return type as an incompatible
      * signature - a fatal, not a notice.
      */
     protected function _isAllowed(): bool
     {
-        return Mage::getSingleton('admin/session')->isAllowed('ysrtech_emailcampaigns');
+        return Mage::getSingleton('admin/session')->isAllowed(
+            'ysrtech_emailcampaigns' . ($this->_aclNode !== '' ? '/' . $this->_aclNode : '')
+        );
     }
 
     /**

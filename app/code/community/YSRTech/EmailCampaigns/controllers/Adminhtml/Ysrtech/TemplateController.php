@@ -11,6 +11,8 @@ require_once Mage::getModuleDir('controllers', 'YSRTech_EmailCampaigns')
 class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_TemplateController
     extends YSRTech_EmailCampaigns_Adminhtml_Controller_Abstract
 {
+    protected $_aclNode = 'template';
+
     public function indexAction()
     {
         $this->_title($this->__('Email Campaigns'))->_title($this->__('Templates'));

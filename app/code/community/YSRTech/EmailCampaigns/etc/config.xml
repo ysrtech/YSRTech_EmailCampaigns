@@ -2,7 +2,7 @@
 <config>
     <modules>
         <YSRTech_EmailCampaigns>
-            <version>0.9.0</version>
+            <version>0.10.0</version>
         </YSRTech_EmailCampaigns>
     </modules>
 
@@ -47,6 +47,12 @@
                     <subscriber_pref>
                         <table>ysrtech_emailcampaigns_subscriber_preference</table>
                     </subscriber_pref>
+                    <suppression>
+                        <table>ysrtech_emailcampaigns_suppression</table>
+                    </suppression>
+                    <import>
+                        <table>ysrtech_emailcampaigns_import</table>
+                    </import>
                 </entities>
             </ysrtech_emailcampaigns_resource>
         </models>
@@ -171,40 +177,56 @@
             </updates>
         </layout>
 
+        <!--
+            Every child here has an ACL node of the same name below. The menu
+            checks admin/<path> for each entry, and a path with no node is
+            refused outright, so an entry without one shows for a superadmin
+            and for nobody else.
+        -->
         <menu>
             <ysrtech_emailcampaigns translate="title" module="ysrtech_emailcampaigns">
                 <title>Email Campaigns</title>
                 <sort_order>75</sort_order>
                 <children>
-                    <campaign translate="title" module="ysrtech_emailcampaigns">
-                        <title>Campaigns</title>
-                        <action>adminhtml/ysrtech_campaign/index</action>
+                    <dashboard translate="title" module="ysrtech_emailcampaigns">
+                        <title>Dashboard</title>
+                        <action>adminhtml/ysrtech_dashboard/index</action>
                         <sort_order>10</sort_order>
-                    </campaign>
-                    <automation translate="title" module="ysrtech_emailcampaigns">
-                        <title>Automations</title>
-                        <action>adminhtml/ysrtech_automation/index</action>
-                        <sort_order>15</sort_order>
-                    </automation>
-                    <template translate="title" module="ysrtech_emailcampaigns">
-                        <title>Templates</title>
-                        <action>adminhtml/ysrtech_template/index</action>
-                        <sort_order>20</sort_order>
-                    </template>
+                    </dashboard>
                     <segment translate="title" module="ysrtech_emailcampaigns">
                         <title>Segments</title>
                         <action>adminhtml/ysrtech_segment/index</action>
-                        <sort_order>30</sort_order>
+                        <sort_order>20</sort_order>
                     </segment>
-                    <analytics translate="title" module="ysrtech_emailcampaigns">
-                        <title>Analytics</title>
-                        <action>adminhtml/ysrtech_analytics/index</action>
+                    <campaign translate="title" module="ysrtech_emailcampaigns">
+                        <title>Campaigns</title>
+                        <action>adminhtml/ysrtech_campaign/index</action>
+                        <sort_order>30</sort_order>
+                    </campaign>
+                    <template translate="title" module="ysrtech_emailcampaigns">
+                        <title>Templates</title>
+                        <action>adminhtml/ysrtech_template/index</action>
                         <sort_order>40</sort_order>
-                    </analytics>
+                    </template>
+                    <automation translate="title" module="ysrtech_emailcampaigns">
+                        <title>Automations</title>
+                        <action>adminhtml/ysrtech_automation/index</action>
+                        <sort_order>50</sort_order>
+                    </automation>
+                    <suppression translate="title" module="ysrtech_emailcampaigns">
+                        <title>Suppressions</title>
+                        <action>adminhtml/ysrtech_suppression/index</action>
+                        <sort_order>60</sort_order>
+                    </suppression>
+                    <import translate="title" module="ysrtech_emailcampaigns">
+                        <title>Import / Migrate</title>
+                        <action>adminhtml/ysrtech_import/index</action>
+                        <sort_order>70</sort_order>
+                    </import>
                     <config translate="title" module="ysrtech_emailcampaigns">
                         <title>Settings</title>
                         <action>adminhtml/system_config/edit/section/ysrtech_emailcampaigns</action>
-                        <sort_order>50</sort_order>
+                        <sort_order>80</sort_order>
                     </config>
                 </children>
             </ysrtech_emailcampaigns>
@@ -216,9 +238,62 @@
                 </all>
                 <admin>
                     <children>
+                        <!--
+                            A role that was granted "Email Campaigns" before
+                            these children existed keeps all of them: a
+                            resource with no rule of its own inherits its
+                            parent's.
+                        -->
                         <ysrtech_emailcampaigns translate="title" module="ysrtech_emailcampaigns">
                             <title>Email Campaigns</title>
                             <sort_order>75</sort_order>
+                            <children>
+                                <dashboard translate="title" module="ysrtech_emailcampaigns">
+                                    <title>Dashboard</title>
+                                    <sort_order>10</sort_order>
+                                </dashboard>
+                                <segment translate="title" module="ysrtech_emailcampaigns">
+                                    <title>Segments</title>
+                                    <sort_order>20</sort_order>
+                                </segment>
+                                <campaign translate="title" module="ysrtech_emailcampaigns">
+                                    <title>Campaigns</title>
+                                    <sort_order>30</sort_order>
+                                </campaign>
+                                <template translate="title" module="ysrtech_emailcampaigns">
+                                    <title>Templates</title>
+                                    <sort_order>40</sort_order>
+                                </template>
+                                <automation translate="title" module="ysrtech_emailcampaigns">
+                                    <title>Automations</title>
+                                    <sort_order>50</sort_order>
+                                </automation>
+                                <suppression translate="title" module="ysrtech_emailcampaigns">
+                                    <title>Suppressions</title>
+                                    <sort_order>60</sort_order>
+                                    <children>
+                                        <!-- Mailing somebody who reported
+                                             spam is the costliest mistake on
+                                             this page, so lifting a complaint
+                                             is its own permission. -->
+                                        <remove_complaint translate="title" module="ysrtech_emailcampaigns">
+                                            <title>Remove Spam Complaints</title>
+                                            <sort_order>10</sort_order>
+                                        </remove_complaint>
+                                    </children>
+                                </suppression>
+                                <import translate="title" module="ysrtech_emailcampaigns">
+                                    <title>Import / Migrate</title>
+                                    <sort_order>70</sort_order>
+                                </import>
+                                <!-- The Settings shortcut. Opening the page it
+                                     links to still needs the System >
+                                     Configuration node below. -->
+                                <config translate="title" module="ysrtech_emailcampaigns">
+                                    <title>Settings (menu shortcut)</title>
+                                    <sort_order>80</sort_order>
+                                </config>
+                            </children>
                         </ysrtech_emailcampaigns>
                         <system>
                             <children>
@@ -241,6 +316,7 @@
         <ysrtech_emailcampaigns>
             <sending>
                 <transport>smtp</transport>
+                <mailgun_region>us</mailgun_region>
                 <batch_size>100</batch_size>
                 <max_attempts>3</max_attempts>
             </sending>
@@ -277,6 +353,11 @@
                 <schedule><cron_expr>40 3 * * *</cron_expr></schedule>
                 <run><model>ysrtech_emailcampaigns/observer::cleanupQueue</model></run>
             </ysrtech_emailcampaigns_queue_cleanup>
+            <!-- Imports and provider migrations, a batch at a time -->
+            <ysrtech_emailcampaigns_process_imports>
+                <schedule><cron_expr>* * * * *</cron_expr></schedule>
+                <run><model>ysrtech_emailcampaigns/observer::processImports</model></run>
+            </ysrtech_emailcampaigns_process_imports>
             <ysrtech_emailcampaigns_sync_suppressions>
                 <schedule><cron_expr>15 * * * *</cron_expr></schedule>
                 <run><model>ysrtech_emailcampaigns/observer::syncSuppressions</model></run>

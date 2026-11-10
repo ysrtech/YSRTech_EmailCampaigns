@@ -37,41 +37,72 @@
                             <sort_order>20</sort_order>
                             <show_in_default>1</show_in_default>
                         </api_key>
-                        <mailgun_webhook_signing_key translate="label comment">
-                            <label>Mailgun Webhook Signing Key</label>
-                            <frontend_type>obscure</frontend_type>
-                            <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
-                            <comment><![CDATA[From Mailgun's webhook settings. The endpoint at /emailcampaigns/webhook/mailgun is open to the internet, so without this key every request to it is refused - which is also what happens when the key is wrong, so a webhook that silently does nothing is the first thing to check here. Webhooks report unsubscribes, complaints and hard bounces within seconds, and opens and clicks, which no suppression list carries.]]></comment>
-                            <sort_order>30</sort_order>
+                        <mailgun_region translate="label comment">
+                            <label>Mailgun Region</label>
+                            <frontend_type>select</frontend_type>
+                            <source_model>ysrtech_emailcampaigns/system_config_source_mailgun_region</source_model>
+                            <comment>Where the Mailgun domain was created. A domain exists in one region only, and the other region answers as though it did not exist at all, so a wrong choice here reads as a wrong domain.</comment>
+                            <sort_order>21</sort_order>
                             <show_in_default>1</show_in_default>
-                        </mailgun_webhook_signing_key>
-                        <resend_webhook_signing_secret translate="label comment">
-                            <label>Resend Webhook Signing Secret</label>
-                            <frontend_type>obscure</frontend_type>
-                            <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
-                            <comment><![CDATA[From Resend's webhook settings, in the whsec_... form. Verifies /emailcampaigns/webhook/resend, which reports bounces and complaints. Only needed when Resend is the transport.]]></comment>
-                            <sort_order>32</sort_order>
-                            <show_in_default>1</show_in_default>
-                        </resend_webhook_signing_secret>
-                        <suppression_api_key translate="label comment">
-                            <label>Suppression API Key (Mailgun)</label>
-                            <frontend_type>obscure</frontend_type>
-                            <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
-                            <comment><![CDATA[Used only by the hourly job that reads unsubscribes, bounces and complaints back from Mailgun. Those lists sit outside a sending key's scope, so that key answers 401 here and needs an account key, or a role key with suppression permissions. Keeping it separate means the key that sends - the one in the request on every campaign - does not have to be the account-wide one. Leave blank to use the sending key above.]]></comment>
-                            <sort_order>22</sort_order>
-                            <show_in_default>1</show_in_default>
-                        </suppression_api_key>
+                            <depends><transport>mailgun</transport></depends>
+                        </mailgun_region>
                         <mailgun_domain translate="label comment">
                             <label>Mailgun Sending Domain</label>
                             <frontend_type>text</frontend_type>
                             <comment>The domain campaigns are sent from, e.g. mg-news.example.com. Use a subdomain kept separate from the one that sends order emails: a campaign that trips spam filters must not take receipts down with it.</comment>
-                            <sort_order>25</sort_order>
+                            <sort_order>22</sort_order>
                             <!-- Global, like the api key and the from address
                                  beside it: one Mailgun account sends for the
                                  whole store, and a per-website domain here
                                  would not match the key it is used with. -->
                             <show_in_default>1</show_in_default>
+                            <depends><transport>mailgun</transport></depends>
                         </mailgun_domain>
+                        <suppression_api_key translate="label comment">
+                            <label>Suppression API Key (Mailgun)</label>
+                            <frontend_type>obscure</frontend_type>
+                            <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
+                            <comment><![CDATA[Used only by the hourly job that reads unsubscribes, bounces and complaints back from Mailgun. Those lists sit outside a sending key's scope, so that key answers 401 here and needs an account key, or a role key with suppression permissions. Keeping it separate means the key that sends - the one in the request on every campaign - does not have to be the account-wide one. Leave blank to use the sending key above.]]></comment>
+                            <sort_order>23</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <depends><transport>mailgun</transport></depends>
+                        </suppression_api_key>
+                        <mailgun_webhook_signing_key translate="label comment">
+                            <label>Mailgun Webhook Signing Key</label>
+                            <frontend_type>obscure</frontend_type>
+                            <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
+                            <comment><![CDATA[From Mailgun's webhook settings. The endpoint below is open to the internet, so without this key every request to it is refused - which is also what happens when the key is wrong, so a webhook that silently does nothing is the first thing to check here. Webhooks report unsubscribes, complaints and hard bounces within seconds, and opens and clicks, which no suppression list carries.]]></comment>
+                            <sort_order>24</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <depends><transport>mailgun</transport></depends>
+                        </mailgun_webhook_signing_key>
+                        <mailgun_webhook_url translate="label comment">
+                            <label>Mailgun Webhook URL</label>
+                            <frontend_type>label</frontend_type>
+                            <frontend_model>ysrtech_emailcampaigns/adminhtml_system_config_webhookurl</frontend_model>
+                            <comment><![CDATA[Add this under Sending &gt; Webhooks for the domain, for the events Permanent Failure, Spam Complaints, Unsubscribes, Opens and Clicks.]]></comment>
+                            <sort_order>25</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <depends><transport>mailgun</transport></depends>
+                        </mailgun_webhook_url>
+                        <mailgun_test translate="label comment">
+                            <label>Mailgun Connection</label>
+                            <frontend_type>button</frontend_type>
+                            <frontend_model>ysrtech_emailcampaigns/adminhtml_system_config_mailguntest</frontend_model>
+                            <comment>Checks the saved keys, region and domain against Mailgun. Sends nothing. Save the configuration first: the test reads what is stored, not what is typed above.</comment>
+                            <sort_order>26</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <depends><transport>mailgun</transport></depends>
+                        </mailgun_test>
+                        <resend_webhook_signing_secret translate="label comment">
+                            <label>Resend Webhook Signing Secret</label>
+                            <frontend_type>obscure</frontend_type>
+                            <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
+                            <comment><![CDATA[From Resend's webhook settings, in the whsec_... form. Verifies /emailcampaigns/webhook/resend, which reports bounces and complaints. Only needed when Resend is the transport.]]></comment>
+                            <sort_order>28</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <depends><transport>resend</transport></depends>
+                        </resend_webhook_signing_secret>
                         <from_name translate="label">
                             <label>Default From Name</label>
                             <sort_order>30</sort_order>

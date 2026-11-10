@@ -19,7 +19,6 @@
 class YSRTech_EmailCampaigns_Model_Transport_Mailgun
     implements YSRTech_EmailCampaigns_Model_Transport_Interface
 {
-    private const API_BASE = 'https://api.mailgun.net/v3/';
 
     /**
      * Mailgun accepts up to 1,000 addresses per call. Held well below that:
@@ -239,7 +238,7 @@ class YSRTech_EmailCampaigns_Model_Transport_Mailgun
         }
 
         $domain   = $this->getDomain();
-        $response = $this->_get(self::API_BASE . 'domains/' . rawurlencode($domain) . '/tracking');
+        $response = $this->_get(Mage::helper('ysrtech_emailcampaigns')->getMailgunApiBase() . 'domains/' . rawurlencode($domain) . '/tracking');
         $settings = $response['tracking']['unsubscribe'] ?? [];
 
         if (empty($settings['active'])) {
@@ -314,7 +313,7 @@ class YSRTech_EmailCampaigns_Model_Transport_Mailgun
      */
     private function _post(array $params)
     {
-        $url = self::API_BASE . $this->getDomain() . '/messages';
+        $url = Mage::helper('ysrtech_emailcampaigns')->getMailgunApiBase() . $this->getDomain() . '/messages';
         $ch  = curl_init($url);
 
         curl_setopt_array($ch, [

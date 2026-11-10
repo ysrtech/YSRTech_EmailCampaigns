@@ -51,6 +51,21 @@ class YSRTech_EmailCampaigns_Helper_Data extends Mage_Core_Helper_Abstract
     }
 
     /**
+     * Base URL of Mailgun's API for the configured region, with the trailing
+     * slash.
+     *
+     * A domain lives in one region. Asking the US endpoint about an EU domain
+     * does not say "wrong region", it says 404 - or 401 for the key - so
+     * everything that talks to Mailgun has to agree on this.
+     */
+    public function getMailgunApiBase(?string $region = null): string
+    {
+        $region = strtolower(trim((string) ($region ?? $this->getConfig('sending/mailgun_region'))));
+
+        return $region === 'eu' ? 'https://api.eu.mailgun.net/v3/' : 'https://api.mailgun.net/v3/';
+    }
+
+    /**
      * Replace {{ customer.firstname }} style merge variables.
      */
     public function renderMergeVars(string $text, array $vars): string
