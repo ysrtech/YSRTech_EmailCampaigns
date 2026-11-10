@@ -103,6 +103,10 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
                 $campaign->setStoreId((int) $post['store_id']);
             }
 
+            if (array_key_exists('use_brand', $post)) {
+                $campaign->setUseBrand((int) !empty($post['use_brand']));
+            }
+
             if (array_key_exists('segments', $post)) {
                 /*
                  * Sent as one field, so that clearing every box still sends
@@ -145,7 +149,13 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
                     Mage::throwException($h->__('That template has nothing in it.'));
                 }
 
-                $campaign->addData(['html' => (string) $template->getHtml(), 'template_id' => (int) $template->getId()]);
+                $campaign->addData([
+                    'html'        => (string) $template->getHtml(),
+                    'template_id' => (int) $template->getId(),
+                    // As the template was designed: with or without the
+                    // store's header and footer around it
+                    'use_brand'   => (int) $template->getUseBrand(),
+                ]);
                 $this->_fillFrom($campaign, (string) $template->getSubject(), (string) $template->getPreheader());
             } elseif ($source === 'starter') {
                 $code     = (string) $request->getPost('starter');
@@ -155,7 +165,11 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
                     Mage::throwException($h->__('Choose a starting point.'));
                 }
 
-                $campaign->addData(['html' => $starter->build($code, $campaign->getStoreId() ?: null), 'template_id' => null]);
+                $campaign->addData([
+                    'html'        => $starter->build($code, $campaign->getStoreId() ?: null),
+                    'template_id' => null,
+                    'use_brand'   => 1,
+                ]);
                 $this->_fillFrom($campaign, $starters[$code]['subject'], $starters[$code]['preheader']);
             } else {
                 Mage::throwException($h->__('Choose a starting point.'));
@@ -344,6 +358,7 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
             'template_id' => $campaign->getTemplateId(),
             'html'        => $campaign->getData('html'),
             'store_id'    => $campaign->getStoreId(),
+            'use_brand'   => (int) $campaign->getUseBrand(),
             'included_segment_ids' => $campaign->getIncludedSegmentIds(),
             'excluded_segment_ids' => $campaign->getExcludedSegmentIds(),
         ])->save();

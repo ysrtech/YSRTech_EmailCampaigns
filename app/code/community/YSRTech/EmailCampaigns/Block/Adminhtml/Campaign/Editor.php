@@ -49,6 +49,30 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Editor extends Mage_Adminh
             $starters[] = ['code' => $code, 'name' => $starter['name'], 'description' => $starter['description']];
         }
 
+        $stores = [['id' => 0, 'name' => $this->__('All store views (default)')]];
+
+        foreach (Mage::app()->getWebsites() as $website) {
+            foreach ($website->getStores() as $store) {
+                $stores[] = [
+                    'id'   => (int) $store->getId(),
+                    'name' => count(Mage::app()->getWebsites()) > 1
+                        ? $website->getName() . ' / ' . $store->getName() : (string) $store->getName(),
+                ];
+            }
+        }
+
+        $stores = [['id' => 0, 'name' => $this->__('All store views (default)')]];
+
+        foreach (Mage::app()->getWebsites() as $website) {
+            foreach ($website->getStores() as $store) {
+                $stores[] = [
+                    'id'   => (int) $store->getId(),
+                    'name' => count(Mage::app()->getWebsites()) > 1
+                        ? $website->getName() . ' / ' . $store->getName() : (string) $store->getName(),
+                ];
+            }
+        }
+
         $user = Mage::getSingleton('admin/session')->getUser();
 
         return Mage::helper('core')->jsonEncode([
@@ -56,6 +80,10 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Editor extends Mage_Adminh
             'segments'  => $segments,
             'templates' => $templates,
             'starters'  => $starters,
+            'stores'    => $stores,
+            'brandUrl'  => $this->getUrl('*/system_config/edit', ['section' => 'ysrtech_emailcampaigns']),
+            'stores'    => $stores,
+            'brandUrl'  => $this->getUrl('*/system_config/edit', ['section' => 'ysrtech_emailcampaigns']),
             'formKey'   => Mage::getSingleton('core/session')->getFormKey(),
             'adminEmail' => $user ? (string) $user->getEmail() : '',
             'urls'      => [
@@ -91,6 +119,18 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Editor extends Mage_Adminh
             'ready' => 'Ready to send', 'ofReady' => '%1 of %2 ready', 'notSet' => 'Not set yet',
             'add' => 'Add', 'edit' => 'Edit', 'done' => 'Done',
             'to' => 'To', 'from' => 'From', 'subject' => 'Subject', 'content' => 'Content', 'when' => 'Send time',
+            'storeView' => 'Store view',
+            'storeViewNote' => 'Whose logo, colours, header, footer, name and links this email uses. Does not change who receives it: that is the segments below.',
+            'useBrand' => 'Wrap in the store\'s header and footer',
+            'useBrandNote' => 'Set per store view under %1. Shown in the preview on the right; the designer shows the part in between.',
+            'brandSettings' => 'Settings > Brand',
+            'brandOff' => 'The header and footer are switched off for this store view in the settings.',
+            'storeView' => 'Store view',
+            'storeViewNote' => 'Whose logo, colours, header, footer, name and links this email uses. It does not change who receives it: that is the segments below.',
+            'useBrand' => 'Wrap in the store\'s header and footer',
+            'useBrandNote' => 'Set per store view under %1. Shown in the preview on the right; the designer shows the part in between.',
+            'brandSettings' => 'Settings > Brand',
+            'brandOff' => 'The header and footer are switched off for this store view in the settings.',
             'include' => 'Send to people in', 'exclude' => 'But not anyone in', 'noSegments' => 'There are no segments yet.',
             'manageSegments' => 'Manage segments', 'recipients' => '%1 recipients', 'recipient' => '1 recipient',
             'recipientsNote' => 'Subscribed, and not on the suppression list. Counted again when sending starts.',

@@ -311,7 +311,7 @@ class YSRTech_EmailCampaigns_Model_Sender
         // As for a campaign, so an open on a triggered message finds its row.
         $vars['tracking_token'] = (string) $item->getTrackingToken();
 
-        $html = Mage::getSingleton('ysrtech_emailcampaigns/renderer')->render($template, $vars);
+        $html = Mage::getSingleton('ysrtech_emailcampaigns/renderer')->setStoreId($storeId)->render($template, $vars);
 
         $transport = Mage::getSingleton('ysrtech_emailcampaigns/transport_factory')->get();
 
@@ -413,7 +413,7 @@ class YSRTech_EmailCampaigns_Model_Sender
             Mage::throwException('This campaign has no content to send.');
         }
 
-        $renderer  = Mage::getSingleton('ysrtech_emailcampaigns/renderer');
+        $renderer  = Mage::getSingleton('ysrtech_emailcampaigns/renderer')->setStoreId($campaign->getStoreId());
         $transport = Mage::getSingleton('ysrtech_emailcampaigns/transport_factory')->get();
         $now       = Varien_Date::now();
 
@@ -640,7 +640,7 @@ class YSRTech_EmailCampaigns_Model_Sender
     {
         $vars = array_replace_recursive($this->previewVars($storeId), $overrides);
 
-        return Mage::getSingleton('ysrtech_emailcampaigns/renderer')->render($template, $vars);
+        return Mage::getSingleton('ysrtech_emailcampaigns/renderer')->setStoreId($storeId)->render($template, $vars);
     }
 
     /**
@@ -695,7 +695,7 @@ class YSRTech_EmailCampaigns_Model_Sender
             Mage::throwException(Mage::helper('ysrtech_emailcampaigns')->__('This campaign has no content to send yet.'));
         }
 
-        $renderer  = Mage::getSingleton('ysrtech_emailcampaigns/renderer');
+        $renderer  = Mage::getSingleton('ysrtech_emailcampaigns/renderer')->setStoreId($campaign->getStoreId());
         $transport = Mage::getSingleton('ysrtech_emailcampaigns/transport_factory')->get();
         $storeName = $this->storeName($campaign->getStoreId());
         $delegates = $transport->supportsRecipientVariables();

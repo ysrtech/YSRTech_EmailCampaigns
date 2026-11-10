@@ -17,11 +17,25 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
     /** Width of the content column: the de facto standard for email */
     private const CONTENT_WIDTH = 600;
 
-    private const INK    = '#222222';
-    private const TEXT   = '#444444';
-    private const MUTED  = '#888888';
-    private const ACCENT = '#1f4e79';
-    private const PAPER  = '#f4f4f4';
+    /**
+     * The colours and font the pieces below are drawn in: the store view's
+     * brand, which has a default behind every value.
+     *
+     * @var array<string, mixed>
+     */
+    private $_c = [];
+
+    /** @var bool Whether the store's own header and footer will be put around what is built */
+    private $_branded = false;
+
+    private function _palette($storeId): void
+    {
+        /** @var YSRTech_EmailCampaigns_Model_Brand $brand */
+        $brand = Mage::getSingleton('ysrtech_emailcampaigns/brand');
+
+        $this->_c       = $brand->get($storeId);
+        $this->_branded = $brand->isEnabled($storeId);
+    }
 
     /**
      * The plain starter, which is what an empty template opens as.
@@ -98,6 +112,8 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
      */
     public function build(string $code, $storeId = null): string
     {
+        $this->_palette($storeId);
+
         $h     = Mage::helper('ysrtech_emailcampaigns');
         $e     = fn (string $v) => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
         $shop  = $this->_storeUrl($storeId);
@@ -120,7 +136,7 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
                         . $e($h->__('Everything in the store is 20% off until Sunday night. Use this code at checkout:')) . '</p>')
                     . $this->_coupon('SAVE20')
                     . $this->_button($e($h->__('Shop the sale')), $shop)
-                    . $this->_text('<p style="margin:0;font-size:12px;color:' . self::MUTED . ';">'
+                    . $this->_text('<p style="margin:0;font-size:12px;color:' . $this->_c['muted_color'] . ';">'
                         . $e($h->__('One use per customer. Not valid with other offers.')) . '</p>', 'center');
                 break;
 
@@ -148,11 +164,11 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
                 $rows = $this->_hero($e($h->__('Still thinking it over?')), '')
                     . $this->_text('<p style="margin:0 0 16px;">' . $hi . '</p><p style="margin:0 0 16px;">'
                         . $e($h->__('You left these in your cart:')) . '</p>'
-                        . '<p style="margin:0 0 16px;padding:14px 16px;background-color:#f7f7f7;border-left:3px solid ' . self::ACCENT . ';">'
+                        . '<p style="margin:0 0 16px;padding:14px 16px;background-color:#f7f7f7;border-left:3px solid ' . $this->_c['button_color'] . ';">'
                         . '{{ cart.item_names }}<br /><strong>{{ cart.grand_total }}</strong></p><p style="margin:0;">'
                         . $e($h->__('They are still there, and the cart is saved for you.')) . '</p>')
                     . $this->_button($e($h->__('Return to your cart')), '{{ cart.url }}')
-                    . $this->_text('<p style="margin:0;font-size:12px;color:' . self::MUTED . ';">'
+                    . $this->_text('<p style="margin:0;font-size:12px;color:' . $this->_c['muted_color'] . ';">'
                         . $e($h->__('Already ordered? Then ignore this, and thank you.')) . '</p>', 'center');
                 break;
 
@@ -179,7 +195,9 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
                         . $e($h->__('Write your newsletter here.')) . '</p>');
         }
 
-        return $this->_frame($rows . $this->_footer($storeId));
+        // With the store's header and footer on, they are put around this
+        // when it is sent; a footer here as well would be a second one.
+        return $this->_frame($rows . ($this->_branded ? '' : $this->_footer($storeId)));
     }
 
     /**
@@ -190,11 +208,13 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
      */
     public function getSections($storeId = null): array
     {
+        $this->_palette($storeId);
+
         $h    = Mage::helper('ysrtech_emailcampaigns');
         $e    = fn (string $v) => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
         $shop = $this->_storeUrl($storeId);
-        $wrap = fn (string $rows) => '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,Helvetica,sans-serif;color:'
-            . self::TEXT . ';">' . $rows . '</table>';
+        $wrap = fn (string $rows) => '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:' . $this->_c['font'] . ';color:'
+            . $this->_c['text_color'] . ';">' . $rows . '</table>';
 
         return [
             ['id' => 'header', 'label' => $h->__('Heading'),
@@ -218,19 +238,26 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
     private function _frame(string $rows): string
     {
         $width = self::CONTENT_WIDTH;
+        $font  = $this->_c['font'];
 
-        return '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:' . self::PAPER
+        // Inside the store's own frame: just the content, edge to edge
+        if ($this->_branded) {
+            return '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:' . $font . ';color:'
+                . $this->_c['text_color'] . ';">' . $rows . '</table>';
+        }
+
+        return '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:' . $this->_c['page_bg']
             . ';margin:0;padding:24px 0;"><tr><td align="center">'
             . '<table width="' . $width . '" cellpadding="0" cellspacing="0" border="0" style="width:' . $width
-            . 'px;max-width:100%;background-color:#ffffff;border-radius:4px;font-family:Arial,Helvetica,sans-serif;color:'
-            . self::TEXT . ';">' . $rows . '</table></td></tr></table>';
+            . 'px;max-width:100%;background-color:' . $this->_c['content_bg'] . ';border-radius:4px;font-family:' . $font . ';color:'
+            . $this->_c['text_color'] . ';">' . $rows . '</table></td></tr></table>';
     }
 
     private function _hero(string $title, string $sub): string
     {
         return '<tr><td align="center" style="padding:28px 32px 20px;border-bottom:1px solid #eeeeee;">'
-            . '<h1 style="margin:0;font-size:26px;line-height:1.25;font-weight:normal;color:' . self::INK . ';">' . $title . '</h1>'
-            . ($sub !== '' ? '<p style="margin:8px 0 0;font-size:15px;line-height:1.5;color:' . self::MUTED . ';">' . $sub . '</p>' : '')
+            . '<h1 style="margin:0;font-size:26px;line-height:1.25;font-weight:normal;color:' . $this->_c['heading_color'] . ';">' . $title . '</h1>'
+            . ($sub !== '' ? '<p style="margin:8px 0 0;font-size:15px;line-height:1.5;color:' . $this->_c['muted_color'] . ';">' . $sub . '</p>' : '')
             . '</td></tr>';
     }
 
@@ -251,8 +278,8 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
         // A table cell with a background, not a styled link alone: Outlook
         // ignores padding on an anchor and renders the button as bare text.
         return '<tr><td align="center" style="padding:20px 32px 28px;">'
-            . '<table cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="background-color:' . self::ACCENT
-            . ';border-radius:4px;"><a href="' . $url . '" style="display:inline-block;padding:13px 30px;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;">'
+            . '<table cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="background-color:' . $this->_c['button_color']
+            . ';border-radius:4px;"><a href="' . $url . '" style="display:inline-block;padding:13px 30px;font-size:15px;font-weight:bold;color:' . $this->_c['button_text_color'] . ';text-decoration:none;">'
             . $label . '</a></td></tr></table></td></tr>';
     }
 
@@ -260,7 +287,7 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
     {
         return '<tr><td align="center" style="padding:16px 32px 4px;">'
             . '<table cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="padding:12px 28px;border:2px dashed '
-            . self::ACCENT . ';font-family:Courier New,Courier,monospace;font-size:22px;letter-spacing:3px;color:' . self::INK . ';">'
+            . $this->_c['button_color'] . ';font-family:Courier New,Courier,monospace;font-size:22px;letter-spacing:3px;color:' . $this->_c['heading_color'] . ';">'
             . htmlspecialchars($code, ENT_QUOTES) . '</td></tr></table></td></tr>';
     }
 
@@ -280,8 +307,8 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
                 $html .= '<td width="' . $cell . '" valign="top" align="center" style="padding:0 ' . ($i < count($row) - 1 ? '16px' : '0') . ' 0 0;font-size:14px;line-height:1.5;">'
                     . '<a href="' . $link . '"><img src="' . $this->_placeholder() . '" width="' . $cell . '" alt="' . $alt
                     . '" style="display:block;width:100%;max-width:' . $cell . 'px;height:auto;border:0;" /></a>'
-                    . '<p style="margin:10px 0 2px;color:' . self::INK . ';">' . htmlspecialchars((string) $name, ENT_QUOTES) . '</p>'
-                    . '<p style="margin:0;color:' . self::MUTED . ';">' . htmlspecialchars((string) $caption, ENT_QUOTES) . '</p></td>';
+                    . '<p style="margin:10px 0 2px;color:' . $this->_c['heading_color'] . ';">' . htmlspecialchars((string) $name, ENT_QUOTES) . '</p>'
+                    . '<p style="margin:0;color:' . $this->_c['muted_color'] . ';">' . htmlspecialchars((string) $caption, ENT_QUOTES) . '</p></td>';
             }
 
             $html .= '</tr></table></td></tr>';
@@ -297,7 +324,7 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
         $addr  = nl2br($e(trim((string) Mage::getStoreConfig('general/store_information/address', $storeId))));
 
         return '<tr><td align="center" style="padding:20px 32px 28px;border-top:1px solid #eeeeee;font-size:12px;line-height:1.6;color:'
-            . self::MUTED . ';"><p style="margin:0 0 6px;">' . $store . '</p><p style="margin:0 0 10px;">' . $addr
+            . $this->_c['muted_color'] . ';"><p style="margin:0 0 6px;">' . $store . '</p><p style="margin:0 0 10px;">' . $addr
             . '</p>{{unsubscribe}}</td></tr>';
     }
 

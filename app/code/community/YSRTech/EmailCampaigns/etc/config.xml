@@ -2,7 +2,7 @@
 <config>
     <modules>
         <YSRTech_EmailCampaigns>
-            <version>0.14.0</version>
+            <version>0.15.0</version>
         </YSRTech_EmailCampaigns>
     </modules>
 
@@ -327,6 +327,18 @@
                 <max_per_minute>1000</max_per_minute>
                 <max_attempts>3</max_attempts>
             </sending>
+            <brand>
+                <enabled>1</enabled>
+                <logo_width>180</logo_width>
+                <button_color>#1f4e79</button_color>
+                <button_text_color>#ffffff</button_text_color>
+                <heading_color>#222222</heading_color>
+                <text_color>#444444</text_color>
+                <link_color>#1f4e79</link_color>
+                <page_bg>#f4f4f4</page_bg>
+                <content_bg>#ffffff</content_bg>
+                <font>Arial,Helvetica,sans-serif</font>
+            </brand>
             <cleanup>
                 <enabled>1</enabled>
                 <keep_days>90</keep_days>

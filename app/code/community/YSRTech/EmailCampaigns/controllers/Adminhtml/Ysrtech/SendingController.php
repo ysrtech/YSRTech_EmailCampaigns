@@ -34,4 +34,38 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SendingController extends Mage_Ad
             ->setHeader('Content-Type', 'application/json', true)
             ->setBody(Mage::helper('core')->jsonEncode($result));
     }
+
+    /**
+     * Put every existing template and draft campaign into the store's
+     * header and footer. Behind the button in the Brand settings.
+     */
+    public function applyBrandAction()
+    {
+        $response = ['ok' => false];
+
+        try {
+            if (!$this->getRequest()->isPost() || !$this->_validateFormKey()) {
+                Mage::throwException($this->__('This page has been open a while. Reload it and try again.'));
+            }
+
+            $counts = Mage::getSingleton('ysrtech_emailcampaigns/brand')->applyToExisting();
+
+            $response = [
+                'ok'      => true,
+                'message' => $this->__(
+                    '%d template(s) and %d draft campaign(s) updated; %d old footer(s) removed.',
+                    $counts['templates'],
+                    $counts['campaigns'],
+                    $counts['footers']
+                ),
+            ];
+        } catch (Throwable $e) {
+            Mage::logException($e);
+            $response['message'] = $e->getMessage();
+        }
+
+        $this->getResponse()
+            ->setHeader('Content-Type', 'application/json', true)
+            ->setBody(Mage::helper('core')->jsonEncode($response));
+    }
 }

@@ -365,6 +365,10 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_TemplateController
 
             // Only when the form that posted has the field: the designer
             // saves content alone, and must not blank what it does not show.
+            if (array_key_exists('use_brand', $data)) {
+                $model->setUseBrand((int) !empty($data['use_brand']));
+            }
+
             if (array_key_exists('preheader', $data)) {
                 $model->setPreheader(mb_substr(trim((string) $data['preheader']), 0, 255) ?: null);
             }

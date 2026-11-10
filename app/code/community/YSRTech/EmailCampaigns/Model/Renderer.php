@@ -23,9 +23,62 @@ class YSRTech_EmailCampaigns_Model_Renderer
 
         $helper = Mage::helper('ysrtech_emailcampaigns');
         $html = $helper->renderMergeVars($html, $vars);
+
+        /** @var YSRTech_EmailCampaigns_Model_Brand $brand */
+        $brand = Mage::getSingleton('ysrtech_emailcampaigns/brand');
+
+        if ((int) $template->getUseBrand() === 1 && $brand->isEnabled($this->_storeId)) {
+            return $this->_wrapBranded($template, $html, $vars, $brand);
+        }
+
         $html = $this->_injectUnsubscribe($html, $vars);
 
         return $this->_wrapDocument($this->_preheader($template, $vars) . $html, $vars);
+    }
+
+    /** @var int|null The store view the next render is for */
+    protected $_storeId;
+
+    /**
+     * Which store view's brand - logo, colours, header, footer - the renders
+     * that follow should wear. Null or 0 is the default.
+     *
+     * @return $this
+     */
+    public function setStoreId($storeId)
+    {
+        $this->_storeId = $storeId ? (int) $storeId : null;
+
+        return $this;
+    }
+
+    /**
+     * The email inside the store view's header and footer.
+     *
+     * One 600px column on the brand's page colour: header, the email, footer.
+     * The footer carries the unsubscribe link, so none is added besides - but
+     * a {{unsubscribe}} left in the body by an older design is taken out
+     * rather than drawn as a second one.
+     */
+    protected function _wrapBranded($template, string $html, array $vars, $brand): string
+    {
+        $b     = $brand->get($this->_storeId);
+        $width = YSRTech_EmailCampaigns_Model_Brand::WIDTH;
+        $html  = str_replace('{{unsubscribe}}', '', $html);
+
+        return '<!DOCTYPE html><html><head><meta charset="utf-8" />'
+            . '<meta name="viewport" content="width=device-width,initial-scale=1" />'
+            . '<style>a{color:' . $b['link_color'] . ';}@media only screen and (max-width:620px){.ec-col{width:100% !important;}}</style></head>'
+            . '<body style="margin:0;padding:0;background-color:' . $b['page_bg'] . ';">'
+            . $this->_preheader($template, $vars)
+            . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:' . $b['page_bg'] . ';">'
+            . '<tr><td align="center" style="padding:24px 12px;">'
+            . '<table role="presentation" class="ec-col" width="' . $width . '" cellpadding="0" cellspacing="0" border="0" style="width:' . $width
+            . 'px;max-width:100%;background-color:' . $b['content_bg'] . ';border-radius:4px;">'
+            . $brand->header($this->_storeId)
+            . '<tr><td style="padding:0;font-family:' . $b['font'] . ';color:' . $b['text_color'] . ';">' . $html . '</td></tr>'
+            . $brand->footer($this->_storeId, (string) ($vars['unsubscribe_url'] ?? ''))
+            . '</table></td></tr></table></body></html>';
     }
 
     /**

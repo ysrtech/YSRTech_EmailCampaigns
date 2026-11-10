@@ -108,6 +108,7 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
                 'subject'   => (string) $this->getSubject(),
                 'preheader' => (string) $this->getPreheader(),
                 'html'      => (string) $this->getData('html'),
+                'use_brand' => (int) $this->getUseBrand(),
             ]);
         }
 
@@ -116,6 +117,10 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
         if (!$template->getId()) {
             return null;
         }
+
+        // Whether it wears the store's header and footer is the campaign's
+        // choice, also when the email itself is still the template's
+        $template->setUseBrand((int) $this->getUseBrand());
 
         // The campaign's own preview text wins over the template's
         if (trim((string) $this->getPreheader()) !== '') {

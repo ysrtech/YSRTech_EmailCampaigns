@@ -108,7 +108,9 @@ class YSRTech_EmailCampaigns_Model_Template_Checks
                 $h->__('The unsubscribe link is there, but the store\'s postal address is not in the email. The law in most places asks for both.'));
         } else {
             $add('footer', $h->__('Unsubscribe link and address'), self::OK,
-                $hasOwnLink ? $h->__('Has both.') : $h->__('Has the address; the unsubscribe footer is added at the end automatically.'));
+                (int) $template->getUseBrand() === 1 && Mage::getSingleton('ysrtech_emailcampaigns/brand')->isEnabled($storeId)
+                    ? $h->__('Both are in the store\'s footer.')
+                    : ($hasOwnLink ? $h->__('Has both.') : $h->__('Has the address; the unsubscribe footer is added at the end automatically.')));
         }
 
         // Links

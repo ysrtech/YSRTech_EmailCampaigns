@@ -65,6 +65,7 @@
         return String(text || '')
             .replace(/\{\{\s*customer\.firstname[^}]*\}\}/g, 'Chaya')
             .replace(/\{\{\s*customer\.lastname[^}]*\}\}/g, 'Rosenberg')
+            .replace(/\{\{\s*store\.name\s*\}\}/g, state.store_name || '')
             .replace(/\{\{[^}]+\}\}/g, '');
     }
 
@@ -245,7 +246,11 @@
                     if (!cfg.segments.length) {
                         return '<p class="faint">' + esc(t.noSegments) + ' <a href="' + esc(cfg.urls.segments) + '">' + esc(t.manageSegments) + '</a></p>';
                     }
-                    return '<div class="aud-label">' + esc(t.include) + '</div><div class="aud-list">' + segmentRows('included') + '</div>'
+                    return '<div class="field"><label for="ecc-store">' + esc(t.storeView) + '</label><select id="ecc-store"' + ro + '>'
+                        + cfg.stores.map(function (store) {
+                            return '<option value="' + store.id + '"' + (store.id === state.store_id ? ' selected' : '') + '>' + esc(store.name) + '</option>';
+                        }).join('') + '</select><span class="help">' + esc(t.storeViewNote) + '</span></div>'
+                        + '<div class="aud-label">' + esc(t.include) + '</div><div class="aud-list">' + segmentRows('included') + '</div>'
                         + '<div class="aud-label">' + esc(t.exclude) + '</div><div class="aud-list">' + segmentRows('excluded') + '</div>'
                         + (state.to.recipients !== null ? '<div class="aud-total"><b>' + esc(state.to.recipients === 1 ? t.recipient : tr('recipients', fmt(state.to.recipients)))
                             + '</b> <span class="faint">' + esc(t.recipientsNote) + '</span></div>' : '')
@@ -289,6 +294,10 @@
                                 return '<li class="' + esc(c.level) + '">' + esc(c.level === 'ok' ? c.label : c.label + ': ' + c.message) + '</li>';
                             }).join('') + '</ul>'
                             + (content.own ? '' : '<p class="help" style="margin-top:8px">' + esc(t.usesTemplate) + '</p>')
+                            + '<label class="brand-sw"><input type="checkbox" id="ecc-brand"' + (state.brand.use ? ' checked' : '') + ro + '> <span><b>' + esc(t.useBrand) + '</b><br>'
+                            + '<span class="help">' + (state.brand.enabled
+                                ? esc(t.useBrandNote).replace('%1', '<a href="' + esc(cfg.brandUrl) + '" target="_blank" rel="noopener">' + esc(t.brandSettings) + '</a>')
+                                : esc(t.brandOff)) + '</span></span></label>'
                             + (state.editable ? '<div class="ct-acts"><button type="button" class="btn btn-primary btn-sm" id="ecc-edit">' + esc(t.editDesign) + '</button>'
                                 + '<button type="button" class="btn btn-sm" id="ecc-over">' + esc(t.startOver) + '</button></div>' : '')
                             + '</div></div>';
@@ -515,6 +524,10 @@
         $$('[data-seg]').forEach(function (box) {
             box.onchange = function () { save({segments: readSegments()}, true); };
         });
+
+        var storeSelect = $('#ecc-store'), brandBox = $('#ecc-brand');
+        if (storeSelect) { storeSelect.onchange = function () { save({store_id: storeSelect.value}, true); }; }
+        if (brandBox) { brandBox.onchange = function () { save({use_brand: brandBox.checked ? 1 : 0}, true); }; }
 
         var fn = $('#ecc-fn'), fl = $('#ecc-fl'), rt = $('#ecc-rt'), sj = $('#ecc-sj'), pr = $('#ecc-pr');
         if (fn) { fn.oninput = function () { paintLive(); save({from_name: fn.value}); }; }

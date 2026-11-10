@@ -145,6 +145,169 @@
                         </max_attempts>
                     </fields>
                 </sending>
+                <brand translate="label comment">
+                    <label>Brand: Header, Footer and Colours</label>
+                    <comment><![CDATA[How every email from this store view looks: its logo, its colours, and the header and footer around the message. Applied when an email is sent, so a change here reaches every later send without editing a single template. Each store view can have its own: change the scope at the top left.]]></comment>
+                    <sort_order>15</sort_order>
+                    <show_in_default>1</show_in_default>
+                    <show_in_website>1</show_in_website>
+                    <show_in_store>1</show_in_store>
+                    <fields>
+                        <enabled translate="label comment">
+                            <label>Use a Header and Footer</label>
+                            <frontend_type>select</frontend_type>
+                            <source_model>adminhtml/system_config_source_yesno</source_model>
+                            <comment>When on, new templates and campaigns are wrapped in the header and footer below, and the ready-made designs leave their own footer out. Each template and campaign can still switch it off for itself.</comment>
+                            <sort_order>10</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </enabled>
+                        <logo translate="label comment">
+                            <label>Logo</label>
+                            <frontend_type>image</frontend_type>
+                            <backend_model>adminhtml/system_config_backend_image</backend_model>
+                            <upload_dir config="system/filesystem/media" scope_info="1">ysrtech/emailcampaigns/brand</upload_dir>
+                            <base_url type="media" scope_info="1">ysrtech/emailcampaigns/brand</base_url>
+                            <comment>PNG, JPG or GIF, at least twice the width it is shown at so it stays sharp on a phone. Without one, the store's name is written out instead.</comment>
+                            <sort_order>20</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </logo>
+                        <logo_width translate="label comment">
+                            <label>Logo Width (pixels)</label>
+                            <frontend_type>text</frontend_type>
+                            <validate>validate-digits</validate>
+                            <comment>How wide the logo is shown. 180 unless set; the email itself is 600 wide.</comment>
+                            <sort_order>22</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </logo_width>
+                        <logo_link translate="label comment">
+                            <label>Logo Links To</label>
+                            <frontend_type>text</frontend_type>
+                            <validate>validate-url</validate>
+                            <comment>Leave empty for this store view's home page.</comment>
+                            <sort_order>24</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </logo_link>
+                        <header_links translate="label comment">
+                            <label>Header Links</label>
+                            <frontend_type>textarea</frontend_type>
+                            <comment><![CDATA[One a line, as <strong>Label | https://address</strong>. Up to five, shown in a row under the logo. Leave empty for the logo alone.]]></comment>
+                            <sort_order>30</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </header_links>
+                        <button_color translate="label comment">
+                            <label>Button Colour</label>
+                            <frontend_type>text</frontend_type>
+                            <frontend_model>ysrtech_emailcampaigns/adminhtml_system_config_color</frontend_model>
+                            <comment>Buttons and coupon boxes in the ready-made designs.</comment>
+                            <sort_order>40</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </button_color>
+                        <button_text_color translate="label">
+                            <label>Button Text Colour</label>
+                            <frontend_type>text</frontend_type>
+                            <frontend_model>ysrtech_emailcampaigns/adminhtml_system_config_color</frontend_model>
+                            <sort_order>42</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </button_text_color>
+                        <heading_color translate="label">
+                            <label>Heading Colour</label>
+                            <frontend_type>text</frontend_type>
+                            <frontend_model>ysrtech_emailcampaigns/adminhtml_system_config_color</frontend_model>
+                            <sort_order>44</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </heading_color>
+                        <text_color translate="label">
+                            <label>Text Colour</label>
+                            <frontend_type>text</frontend_type>
+                            <frontend_model>ysrtech_emailcampaigns/adminhtml_system_config_color</frontend_model>
+                            <sort_order>46</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </text_color>
+                        <link_color translate="label">
+                            <label>Link Colour</label>
+                            <frontend_type>text</frontend_type>
+                            <frontend_model>ysrtech_emailcampaigns/adminhtml_system_config_color</frontend_model>
+                            <sort_order>48</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </link_color>
+                        <page_bg translate="label comment">
+                            <label>Page Background</label>
+                            <frontend_type>text</frontend_type>
+                            <frontend_model>ysrtech_emailcampaigns/adminhtml_system_config_color</frontend_model>
+                            <comment>The colour around the email.</comment>
+                            <sort_order>50</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </page_bg>
+                        <content_bg translate="label comment">
+                            <label>Email Background</label>
+                            <frontend_type>text</frontend_type>
+                            <frontend_model>ysrtech_emailcampaigns/adminhtml_system_config_color</frontend_model>
+                            <comment>The colour of the email itself.</comment>
+                            <sort_order>52</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </content_bg>
+                        <font translate="label comment">
+                            <label>Font</label>
+                            <frontend_type>select</frontend_type>
+                            <source_model>ysrtech_emailcampaigns/system_config_source_brand_font</source_model>
+                            <comment>Only fonts every mail client already has. Anything else would be swapped for a fallback in most inboxes.</comment>
+                            <sort_order>60</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </font>
+                        <footer_links translate="label comment">
+                            <label>Footer Links</label>
+                            <frontend_type>textarea</frontend_type>
+                            <comment><![CDATA[One a line, as <strong>Label | https://address</strong>: social pages, contact, returns. Up to eight.]]></comment>
+                            <sort_order>70</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </footer_links>
+                        <footer_text translate="label comment">
+                            <label>Footer Small Print</label>
+                            <frontend_type>textarea</frontend_type>
+                            <comment>Optional. The store's name, its postal address (General &gt; Store Information) and the unsubscribe link are always in the footer.</comment>
+                            <sort_order>72</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </footer_text>
+                        <apply translate="label comment">
+                            <label>Existing Templates and Drafts</label>
+                            <frontend_type>button</frontend_type>
+                            <frontend_model>ysrtech_emailcampaigns/adminhtml_system_config_brandapply</frontend_model>
+                            <comment>Templates and campaigns made before this was switched on keep their own footer and do not wear the header and footer above. This switches it on for all templates and all draft campaigns, and takes their old built-in footer out so that none ends up with two. Sent campaigns are not touched. Save the configuration first.</comment>
+                            <sort_order>90</sort_order>
+                            <show_in_default>1</show_in_default>
+                        </apply>
+                    </fields>
+                </brand>
                 <cleanup translate="label">
                     <label>Queue Cleanup</label>
                     <frontend_type>text</frontend_type>

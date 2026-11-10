@@ -22,7 +22,7 @@
             <?php foreach ($starters as $code => $starter): ?>
                 <div class="ysrtech-ec-card">
                     <?php /* Sandboxed and inert: a picture of the email, not a page in the admin */ ?>
-                    <div class="thumb"><iframe sandbox="" scrolling="no" tabindex="-1" title="<?php echo $this->escapeHtml($starter['name']) ?>" srcdoc="<?php echo $this->escapeHtml('<body style="margin:0">' . $starter['html'] . '</body>') ?>"></iframe></div>
+                    <div class="thumb"><iframe sandbox="" scrolling="no" tabindex="-1" title="<?php echo $this->escapeHtml($starter['name']) ?>" srcdoc="<?php echo $this->escapeHtml($starter['html']) ?>"></iframe></div>
                     <h5><?php echo $this->escapeHtml($starter['name']) ?></h5>
                     <p><?php echo $this->escapeHtml($starter['description']) ?></p>
                     <button type="button" class="scalable add" onclick="$('ysrtech-ec-starter-code').value='<?php echo $code ?>';$('ysrtech-ec-starter').submit()"><span><span><span><?php echo $this->escapeHtml($this->__('Use This')) ?></span></span></span></button>

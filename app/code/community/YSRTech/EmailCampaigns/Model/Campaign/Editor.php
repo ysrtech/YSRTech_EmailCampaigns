@@ -115,6 +115,11 @@ class YSRTech_EmailCampaigns_Model_Campaign_Editor
             'subject'   => (string) $campaign->getSubject(),
             'preheader' => (string) $campaign->getPreheader(),
             'store_id'  => (int) $campaign->getStoreId(),
+            'store_name' => Mage::getSingleton('ysrtech_emailcampaigns/sender')->storeName($campaign->getStoreId() ?: null),
+            'brand'     => [
+                'use'     => (int) $campaign->getUseBrand() === 1,
+                'enabled' => Mage::getSingleton('ysrtech_emailcampaigns/brand')->isEnabled($campaign->getStoreId()),
+            ],
             'content'   => [
                 'has'     => $template !== null,
                 'own'     => $campaign->hasOwnContent(),

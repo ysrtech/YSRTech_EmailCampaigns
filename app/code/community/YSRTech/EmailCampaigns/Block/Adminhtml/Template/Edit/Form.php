@@ -55,6 +55,17 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Edit_Form extends Mage_Adm
             'note'     => $this->_mergeVarNote(),
         ]);
 
+        $fieldset->addField('use_brand', 'select', [
+            'label'  => $h->__('Store Header and Footer'),
+            'name'   => 'use_brand',
+            'values' => [
+                ['value' => 1, 'label' => $h->__('Wrap this email in the store\'s header and footer')],
+                ['value' => 0, 'label' => $h->__('Send it exactly as designed')],
+            ],
+            'value'  => $model->getId() ? (int) $model->getUseBrand() : 1,
+            'note'   => $h->__('The header, footer and colours are set per store view under System > Configuration > Email Campaigns > Brand. With it on, leave {{unsubscribe}} and the address out of the content: the footer carries both.'),
+        ]);
+
         $fieldset->addField('is_active', 'select', [
             'label'  => $h->__('Active'),
             'name'   => 'is_active',
