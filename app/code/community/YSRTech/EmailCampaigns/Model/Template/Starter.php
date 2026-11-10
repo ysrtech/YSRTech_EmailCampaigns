@@ -55,7 +55,7 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
         $campaigns = $h->__('Campaigns');
         $lifecycle = $h->__('Automations');
 
-        return [
+        return $this->_fromConfig() + [
             'plain' => [
                 'name' => $h->__('Plain newsletter'), 'category' => $campaigns,
                 'description' => $h->__('A heading, room to write, and the footer. For a letter rather than a poster.'),
@@ -108,11 +108,98 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
     }
 
     /**
+     * Starters another module brings: a store's own newsletter, built once
+     * and offered beside the ready-made ones.
+     *
+     * Declared in that module's config.xml:
+     *
+     *   <global><ysrtech_emailcampaigns><starters>
+     *     <my_weekly>
+     *       <name>Weekly newsletter</name>
+     *       <category>Our newsletters</category>
+     *       <description>...</description>
+     *       <subject>...</subject>
+     *       <preheader>...</preheader>
+     *       <module>Vendor_Module</module>
+     *       <file>data/newsletter/weekly.html</file>
+     *       <frame>2</frame>   <!-- Renderer::FRAME_*: 2 is "its own complete design" -->
+     *     </my_weekly>
+     *   </starters></ysrtech_emailcampaigns></global>
+     *
+     * The file is the email's body. In it {{store_url}}, {{skin_url}} and
+     * {{media_url}} are replaced with this store's addresses when a template
+     * is made from it; everything else, product blocks and placeholders
+     * included, is left for send time.
+     *
+     * @return array<string, array>
+     */
+    protected function _fromConfig(): array
+    {
+        $node     = Mage::getConfig()->getNode('global/ysrtech_emailcampaigns/starters');
+        $starters = [];
+
+        if (!$node) {
+            return $starters;
+        }
+
+        foreach ($node->children() as $code => $definition) {
+            $module = (string) $definition->module;
+            $file   = (string) $definition->file;
+
+            // Inside the declaring module's own directory and nowhere else
+            if ($module === '' || $file === '' || strpos($file, '..') !== false) {
+                continue;
+            }
+
+            $path = Mage::getModuleDir('', $module) . DS . str_replace('/', DS, ltrim($file, '/'));
+
+            if (!is_file($path)) {
+                continue;
+            }
+
+            $starters[(string) $code] = [
+                'name'        => (string) $definition->name,
+                'category'    => (string) $definition->category ?: Mage::helper('ysrtech_emailcampaigns')->__('This store'),
+                'description' => (string) $definition->description,
+                'subject'     => (string) $definition->subject,
+                'preheader'   => (string) $definition->preheader,
+                'file'        => $path,
+                'frame'       => isset($definition->frame) ? (int) $definition->frame : YSRTech_EmailCampaigns_Model_Renderer::FRAME_NONE,
+            ];
+        }
+
+        return $starters;
+    }
+
+    /**
+     * What should go around a template made from this starter: one of
+     * Renderer::FRAME_*.
+     */
+    public function getFrame(string $code): int
+    {
+        $starters = $this->_fromConfig();
+
+        return isset($starters[$code]) ? (int) $starters[$code]['frame'] : YSRTech_EmailCampaigns_Model_Renderer::FRAME_BRAND;
+    }
+
+    /**
      * The HTML of one starter, for this store.
      */
     public function build(string $code, $storeId = null): string
     {
         $this->_palette($storeId);
+
+        $files = $this->_fromConfig();
+
+        if (isset($files[$code])) {
+            $store = $storeId ? Mage::app()->getStore($storeId) : Mage::app()->getDefaultStoreView();
+
+            return strtr((string) file_get_contents($files[$code]['file']), [
+                '{{store_url}}' => $store->getBaseUrl(Mage_Core_Model_Store::URL_TYPE_LINK),
+                '{{skin_url}}'  => $store->getBaseUrl(Mage_Core_Model_Store::URL_TYPE_SKIN),
+                '{{media_url}}' => $store->getBaseUrl(Mage_Core_Model_Store::URL_TYPE_MEDIA),
+            ]);
+        }
 
         $h     = Mage::helper('ysrtech_emailcampaigns');
         $e     = fn (string $v) => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');

@@ -198,9 +198,7 @@ class YSRTech_EmailCampaigns_Model_Widget_Products
                 ->setStoreId($storeId)->addStoreFilter($storeId)
                 ->addAttributeToFilter('sku', ['in' => $skus]);
         } else {
-            // "category/42" from a chooser, or a bare id
-            $categoryId = preg_match('~(\d+)\s*$~', (string) $options['category'], $m) ? (int) $m[1] : 0;
-            $category   = $categoryId ? Mage::getModel('catalog/category')->setStoreId($storeId)->load($categoryId) : null;
+            $category = $this->_category((string) $options['category'], $storeId);
 
             if (!$category || !$category->getId()) {
                 return null;
@@ -265,6 +263,40 @@ class YSRTech_EmailCampaigns_Model_Widget_Products
         }
 
         return $collection->setPageSize($limit)->setCurPage(1);
+    }
+
+    /**
+     * The category an option names: "category/42" from a chooser, a bare id,
+     * or its address on the storefront, "new-release/new-releases".
+     *
+     * By address so that a design can be shared between installs, or
+     * written before anybody has looked the id up: ids differ from one
+     * database to the next, and the address is what people know it by.
+     */
+    protected function _category(string $value, int $storeId)
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('~^(?:category/)?(\d+)$~', $value, $m)) {
+            $category = Mage::getModel('catalog/category')->setStoreId($storeId)->load((int) $m[1]);
+
+            return $category->getId() ? $category : null;
+        }
+
+        $path = preg_replace('~\.html$~', '', trim($value, '/'));
+
+        $category = Mage::getResourceModel('catalog/category_collection')
+            ->setStoreId($storeId)
+            ->addAttributeToSelect('*')
+            ->addAttributeToFilter('url_path', ['in' => [$path, $path . '.html']])
+            ->setPageSize(1)
+            ->getFirstItem();
+
+        return $category->getId() ? $category : null;
     }
 
     /**
@@ -449,10 +481,10 @@ class YSRTech_EmailCampaigns_Model_Widget_Products
             return $base . 'catalognew';
         }
 
-        if ($o['source'] === self::SOURCE_CATEGORY && preg_match('~(\d+)\s*$~', (string) $o['category'], $m)) {
-            $category = Mage::getModel('catalog/category')->setStoreId($store->getId())->load((int) $m[1]);
+        if ($o['source'] === self::SOURCE_CATEGORY) {
+            $category = $this->_category((string) $o['category'], (int) $store->getId());
 
-            return $category->getId() ? (string) $category->getUrl() : '';
+            return $category ? (string) $category->getUrl() : '';
         }
 
         return '';

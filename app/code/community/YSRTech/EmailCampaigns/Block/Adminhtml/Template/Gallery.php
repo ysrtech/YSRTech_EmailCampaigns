@@ -25,7 +25,7 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Gallery extends Mage_Admin
             $preview = Mage::getModel('ysrtech_emailcampaigns/template')->setData([
                 'html'      => $starter->build($code),
                 'subject'   => $definition['subject'],
-                'use_brand' => 1,
+                'use_brand' => $starter->getFrame($code),
             ]);
 
             $groups[$definition['category']][$code] = $definition + [

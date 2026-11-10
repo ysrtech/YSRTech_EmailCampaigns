@@ -118,6 +118,8 @@ class YSRTech_EmailCampaigns_Model_Campaign_Editor
             'store_name' => Mage::getSingleton('ysrtech_emailcampaigns/sender')->storeName($campaign->getStoreId() ?: null),
             'brand'     => [
                 'use'     => (int) $campaign->getUseBrand() === 1,
+                // 2: a complete design of its own, which nothing goes around
+                'own'     => (int) $campaign->getUseBrand() === 2,
                 'enabled' => Mage::getSingleton('ysrtech_emailcampaigns/brand')->isEnabled($campaign->getStoreId()),
             ],
             'content'   => [

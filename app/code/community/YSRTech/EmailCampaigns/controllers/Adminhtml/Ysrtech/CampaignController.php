@@ -104,7 +104,7 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
             }
 
             if (array_key_exists('use_brand', $post)) {
-                $campaign->setUseBrand((int) !empty($post['use_brand']));
+                $campaign->setUseBrand(max(0, min(2, (int) $post['use_brand'])));
             }
 
             if (array_key_exists('segments', $post)) {
@@ -168,7 +168,7 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
                 $campaign->addData([
                     'html'        => $starter->build($code, $campaign->getStoreId() ?: null),
                     'template_id' => null,
-                    'use_brand'   => 1,
+                    'use_brand'   => $starter->getFrame($code),
                 ]);
                 $this->_fillFrom($campaign, $starters[$code]['subject'], $starters[$code]['preheader']);
             } else {

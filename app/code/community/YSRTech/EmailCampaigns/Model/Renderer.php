@@ -46,6 +46,10 @@ class YSRTech_EmailCampaigns_Model_Renderer
             return $this->_wrapBranded($template, $html, $vars, $brand);
         }
 
+        if ((int) $template->getUseBrand() === self::FRAME_NONE) {
+            return $this->_wrapBare($template, $html, $vars);
+        }
+
         $html = $this->_injectUnsubscribe($html, $vars);
 
         return $this->_wrapDocument(
@@ -83,6 +87,70 @@ class YSRTech_EmailCampaigns_Model_Renderer
         }
 
         return ['long' => $now->format('M j, Y'), 'hebrew' => $hebrew, 'year' => $now->format('Y')];
+    }
+
+    /**
+     * What goes around an email, as kept in a template's or a campaign's
+     * use_brand: the plain frame every email had before there was a choice
+     * (0), the store view's header and footer (1), or nothing at all (2).
+     */
+    public const FRAME_PLAIN = 0;
+    public const FRAME_BRAND = 1;
+    public const FRAME_NONE  = 2;
+
+    /**
+     * An email that is a complete design in itself: its own header, its own
+     * footer, its own background. Nothing is put around it.
+     *
+     * What it does get is a document to live in, because the designer keeps
+     * only what is inside the body. So the head is written here each time:
+     * the web fonts the design names, and the handful of rules a 600px table
+     * layout needs to fold down on a phone. Those rules are tied to class
+     * names a design opts into - wrap, px, col, cover, hero-h, nav, cat,
+     * catrow, feat-img, feat-txt, center-m - so a design that uses none of
+     * them is untouched.
+     */
+    protected function _wrapBare($template, string $html, array $vars): string
+    {
+        $html = $this->_injectUnsubscribe($html, $vars);
+
+        // The colour behind the email, if its outermost table names one
+        $background = preg_match('/data-ec-bg\s*=\s*"(#[0-9a-fA-F]{3,6})"/', $html, $m) ? $m[1] : '#ffffff';
+
+        $families = [];
+
+        foreach (YSRTech_EmailCampaigns_Model_System_Config_Source_Brand_Font::webFonts() as $family => $query) {
+            if (strpos($html, $family) !== false) {
+                $families[] = 'family=' . $query;
+            }
+        }
+
+        $css = ($families ? "@import url('https://fonts.googleapis.com/css2?" . implode('&', $families) . "&display=swap');" : '')
+            . 'body{margin:0 !important;padding:0 !important;width:100% !important;}'
+            . 'table{border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;}'
+            . 'img{border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;}'
+            . 'a{text-decoration:none;}'
+            . '@media screen and (max-width:620px){'
+            . '.wrap{width:100% !important;}'
+            . '.px{padding-left:20px !important;padding-right:20px !important;}'
+            . '.col{display:block !important;width:100% !important;max-width:100% !important;padding:0 0 28px 0 !important;}'
+            . '.cover{width:240px !important;}'
+            . '.center-m{text-align:center !important;}'
+            . '.hero-h{font-size:32px !important;line-height:38px !important;}'
+            . '.feat-img,.feat-txt{display:block !important;width:100% !important;padding:0 !important;}'
+            . '.feat-img img{margin:0 auto 20px auto !important;}'
+            . '.nav a{display:inline-block !important;padding:6px 8px !important;}'
+            . '.cat{padding:0 4px 8px 4px !important;}'
+            . '.catrow{padding-left:12px !important;padding-right:12px !important;}'
+            . '}'
+            . ($this->_hasBlocks ? YSRTech_EmailCampaigns_Model_Widget_Products::css() : '');
+
+        return '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8" />'
+            . '<meta name="viewport" content="width=device-width,initial-scale=1" />'
+            . '<meta name="x-apple-disable-message-reformatting" />'
+            . '<style>' . $css . '</style></head>'
+            . '<body style="margin:0;padding:0;background-color:' . $background . ';">'
+            . $this->_preheader($template, $vars) . $html . '</body></html>';
     }
 
     /** @var int|null The store view the next render is for */

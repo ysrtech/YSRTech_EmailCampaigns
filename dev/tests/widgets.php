@@ -13,7 +13,7 @@ $ok   = function (string $what, bool $pass) use (&$fail) { echo ($pass ? 'PASS '
 $W    = YSRTech_EmailCampaigns_Model_Widget_Products::class;
 $w    = Mage::getSingleton('ysrtech_emailcampaigns/widget_products');
 $load = fn (array $o) => $w->load($o + $W::defaults($o['layout'] ?? 'grid'));
-$cat  = (int) Mage::getResourceModel('catalog/category_collection')->addAttributeToFilter('url_key', 'seed-childrens')->getFirstItem()->getId();
+$cat  = (int) Mage::getResourceModel('catalog/category_collection')->addAttributeToFilter('url_key', 'new-english-children-books')->getFirstItem()->getId();
 
 if (!$cat) {
     echo "Run dev/staging/seed-catalog.php first.\n";
@@ -23,6 +23,10 @@ if (!$cat) {
 $rows = $load(['source' => 'category', 'category' => 'category/' . $cat, 'limit' => 3]);
 $ok('a category gives its products, newest first, up to the limit', count($rows) === 3 && $rows[0]['name'] === 'Good Night, Rebbe');
 $ok('each has a storefront address and a resized image', strpos($rows[0]['url'], 'seed-6-good-night-rebbe') !== false && strpos($rows[0]['image'], '/cache/') !== false);
+
+$rows = $load(['source' => 'category', 'category' => 'new-release/new-english-children-books.html', 'limit' => 2]);
+$ok('a category can be named by its storefront address', count($rows) === 2 && $rows[0]['name'] === 'Good Night, Rebbe');
+$ok('a parent category gives its children\'s products', count($load(['source' => 'category', 'category' => 'new-release', 'limit' => 24])) === 14);
 
 $rows = $load(['source' => 'skus', 'skus' => "SEED-012, SEED-003\nSEED-999,SEED-009"]);
 $ok('chosen SKUs come back in the order typed, unknown ones skipped', array_column($rows, 'name') === ['Daily Dose', 'Cobra', 'אור אביגדור - חובת הלבבות - שער הבטחון']);

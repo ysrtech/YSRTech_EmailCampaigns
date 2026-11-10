@@ -294,10 +294,11 @@
                                 return '<li class="' + esc(c.level) + '">' + esc(c.level === 'ok' ? c.label : c.label + ': ' + c.message) + '</li>';
                             }).join('') + '</ul>'
                             + (content.own ? '' : '<p class="help" style="margin-top:8px">' + esc(t.usesTemplate) + '</p>')
+                            + (state.brand.own ? '<p class="help" style="margin-top:10px">' + esc(t.ownDesign) + '</p>' : (''
                             + '<label class="brand-sw"><input type="checkbox" id="ecc-brand"' + (state.brand.use ? ' checked' : '') + ro + '> <span><b>' + esc(t.useBrand) + '</b><br>'
                             + '<span class="help">' + (state.brand.enabled
                                 ? esc(t.useBrandNote).replace('%1', '<a href="' + esc(cfg.brandUrl) + '" target="_blank" rel="noopener">' + esc(t.brandSettings) + '</a>')
-                                : esc(t.brandOff)) + '</span></span></label>'
+                                : esc(t.brandOff)) + '</span></span></label>'))
                             + (state.editable ? '<div class="ct-acts"><button type="button" class="btn btn-primary btn-sm" id="ecc-edit">' + esc(t.editDesign) + '</button>'
                                 + '<button type="button" class="btn btn-sm" id="ecc-over">' + esc(t.startOver) + '</button></div>' : '')
                             + '</div></div>';

@@ -1,6 +1,6 @@
 <?php
 /**
- * A small catalog for the staging install: three categories and fourteen
+ * A small catalog for the staging install: a parent category, three under it, and fourteen
  * books with covers, a few of them marked down, so that product blocks in
  * an email have something to show.
  *
@@ -22,17 +22,25 @@ foreach (Mage::getResourceModel('catalog/product_collection')->addAttributeToFil
     $old->delete();
 }
 
-foreach (Mage::getResourceModel('catalog/category_collection')->addAttributeToFilter('url_key', ['like' => 'seed-%']) as $old) {
+foreach (Mage::getResourceModel('catalog/category_collection')->addAttributeToFilter('url_key', ['in' => ['new-release', 'new-releases', 'new-sefroim', 'new-english-children-books', 'seed-new-books', 'seed-new-seforim', 'seed-childrens']]) as $old) {
     $old->delete();
 }
 
 $categories = [];
 
-foreach (['seed-new-books' => 'New Books', 'seed-new-seforim' => 'New Seforim', 'seed-childrens' => "New Children's Books"] as $key => $name) {
+// A parent with three children, as a bookshop's "new releases" usually is:
+// the parent is an anchor, so asking it for products gives all three's.
+$parent = Mage::getModel('catalog/category')->setStoreId(0);
+$parent->addData([
+    'name' => 'New Release', 'url_key' => 'new-release', 'is_active' => 1, 'include_in_menu' => 1, 'is_anchor' => 1,
+    'display_mode' => 'PRODUCTS', 'path' => Mage::getModel('catalog/category')->load($rootId)->getPath(),
+])->save();
+
+foreach (['new-releases' => 'New Books', 'new-sefroim' => 'New Seforim', 'new-english-children-books' => "New Children's Books"] as $key => $name) {
     $category = Mage::getModel('catalog/category')->setStoreId(0);
     $category->addData([
         'name' => $name, 'url_key' => $key, 'is_active' => 1, 'include_in_menu' => 1, 'is_anchor' => 1,
-        'display_mode' => 'PRODUCTS', 'path' => Mage::getModel('catalog/category')->load($rootId)->getPath(),
+        'display_mode' => 'PRODUCTS', 'path' => $parent->getPath(),
     ])->save();
     $categories[$key] = (int) $category->getId();
 }
@@ -42,15 +50,15 @@ $dir = Mage::getBaseDir('media') . DS . 'import';
 
 $books = [
     // title, category, price, special price or null
-    ['What Leah Found', 'seed-childrens', 24.99, null], ['The Starlight Sisters, Volume 5', 'seed-childrens', 22.99, null],
-    ['Cobra', 'seed-new-books', 34.99, null], ['Still Only Mimi', 'seed-childrens', 19.99, null],
-    ['Stories of Greatness', 'seed-new-books', 29.99, null], ['Good Night, Rebbe', 'seed-childrens', 18.99, null],
-    ['A Gentle Word', 'seed-new-books', 27.99, null], ['The Quiet Hour', 'seed-new-books', 31.99, 26.99],
-    ['אור אביגדור - חובת הלבבות - שער הבטחון', 'seed-new-seforim', 38.75, 33.99],
-    ['Eight People We Met On the Way Home', 'seed-new-books', 44.99, 33.99],
-    ['די אינוואזיע אין נארמאנדי #2', 'seed-new-seforim', 36.99, 33.99],
-    ['Daily Dose', 'seed-new-books', 29.99, 19.99],
-    ['משנה ברורה - חלק ג', 'seed-new-seforim', 42.00, null], ['Letters to a Friend', 'seed-new-books', 21.50, null],
+    ['What Leah Found', 'new-english-children-books', 24.99, null], ['The Starlight Sisters, Volume 5', 'new-english-children-books', 22.99, null],
+    ['Cobra', 'new-releases', 34.99, null], ['Still Only Mimi', 'new-english-children-books', 19.99, null],
+    ['Stories of Greatness', 'new-releases', 29.99, null], ['Good Night, Rebbe', 'new-english-children-books', 18.99, null],
+    ['A Gentle Word', 'new-releases', 27.99, null], ['The Quiet Hour', 'new-releases', 31.99, 26.99],
+    ['אור אביגדור - חובת הלבבות - שער הבטחון', 'new-sefroim', 38.75, 33.99],
+    ['Eight People We Met On the Way Home', 'new-releases', 44.99, 33.99],
+    ['די אינוואזיע אין נארמאנדי #2', 'new-sefroim', 36.99, 33.99],
+    ['Daily Dose', 'new-releases', 29.99, 19.99],
+    ['משנה ברורה - חלק ג', 'new-sefroim', 42.00, null], ['Letters to a Friend', 'new-releases', 21.50, null],
 ];
 $palette = [[122, 31, 61], [31, 78, 121], [58, 90, 64], [107, 66, 0], [60, 60, 90], [140, 70, 40]];
 
