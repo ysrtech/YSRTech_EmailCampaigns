@@ -55,8 +55,10 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Analytics_Grid extends Mage_Adminht
                      * these go blank once a campaign's rows are purged - the
                      * figures that survive are the ones about delivery.
                      */
-                    'opened'  => new Zend_Db_Expr('SUM(CASE WHEN q.open_count > 0 THEN 1 ELSE 0 END)'),
+                    'opened'  => new Zend_Db_Expr('SUM(CASE WHEN q.open_count > q.machine_open_count THEN 1 ELSE 0 END)'),
                     'clicked' => new Zend_Db_Expr('SUM(CASE WHEN q.click_count > 0 THEN 1 ELSE 0 END)'),
+                    'bounced' => new Zend_Db_Expr('SUM(CASE WHEN q.bounced_at IS NOT NULL THEN 1 ELSE 0 END)'),
+                    'complained' => new Zend_Db_Expr('SUM(CASE WHEN q.complained_at IS NOT NULL THEN 1 ELSE 0 END)'),
                 )
             )
             ->group('main_table.campaign_id');
@@ -85,8 +87,10 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Analytics_Grid extends Mage_Adminht
             'pending'   => $helper->__('Pending'),
             'failed'    => $helper->__('Failed'),
             'cancelled' => $helper->__('Unsubscribed'),
-            'opened'    => $helper->__('Opened'),
+            'opened'    => $helper->__('Real Opens'),
             'clicked'   => $helper->__('Clicked'),
+            'bounced'   => $helper->__('Bounced'),
+            'complained' => $helper->__('Spam'),
         ) as $index => $label) {
             $this->addColumn($index, array(
                 'header'   => $label,
@@ -105,7 +109,7 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Analytics_Grid extends Mage_Adminht
     #[Override]
     public function getGridUrl()
     {
-        return $this->getUrl('*/*/grid', array('_current' => true));
+        return $this->getUrl('*/ysrtech_dashboard/grid', array('_current' => true));
     }
 
     #[Override]

@@ -1,0 +1,181 @@
+<?php
+/**
+ * @var YSRTech_EmailCampaigns_Block_Adminhtml_Dashboard $this
+ */
+$stats   = $this->getStats();
+$totals  = $stats['totals'];
+$insight = $stats['insight'];
+$chart   = $this->getChart();
+$labels  = $this->getSeriesLabels();
+$S       = YSRTech_EmailCampaigns_Model_Dashboard_Stats::class;
+$rate    = [$S, 'rate'];
+$pct     = [$S, 'percent'];
+$dash    = "\u{2014}";
+?>
+<div class="content-header">
+    <table cellspacing="0">
+        <tr>
+            <td><h3 class="icon-head"><?php echo $this->escapeHtml($this->__('Email Campaigns Dashboard')) ?></h3></td>
+            <td class="form-buttons">
+                <label for="ysrtech-ec-days"><?php echo $this->escapeHtml($this->__('Period')) ?></label>
+                <select id="ysrtech-ec-days" onchange="setLocation(this.value)">
+                    <?php foreach ([7, 14, 30] as $days): ?>
+                        <option value="<?php echo $this->escapeHtml($this->getPeriodUrl($days, $this->getType())) ?>"<?php if ($days === $stats['days']): ?> selected="selected"<?php endif ?>><?php echo $this->escapeHtml($this->__('Last %d days', $days)) ?></option>
+                    <?php endforeach ?>
+                </select>
+                <label for="ysrtech-ec-type"><?php echo $this->escapeHtml($this->__('Show')) ?></label>
+                <select id="ysrtech-ec-type" onchange="setLocation(this.value)">
+                    <?php foreach (['' => $this->__('All email'), 'campaign' => $this->__('Campaigns'), 'automation' => $this->__('Automations')] as $type => $label): ?>
+                        <option value="<?php echo $this->escapeHtml($this->getPeriodUrl($stats['days'], $type)) ?>"<?php if ($type === $stats['type']): ?> selected="selected"<?php endif ?>><?php echo $this->escapeHtml($label) ?></option>
+                    <?php endforeach ?>
+                </select>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<ul class="messages">
+    <li class="<?php echo $insight['level'] ?>-msg">
+        <ul><li><strong><?php echo $this->escapeHtml($insight['title']) ?></strong> <?php echo $this->escapeHtml($insight['text']) ?></li></ul>
+    </li>
+</ul>
+
+<div class="ysrtech-ec-tiles">
+<?php foreach ($this->getTiles() as $tile): ?>
+    <div class="ysrtech-ec-tile" title="<?php echo $this->escapeHtml($tile['tip']) ?>">
+        <div class="label"><?php echo $this->escapeHtml($tile['label']) ?></div>
+        <div class="value"><?php echo $this->escapeHtml($tile['value']) ?></div>
+        <?php echo $this->sparkline($tile['spark']) ?>
+        <div class="foot">
+            <?php if ($tile['delta'] !== ''): ?>
+                <span class="delta <?php echo $tile['good'] ? 'good' : 'bad' ?>"><?php echo $this->escapeHtml($tile['delta']) ?></span>
+            <?php endif ?>
+            <span class="note"><?php echo $this->escapeHtml($tile['note']) ?></span>
+        </div>
+    </div>
+<?php endforeach ?>
+</div>
+
+<div class="ysrtech-ec-cols">
+    <div class="ysrtech-ec-col wide">
+        <div class="entry-edit">
+            <div class="entry-edit-head"><h4><?php echo $this->escapeHtml($this->__('Delivery Over Time')) ?></h4></div>
+            <div class="fieldset">
+                <ul class="ysrtech-ec-legend">
+                    <?php foreach ($labels as $key => $label): ?>
+                        <li><i style="background:<?php echo $this::COLORS[$key] ?>"></i><?php echo $this->escapeHtml($label) ?></li>
+                    <?php endforeach ?>
+                </ul>
+                <div class="ysrtech-ec-chart-wrap" id="ysrtech-ec-chart">
+                    <?php echo $chart['svg'] ?>
+                    <div class="ysrtech-ec-tip" style="display:none"></div>
+                </div>
+                <p class="note"><?php echo $this->escapeHtml($this->__('Messages per day, by the day they were sent, in the store\'s timezone.')) ?></p>
+            </div>
+        </div>
+    </div>
+    <div class="ysrtech-ec-col">
+        <div class="entry-edit">
+            <div class="entry-edit-head"><h4><?php echo $this->escapeHtml($this->__('Delivery Funnel')) ?></h4></div>
+            <div class="fieldset">
+                <?php foreach ([
+                    [$this->__('Sent'), $totals['sent'], '#2a78d6'],
+                    [$this->__('Delivered'), $totals['delivered'], '#2a78d6'],
+                    [$this->__('Opened (real)'), $totals['opened'], '#1baf7a'],
+                    [$this->__('Clicked'), $totals['clicked'], '#8a4fd3'],
+                ] as [$label, $value, $color]): ?>
+                    <div class="ysrtech-ec-funnel">
+                        <div class="top"><span><?php echo $this->escapeHtml($label) ?></span><span><strong><?php echo number_format($value) ?></strong> &middot; <?php echo $totals['sent'] ? $pct($rate($value, $totals['sent'])) : $dash ?></span></div>
+                        <div class="bar"><span style="width:<?php echo round($rate($value, $totals['sent']) * 100, 2) ?>%;background:<?php echo $color ?>"></span></div>
+                    </div>
+                <?php endforeach ?>
+                <p class="note"><?php echo $this->escapeHtml($this->__('Unique messages. Machine opens are excluded.')) ?></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="entry-edit">
+    <div class="entry-edit-head"><h4><?php echo $this->escapeHtml($this->__('Mailbox Providers')) ?></h4></div>
+    <div class="grid">
+        <table cellspacing="0" class="data">
+            <thead>
+                <tr class="headings">
+                    <th><?php echo $this->escapeHtml($this->__('Provider')) ?></th>
+                    <th class="a-right"><?php echo $this->escapeHtml($this->__('Sent')) ?></th>
+                    <th class="a-right"><?php echo $this->escapeHtml($this->__('Share')) ?></th>
+                    <th class="a-right"><?php echo $this->escapeHtml($this->__('Delivered')) ?></th>
+                    <th class="a-right"><?php echo $this->escapeHtml($this->__('Real Opens')) ?></th>
+                    <th class="a-right"><?php echo $this->escapeHtml($this->__('Machine Opens')) ?></th>
+                    <th class="a-right"><?php echo $this->escapeHtml($this->__('Clicks')) ?></th>
+                    <th class="a-right"><?php echo $this->escapeHtml($this->__('Bounces')) ?></th>
+                    <th class="a-right"><?php echo $this->escapeHtml($this->__('Spam')) ?></th>
+                </tr>
+            </thead>
+            <tbody>
+            <?php if (!$stats['providers']): ?>
+                <tr><td colspan="9" class="empty-text a-center"><?php echo $this->escapeHtml($this->__('Nothing was sent in this period.')) ?></td></tr>
+            <?php endif ?>
+            <?php foreach ($stats['providers'] as $i => $p): ?>
+                <?php $bounce = $rate($p['bounced'], $p['sent']); $spam = $rate($p['complained'], $p['delivered']); ?>
+                <tr class="<?php echo $i % 2 ? 'odd' : 'even' ?>">
+                    <td><?php echo $this->escapeHtml($p['name']) ?></td>
+                    <td class="a-right"><?php echo number_format($p['sent']) ?></td>
+                    <td class="a-right"><?php echo $pct($rate($p['sent'], $totals['sent']), 0) ?></td>
+                    <td class="a-right"><?php echo $pct($rate($p['delivered'], $p['sent'])) ?></td>
+                    <td class="a-right"><?php echo $p['delivered'] ? $pct($rate($p['opened'], $p['delivered'])) : $dash ?></td>
+                    <td class="a-right"><?php echo $p['delivered'] ? $pct($rate($p['machine'], $p['delivered'])) : $dash ?></td>
+                    <td class="a-right"><?php echo $p['delivered'] ? $pct($rate($p['clicked'], $p['delivered'])) : $dash ?></td>
+                    <td class="a-right<?php if ($bounce >= $S::BOUNCE_WARN): ?> ysrtech-ec-flag<?php endif ?>"><?php echo $pct($bounce, 2) ?></td>
+                    <td class="a-right<?php if ($spam >= $S::COMPLAINT_WARN): ?> ysrtech-ec-flag<?php endif ?>"><?php echo $p['delivered'] ? $pct($spam, 3) : $dash ?></td>
+                </tr>
+            <?php endforeach ?>
+            </tbody>
+        </table>
+    </div>
+    <p class="note ysrtech-ec-lede"><?php echo $this->escapeHtml($this->__('Grouped by the address\'s domain name, so a company domain hosted on Google or Microsoft counts under Other.')) ?></p>
+</div>
+
+<script type="text/javascript">
+//<![CDATA[
+(function () {
+    // Hover readout for the period chart: the day under the pointer, with
+    // each series' figure for it.
+    var wrap = document.getElementById('ysrtech-ec-chart');
+    if (!wrap) { return; }
+    var data = <?php echo Mage::helper('core')->jsonEncode($chart['data']) ?>;
+    var labels = <?php echo Mage::helper('core')->jsonEncode($labels) ?>;
+    var colors = <?php echo Mage::helper('core')->jsonEncode($this::COLORS) ?>;
+    var svg = wrap.getElementsByTagName('svg')[0];
+    var cross = svg.querySelector('.cross');
+    var tip = wrap.querySelector('.ysrtech-ec-tip');
+    var n = data.days.length;
+    var fmt = function (v) { return String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ','); };
+
+    svg.addEventListener('mousemove', function (e) {
+        var box = svg.getBoundingClientRect();
+        var x = (e.clientX - box.left) * data.width / box.width;
+        var i = n > 1 ? Math.round((x - data.left) / (data.plotW / (n - 1))) : 0;
+        i = Math.max(0, Math.min(n - 1, i));
+        var cx = data.left + (n > 1 ? i * data.plotW / (n - 1) : data.plotW / 2);
+        cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); cross.style.display = '';
+        while (tip.firstChild) { tip.removeChild(tip.firstChild); }
+        var head = document.createElement('strong');
+        head.appendChild(document.createTextNode(data.days[i].label));
+        tip.appendChild(head);
+        for (var key in labels) {
+            if (!labels.hasOwnProperty(key)) { continue; }
+            var row = document.createElement('div');
+            var dot = document.createElement('i'); dot.style.background = colors[key];
+            row.appendChild(dot);
+            row.appendChild(document.createTextNode(labels[key] + ': ' + fmt(data.days[i][key])));
+            tip.appendChild(row);
+        }
+        tip.style.display = '';
+        var px = cx * box.width / data.width;
+        tip.style.left = (px > box.width / 2 ? px - tip.offsetWidth - 12 : px + 12) + 'px';
+    });
+    svg.addEventListener('mouseleave', function () { cross.style.display = 'none'; tip.style.display = 'none'; });
+})();
+//]]>
+</script>

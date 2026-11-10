@@ -6,11 +6,11 @@
  *
  *   cd <openmage-core> && php <module>/dev/staging/seed-volume.php [subscribers]
  *
- * Everything is invented. Every address is at example.invalid, a domain
- * reserved so that it can never resolve, let alone deliver. The "mailbox
- * provider" each address belongs to is carried in its local part instead
- * (ava.cohen.gmail.17@example.invalid), which is also what the dashboard's
- * provider breakdown falls back to reading on this install.
+ * Everything is invented. Every address is under example.invalid, a domain
+ * reserved so that it can never resolve, let alone deliver. Which mailbox
+ * provider an address "belongs to" is a subdomain of it
+ * (ava.cohen.17@gmail.example.invalid), which the dashboard's provider
+ * breakdown reads the same way it reads gmail.com.
  *
  * It also switches the store's own mail off (system/smtp/disable) and leaves
  * the module on the store's-own-mail transport with no credentials, so there
@@ -53,16 +53,16 @@ $pick = static function (array $weights) {
 $ago = static fn (int $seconds) => gmdate('Y-m-d H:i:s', time() - $seconds);
 
 echo "Clearing the previous synthetic set...\n";
-$db->query('SET FOREIGN_KEY_CHECKS = 0');
-$db->delete($t('ysrtech_emailcampaigns/queue'), "email LIKE '%@example.invalid'");
-$db->delete($t('ysrtech_emailcampaigns/suppression'), "email LIKE '%@example.invalid'");
-$db->delete($t('newsletter/subscriber'), "subscriber_email LIKE '%@example.invalid'");
-$db->delete($t('sales/order'), "customer_email LIKE '%@example.invalid'");
+// Foreign keys stay on: deleting a customer has to take its attribute rows
+// with it, or the next run collides with what was left behind.
+$db->delete($t('ysrtech_emailcampaigns/queue'), "email LIKE '%example.invalid'");
+$db->delete($t('ysrtech_emailcampaigns/suppression'), "email LIKE '%example.invalid'");
+$db->delete($t('newsletter/subscriber'), "subscriber_email LIKE '%example.invalid'");
+$db->delete($t('sales/order'), "customer_email LIKE '%example.invalid'");
 $db->delete($t('sales/order_grid'), "billing_name = 'Synthetic Order'");
-$db->delete($t('customer/entity'), "email LIKE '%@example.invalid'");
+$db->delete($t('customer/entity'), "email LIKE '%example.invalid'");
 $db->delete($t('ysrtech_emailcampaigns/campaign'), "name LIKE '[seed]%'");
 $db->delete($t('ysrtech_emailcampaigns/automation'), "name LIKE '[seed]%'");
-$db->query('SET FOREIGN_KEY_CHECKS = 1');
 
 // ---------------------------------------------------------------- people
 echo "Subscribers and customers...\n";
@@ -100,7 +100,8 @@ for ($i = 1; $i <= $subscriberTarget; $i++) {
     $first    = $firstNames[array_rand($firstNames)];
     $last     = $lastNames[array_rand($lastNames)];
     $provider = $pick($providers);
-    $email    = strtolower("{$first}.{$last}.{$provider}.{$i}@example.invalid");
+    $domain   = $provider === 'other' ? 'example.invalid' : "{$provider}.example.invalid";
+    $email    = strtolower("{$first}.{$last}.{$i}@{$domain}");
     $created  = $ago(mt_rand(86400, 86400 * 900));
 
     $customerId = null;
@@ -140,7 +141,7 @@ for ($i = 1; $i <= $subscriberTarget; $i++) {
 $flush(true);
 
 $subscriberIds = $db->fetchPairs(
-    "SELECT subscriber_email, subscriber_id FROM {$t('newsletter/subscriber')} WHERE subscriber_email LIKE '%@example.invalid'"
+    "SELECT subscriber_email, subscriber_id FROM {$t('newsletter/subscriber')} WHERE subscriber_email LIKE '%example.invalid'"
 );
 
 // ---------------------------------------------------------------- orders

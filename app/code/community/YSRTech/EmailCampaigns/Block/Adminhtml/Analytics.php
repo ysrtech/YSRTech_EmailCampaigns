@@ -8,7 +8,7 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Analytics extends Mage_Adminhtml_Bl
     {
         $this->_blockGroup = 'ysrtech_emailcampaigns';
         $this->_controller = 'adminhtml_analytics';
-        $this->_headerText = Mage::helper('ysrtech_emailcampaigns')->__('Campaign Analytics');
+        $this->_headerText = Mage::helper('ysrtech_emailcampaigns')->__('By Campaign');
         parent::__construct();
         $this->_removeButton('add');
     }
