@@ -87,24 +87,63 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_AutomationController
                 Mage::throwException($this->__('A chain needs at least one message.'));
             }
 
-            $model->addData([
+            /*
+             * The form has no box for minutes, so a step keeps the minutes
+             * the canvas gave it. Carried here rather than left to the row
+             * that happens to be reused, so the flow that is checked is the
+             * flow that is stored.
+             */
+            $current = $model->getStepRows();
+
+            foreach ($steps as $position => $step) {
+                $steps[$position]['after_minutes'] = (int) ($current[$position]['after_minutes'] ?? 0);
+            }
+
+            /*
+             * Through the same door as the canvas. The form's rows are drawn
+             * as the chain they describe and that drawing is what gets
+             * checked and saved, so the rules for going live and for changing
+             * a live flow are one set of rules, in the model, and neither
+             * editor can be used to get round the other.
+             */
+            $graph = Mage::getSingleton('ysrtech_emailcampaigns/automation_graph')->toGraph($event, $steps, [
+                'order_status' => (string) ($data['order_status'] ?? ''),
+                'product_id'   => (int) ($data['product_id'] ?? 0),
+            ]);
+
+            $result = $model->saveFlow($graph, [
                 'name'                 => (string) ($data['name'] ?? ''),
-                'event'                => $event,
-                'order_status'         => (string) ($data['order_status'] ?? '') ?: null,
-                'product_id'           => !empty($data['product_id']) ? (int) $data['product_id'] : null,
                 'cancel_on'            => ($data['cancel_on'] ?? 'never') === 'order_placed' ? 'order_placed' : 'never',
                 'respect_subscription' => (int) !empty($data['respect_subscription']),
                 'store_id'             => (int) ($data['store_id'] ?? 0),
                 'active_from'          => !empty($data['active_from']) ? $data['active_from'] : null,
                 'active_to'            => !empty($data['active_to']) ? $data['active_to'] : null,
-                'is_active'            => (int) !empty($data['is_active']),
-            ]);
+            ], !empty($data['is_active']), false);
 
-            $model->save();
+            if ($result['demoted']) {
+                /*
+                 * Saved, but not switched on. Said as an error and not a
+                 * notice because the person asked for Active and did not get
+                 * it, and a green "saved" above a flow that is quietly off is
+                 * how a seasonal campaign fails to go out.
+                 */
+                $this->_getSession()->addError($this->__(
+                    'Saved as a draft, not switched on: there is something to fix first.'
+                ));
 
-            $this->_saveSteps($model, $steps);
+                foreach ($result['problems'] as $problem) {
+                    $this->_getSession()->addError($problem['message']);
+                }
+
+                $this->_redirect('*/*/edit', ['id' => $model->getId()]);
+                return;
+            }
 
             $this->_getSession()->addSuccess($this->__('Automation saved.'));
+        } catch (Mage_Core_Exception $e) {
+            $this->_getSession()->addError($e->getMessage());
+            $this->_redirect('*/*/edit', ['id' => $id]);
+            return;
         } catch (Exception $e) {
             $this->_getSession()->addError($e->getMessage());
             Mage::logException($e);
@@ -145,42 +184,6 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_AutomationController
     }
 
     /**
-     * Rewrite the chain's steps from the form.
-     *
-     * Steps that survive keep their ids, because queue rows point at them: a
-     * delete-and-recreate would cascade away everything already waiting to be
-     * sent, silently emptying a chain that was halfway through for hundreds of
-     * people.
-     *
-     * @param  YSRTech_EmailCampaigns_Model_Automation $model
-     * @param  array                                   $steps
-     * @return void
-     */
-    protected function _saveSteps($model, array $steps): void
-    {
-        $existing = [];
-
-        foreach (Mage::getResourceModel('ysrtech_emailcampaigns/automation_step_collection')
-                     ->addAutomationFilter((int) $model->getId()) as $step) {
-            $existing[] = $step;
-        }
-
-        foreach ($steps as $position => $values) {
-            $step = array_shift($existing) ?: Mage::getModel('ysrtech_emailcampaigns/automation_step');
-
-            $step->addData($values)
-                ->setAutomationId($model->getId())
-                ->setSortOrder($position)
-                ->save();
-        }
-
-        // Anything left over was removed from the form
-        foreach ($existing as $step) {
-            $step->delete();
-        }
-    }
-
-    /**
      * The visual editor, on the same automation the form edits.
      */
     public function canvasAction()
@@ -216,28 +219,30 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_AutomationController
      * the response - without it every later save on a new flow would insert
      * another row instead of updating the one just made.
      *
-     * Only what the canvas draws is written. The trigger's conditions, the
-     * cancellation rule, the marketing/transactional choice and the active
-     * dates have no nodes in the editor, so they are left exactly as the form
-     * left them; a canvas save must not quietly reset what it cannot show.
+     * What the canvas draws is what is written: the trigger and its
+     * condition, the waits and the messages. The cancellation rule, the
+     * marketing/transactional choice and the active dates have no nodes in
+     * the editor, so they are left exactly as the form left them; a canvas
+     * save must not quietly reset what it cannot show.
+     *
+     * Asking for "active" is asking to publish, and may be answered with a
+     * saved draft and a list of problems instead. The response always says
+     * which happened.
      */
     public function canvasSaveAction()
     {
         $this->getResponse()->setHeader('Content-Type', 'application/json', true);
 
         if (!$this->getRequest()->isPost()) {
-            $this->getResponse()->setBody(Mage::helper('core')->jsonEncode([
-                'success' => false,
-                'message' => $this->__('Expected a POST.'),
-            ]));
+            $this->_canvasAnswer(['success' => false, 'message' => $this->__('Expected a POST.')]);
             return;
         }
 
         if (!$this->_validateFormKey()) {
-            $this->getResponse()->setBody(Mage::helper('core')->jsonEncode([
+            $this->_canvasAnswer([
                 'success' => false,
                 'message' => $this->__('This page has been open a while. Reload it and try again.'),
-            ]));
+            ]);
             return;
         }
 
@@ -251,66 +256,74 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_AutomationController
             $model->load($id);
 
             if (!$model->getId()) {
-                $this->getResponse()->setBody(Mage::helper('core')->jsonEncode([
-                    'success' => false,
-                    'message' => $this->__('Automation no longer exists.'),
-                ]));
+                $this->_canvasAnswer(['success' => false, 'message' => $this->__('Automation no longer exists.')]);
                 return;
             }
         }
 
         try {
-            $graph = json_decode((string) ($data['graph_json'] ?? ''), true);
+            // Refuses anything that is not a drawing of a sane size before
+            // any of it is looked at.
+            $graph = Mage::getSingleton('ysrtech_emailcampaigns/automation_graph')
+                ->decode($data['graph_json'] ?? null);
 
-            if (!is_array($graph)) {
-                Mage::throwException($this->__('The canvas sent something this could not read.'));
+            $wantActive = is_string($data['status'] ?? null) && $data['status'] === 'active';
+
+            $result = $model->saveFlow($graph, [
+                'name'     => is_string($data['name'] ?? null) ? $data['name'] : '',
+                'store_id' => max(0, min(65535, (int) ($data['store_id'] ?? 0))),
+            ], $wantActive, true);
+
+            if ($result['demoted']) {
+                $message = $this->__(
+                    'Saved as a draft, not switched on: %d thing(s) to fix first.',
+                    count($result['problems'])
+                );
+            } elseif ($result['active']) {
+                $message = $this->__('Saved. This flow is live.');
+            } elseif ($result['paused']) {
+                $message = $this->__('Paused. Nothing new will enter this flow; messages already queued are still sent.');
+            } else {
+                $message = $this->__('Draft saved.');
             }
 
-            $translated = Mage::getSingleton('ysrtech_emailcampaigns/automation_graph')->toSteps($graph);
-
-            $name = trim((string) ($data['name'] ?? ''));
-
-            if ($name === '') {
-                Mage::throwException($this->__('Give the flow a name before saving.'));
-            }
-
-            /*
-             * The trigger comes from the graph's own trigger node when it has
-             * one, because that is what the person was looking at, and from
-             * the posted field otherwise.
-             */
-            $event = $translated['trigger'] ?: (string) ($data['trigger_type'] ?? $model->getEvent());
-
-            $model->addData([
-                'name'      => $name,
-                'event'     => $event ?: 'order_placed',
-                // The editor's selector offers draft, active and paused; this
-                // module has a flag, and anything that is not active is off.
-                'is_active' => ((string) ($data['status'] ?? 'draft')) === 'active' ? 1 : 0,
-                'store_id'  => (int) ($data['store_id'] ?? 0),
-            ])->save();
-
-            // Reuses the form's own step writer, so both editors leave the
-            // rows in the same shape and only one place knows how.
-            $this->_saveSteps($model, $translated['steps']);
-
-            $this->getResponse()->setBody(Mage::helper('core')->jsonEncode([
-                'success' => true,
-                'id'      => (int) $model->getId(),
-                'steps'   => count($translated['steps']),
-            ]));
+            $this->_canvasAnswer([
+                'success'         => true,
+                'id'              => (int) $model->getId(),
+                'status'          => $result['active'] ? 'active' : 'draft',
+                'demoted'         => $result['demoted'],
+                'version'         => (int) $model->getVersion(),
+                'published_label' => $this->_publishedLabel($model),
+                'steps'           => $result['steps'],
+                'problems'        => $result['problems'],
+                'message'         => $message,
+            ]);
         } catch (Mage_Core_Exception $e) {
-            $this->getResponse()->setBody(Mage::helper('core')->jsonEncode([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ]));
+            $this->_canvasAnswer(['success' => false, 'message' => $e->getMessage()]);
         } catch (Exception $e) {
             Mage::logException($e);
-            $this->getResponse()->setBody(Mage::helper('core')->jsonEncode([
-                'success' => false,
-                'message' => $this->__('Could not save. See the exception log.'),
-            ]));
+            $this->_canvasAnswer(['success' => false, 'message' => $this->__('Could not save. See the exception log.')]);
         }
+    }
+
+    /**
+     * @param  array $answer
+     * @return void
+     */
+    protected function _canvasAnswer(array $answer): void
+    {
+        $this->getResponse()->setBody(Mage::helper('core')->jsonEncode($answer));
+    }
+
+    /**
+     * @param  YSRTech_EmailCampaigns_Model_Automation $model
+     * @return string when it last went live, in the admin's locale, or ''
+     */
+    protected function _publishedLabel($model): string
+    {
+        return $model->getPublishedAt()
+            ? (string) Mage::helper('core')->formatDate($model->getPublishedAt(), 'medium', true)
+            : '';
     }
 
     public function deleteAction()

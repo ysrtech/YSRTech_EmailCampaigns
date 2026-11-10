@@ -341,6 +341,7 @@ foreach ($campaigns as [$name, $daysAgo, $share, $bounceRate, $complaintRate]) {
         $rows[] = [
             'campaign_id' => $campaignId, 'automation_id' => null, 'step_id' => null,
             'object_type' => null, 'object_id' => null,
+            'step_order' => null, 'template_id' => null, 'automation_version' => null,
             'email' => $person['email'], 'customer_id' => $person['customer_id'],
             'subscriber_id' => $subscriberIds[$person['email']] ?? null,
         ] + $mail($person, $sentTs + mt_rand(0, 1800), $bounceRate, $complaintRate);
@@ -371,6 +372,7 @@ foreach ($people as $person) {
     $rows[] = [
         'campaign_id' => null, 'automation_id' => $automationId, 'step_id' => $stepId,
         'object_type' => 'order', 'object_id' => ++$objectId,
+        'step_order' => 0, 'template_id' => $templateId ?: null, 'automation_version' => 1,
         'email' => $person['email'], 'customer_id' => $person['customer_id'],
         'subscriber_id' => $subscriberIds[$person['email']] ?? null,
     ] + $mail($person, time() - mt_rand(3600, 86400 * 58), 0.002, 0.0002);

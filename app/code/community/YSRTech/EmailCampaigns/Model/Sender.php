@@ -176,18 +176,24 @@ class YSRTech_EmailCampaigns_Model_Sender
             return;
         }
 
-        /** @var YSRTech_EmailCampaigns_Model_Automation_Step $step */
-        $step = Mage::getModel('ysrtech_emailcampaigns/automation_step')->load($item->getStepId());
+        /*
+         * The template the message was queued with, not whatever its step
+         * says today. The step row may have been given a different template,
+         * moved, or removed altogether by an edit made while this was
+         * waiting, and none of that is a reason to fail - or to change - a
+         * message somebody was already due.
+         */
+        $templateId = $automation->resolveTemplateId($item);
 
-        if (!$step->getId()) {
-            Mage::throwException('The step behind this message no longer exists.');
+        if (!$templateId) {
+            Mage::throwException('Nothing records which template this message was queued with, and its step no longer exists.');
         }
 
         /** @var YSRTech_EmailCampaigns_Model_Template $template */
-        $template = Mage::getModel('ysrtech_emailcampaigns/template')->load($step->getTemplateId());
+        $template = Mage::getModel('ysrtech_emailcampaigns/template')->load($templateId);
 
         if (!$template->getId()) {
-            Mage::throwException('The step has no template to send.');
+            Mage::throwException('The template this message was queued with no longer exists.');
         }
 
         $storeId = $automation->getStoreId() ?: null;

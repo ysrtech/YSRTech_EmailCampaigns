@@ -109,6 +109,11 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Automation_Edit_Form extends Mage_A
             'name'   => 'is_active',
             'values' => Mage::getSingleton('adminhtml/system_config_source_yesno')->toOptionArray(),
             'value'  => $model->getId() ? (int) $model->getIsActive() : 1,
+            // Said here because this is the field that has to change first:
+            // a refusal on save is a poor way to learn the rule.
+            'note'   => $model->getId() && (int) $model->getIsActive()
+                ? $h->__('This automation is live (version %d). Its name, trigger and messages cannot be changed while it is: set this to No and save to pause it, make the changes, then set it back to Yes. Messages already queued are still sent as they were queued.', max(1, (int) $model->getVersion()))
+                : $h->__('Setting this to Yes switches the automation on. If something is missing it is saved switched off instead, with a list of what to fix.'),
         ]);
 
         $this->setForm($form);
