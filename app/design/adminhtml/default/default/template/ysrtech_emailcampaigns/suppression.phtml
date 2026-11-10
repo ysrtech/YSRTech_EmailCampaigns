@@ -1,0 +1,25 @@
+<?php
+/**
+ * The stock grid container, with the per-reason counts between the header
+ * and the grid.
+ *
+ * @var YSRTech_EmailCampaigns_Block_Adminhtml_Suppression $this
+ */
+?>
+<div class="content-header">
+    <table cellspacing="0">
+        <tr>
+            <td style="<?php echo $this->getHeaderWidth() ?>"><?php echo $this->getHeaderHtml() ?></td>
+            <td class="form-buttons"><?php echo $this->getButtonsHtml() ?></td>
+        </tr>
+    </table>
+</div>
+<p class="ysrtech-ec-lede"><?php echo $this->escapeHtml($this->__('Addresses that are never mailed, to protect the sending domain\'s reputation. Hard bounces, spam complaints and unsubscribes are added automatically as the provider reports them.')) ?></p>
+<ul class="ysrtech-ec-chips">
+<?php foreach ($this->getReasonFilters() as $filter): ?>
+    <li<?php if ($filter['active']): ?> class="active"<?php endif ?>>
+        <a href="<?php echo $this->escapeHtml($filter['url']) ?>"><?php echo $this->escapeHtml($filter['label']) ?> <strong><?php echo number_format($filter['count']) ?></strong></a>
+    </li>
+<?php endforeach ?>
+</ul>
+<?php echo $this->getGridHtml() ?>

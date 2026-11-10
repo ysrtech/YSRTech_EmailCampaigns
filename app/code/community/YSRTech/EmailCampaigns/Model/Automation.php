@@ -94,6 +94,25 @@ class YSRTech_EmailCampaigns_Model_Automation extends Mage_Core_Model_Abstract
             return 0;
         }
 
+        /*
+         * The suppression list, whatever the rule above says. An automation
+         * that ignores the newsletter flag is one about an order - a receipt,
+         * a shipping notice - and somebody who unsubscribed from marketing is
+         * still owed those. An address that hard-bounced or reported spam is
+         * a different matter: nothing should go to it at all, and Mailgun
+         * would drop it on its own list anyway while the queue called it sent.
+         */
+        $suppressedFor = Mage::getResourceSingleton('ysrtech_emailcampaigns/suppression')->reasonOf($email);
+
+        if ($suppressedFor !== null
+            && ($this->getRespectSubscription() || in_array($suppressedFor, [
+                YSRTech_EmailCampaigns_Model_Suppression::REASON_HARD_BOUNCE,
+                YSRTech_EmailCampaigns_Model_Suppression::REASON_COMPLAINT,
+            ], true))
+        ) {
+            return 0;
+        }
+
         $steps = $this->getSteps();
 
         if (!count($steps)) {

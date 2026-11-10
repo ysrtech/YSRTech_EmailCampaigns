@@ -193,7 +193,7 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
 
         $membershipTable = $resource->getTableName('ysrtech_emailcampaigns/segment_subscriber');
         $subscriberTable = $resource->getTableName('newsletter/subscriber');
-        $prefTable       = $resource->getTableName('ysrtech_emailcampaigns/subscriber_pref');
+        $suppressed      = $resource->getTableName('ysrtech_emailcampaigns/suppression');
 
         /*
          * DISTINCT because the segments may overlap: somebody in both "past
@@ -215,8 +215,8 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
             ->where('ns.subscriber_status = ?', Mage_Newsletter_Model_Subscriber::STATUS_SUBSCRIBED)
             ->where(
                 "NOT EXISTS (
-                    SELECT 1 FROM {$prefTable} p
-                    WHERE p.email = ns.subscriber_email AND p.unsubscribed_at IS NOT NULL
+                    SELECT 1 FROM {$suppressed} p
+                    WHERE p.email = ns.subscriber_email
                 )"
             );
 

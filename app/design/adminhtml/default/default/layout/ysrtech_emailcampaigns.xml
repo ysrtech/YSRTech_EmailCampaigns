@@ -25,4 +25,47 @@
             <action method="setCanLoadRulesJs"><flag>1</flag></action>
         </reference>
     </adminhtml_ysrtech_segment_edit>
+
+    <!--
+        One small stylesheet for the pages that draw something the admin theme
+        has no widget for: the dashboard tiles and charts, the reason counts
+        above the suppression grid, the import steps.
+    -->
+    <ysrtech_emailcampaigns_admin_css>
+        <reference name="head">
+            <action method="addCss"><name>ysrtech/emailcampaigns/admin.css</name></action>
+        </reference>
+    </ysrtech_emailcampaigns_admin_css>
+
+    <adminhtml_ysrtech_dashboard_index>
+        <update handle="ysrtech_emailcampaigns_admin_css"/>
+    </adminhtml_ysrtech_dashboard_index>
+
+    <adminhtml_ysrtech_suppression_index>
+        <update handle="ysrtech_emailcampaigns_admin_css"/>
+    </adminhtml_ysrtech_suppression_index>
+
+    <adminhtml_ysrtech_import_index>
+        <update handle="ysrtech_emailcampaigns_admin_css"/>
+    </adminhtml_ysrtech_import_index>
+
+    <adminhtml_ysrtech_import_view>
+        <update handle="ysrtech_emailcampaigns_admin_css"/>
+    </adminhtml_ysrtech_import_view>
+
+    <adminhtml_ysrtech_import_new>
+        <update handle="ysrtech_emailcampaigns_admin_css"/>
+    </adminhtml_ysrtech_import_new>
+
+    <adminhtml_ysrtech_import_map>
+        <update handle="ysrtech_emailcampaigns_admin_css"/>
+    </adminhtml_ysrtech_import_map>
+
+    <adminhtml_ysrtech_import_provider>
+        <update handle="ysrtech_emailcampaigns_admin_css"/>
+    </adminhtml_ysrtech_import_provider>
+
+    <adminhtml_ysrtech_campaign_edit>
+        <update handle="ysrtech_emailcampaigns_admin_css"/>
+    </adminhtml_ysrtech_campaign_edit>
 </layout>
