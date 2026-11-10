@@ -21,6 +21,21 @@ class YSRTech_EmailCampaigns_Model_Renderer
 
         $html = $this->_unwrapDocument($html);
 
+        /*
+         * Product blocks first. They are filled from the catalog as it is
+         * now, and what they found feeds two things below: the names for the
+         * preview text, and whether the email needs their phone rules.
+         */
+        /** @var YSRTech_EmailCampaigns_Model_Widget_Products $widgets */
+        $widgets          = Mage::getSingleton('ysrtech_emailcampaigns/widget_products');
+        $this->_hasBlocks = strpos($html, 'data-ec-widget') !== false;
+        $html             = $widgets->process($html, $this->_storeId);
+
+        $vars += [
+            'date'     => $this->_dates(),
+            'products' => ['names' => $widgets->getFirstNames()],
+        ];
+
         $helper = Mage::helper('ysrtech_emailcampaigns');
         $html = $helper->renderMergeVars($html, $vars);
 
@@ -33,7 +48,41 @@ class YSRTech_EmailCampaigns_Model_Renderer
 
         $html = $this->_injectUnsubscribe($html, $vars);
 
-        return $this->_wrapDocument($this->_preheader($template, $vars) . $html, $vars);
+        return $this->_wrapDocument(
+            $this->_preheader($template, $vars)
+            . ($this->_hasBlocks ? '<style>' . YSRTech_EmailCampaigns_Model_Widget_Products::css() . '</style>' : '')
+            . $html,
+            $vars
+        );
+    }
+
+    /** @var bool Whether the email being rendered has product blocks in it */
+    protected $_hasBlocks = false;
+
+    /**
+     * Today, for a dateline: {{ date.long }} is "Nov 7, 2026" and
+     * {{ date.hebrew }} is "Cheshvan 27 5787", both in the store's timezone.
+     *
+     * The Hebrew months are spelled the way this store's readers write
+     * them, not the way the calendar library does.
+     */
+    protected function _dates(): array
+    {
+        $timezone = (string) Mage::app()->getStore()->getConfig(Mage_Core_Model_Locale::XML_PATH_DEFAULT_TIMEZONE) ?: 'UTC';
+        $now      = new DateTime('now', new DateTimeZone($timezone));
+        $hebrew   = '';
+
+        if (class_exists('IntlDateFormatter')) {
+            $format = new IntlDateFormatter('en_US@calendar=hebrew', IntlDateFormatter::NONE, IntlDateFormatter::NONE,
+                $timezone, IntlDateFormatter::TRADITIONAL, 'MMMM d y');
+
+            $hebrew = strtr((string) $format->format($now), [
+                'Heshvan' => 'Cheshvan', 'Tevet' => 'Teves', 'Nisan' => 'Nissan', 'Iyyar' => 'Iyar',
+                'Tamuz' => 'Tammuz', 'Tishri' => 'Tishrei',
+            ]);
+        }
+
+        return ['long' => $now->format('M j, Y'), 'hebrew' => $hebrew, 'year' => $now->format('Y')];
     }
 
     /** @var int|null The store view the next render is for */
@@ -68,7 +117,8 @@ class YSRTech_EmailCampaigns_Model_Renderer
 
         return '<!DOCTYPE html><html><head><meta charset="utf-8" />'
             . '<meta name="viewport" content="width=device-width,initial-scale=1" />'
-            . '<style>a{color:' . $b['link_color'] . ';}@media only screen and (max-width:620px){.ec-col{width:100% !important;}}</style></head>'
+            . '<style>' . $b['font_import'] . 'a{color:' . $b['link_color'] . ';}@media only screen and (max-width:620px){.ec-col{width:100% !important;}}'
+            . ($this->_hasBlocks ? YSRTech_EmailCampaigns_Model_Widget_Products::css() : '') . '</style></head>'
             . '<body style="margin:0;padding:0;background-color:' . $b['page_bg'] . ';">'
             . $this->_preheader($template, $vars)
             . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:' . $b['page_bg'] . ';">'

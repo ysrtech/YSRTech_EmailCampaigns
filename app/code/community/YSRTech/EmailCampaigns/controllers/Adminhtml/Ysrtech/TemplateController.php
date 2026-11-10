@@ -99,6 +99,30 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_TemplateController
     }
 
     /**
+     * A product block as it would be sent right now, for the designer to
+     * show in place of the empty element it really is.
+     */
+    public function widgetAction()
+    {
+        $html = '';
+
+        try {
+            $options = json_decode((string) $this->getRequest()->getPost('options'), true);
+
+            if ($this->getRequest()->isPost() && $this->_validateFormKey() && is_array($options)) {
+                $html = Mage::getSingleton('ysrtech_emailcampaigns/widget_products')
+                    ->render(array_map('strval', $options), (int) $this->getRequest()->getPost('store_id') ?: null);
+            }
+        } catch (Throwable $e) {
+            Mage::logException($e);
+        }
+
+        $this->getResponse()
+            ->setHeader('Content-Type', 'application/json', true)
+            ->setBody(Mage::helper('core')->jsonEncode(['html' => $html]));
+    }
+
+    /**
      * Saved sections: list them, save one, or delete one.
      */
     public function sectionsAction()

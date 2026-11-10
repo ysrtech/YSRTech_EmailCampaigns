@@ -119,7 +119,13 @@ $template = $this->getEmailTemplate();
                 inlineCss: true
             }
         },
-        components: startingHtml
+        /*
+         * Loaded further down, once the product blocks and placeholders have
+         * been taught to the editor. An email parsed before that would have
+         * its product blocks read as ordinary empty boxes: nothing to show,
+         * no settings, and nothing to tell them apart from one.
+         */
+        components: ''
     });
 
     function inlinedHtml() {
@@ -157,6 +163,7 @@ $template = $this->getEmailTemplate();
         formKey: formKey,
         sectionsUrl: '<?php echo $this->escapeHtml($this->getSectionsUrl()) ?>',
         canvasCss: <?php echo Mage::helper('core')->jsonEncode($this->getCanvasCss()) ?>,
+        widgets: <?php echo Mage::helper('core')->jsonEncode($this->getWidgetConfig()) ?>,
         checksUrl: '<?php echo $this->escapeHtml($this->getChecksUrl()) ?>',
         sections: <?php echo Mage::helper('core')->jsonEncode($this->getSectionBlocks()) ?>,
         mergeTags: <?php echo Mage::helper('core')->jsonEncode($this->getMergeTags()) ?>,
@@ -182,6 +189,10 @@ $template = $this->getEmailTemplate();
             'checksNote'      => $this->__('These are for the template as last saved. Save Content first to check what is on screen.'),
         ]) ?>
     });
+
+    editor.setComponents(startingHtml);
+    // Loading the email is not a change to it
+    editor.UndoManager.clear();
 
     $('ec-designer-save-section').observe('click', function () { editor.runCommand('ec-save-section'); });
     $('ec-designer-sections').observe('click', function () { editor.runCommand('ec-manage-sections'); });

@@ -210,6 +210,153 @@ window.ysrtechDesignerExtras = function (editor, cfg) {
     });
 
     // ------------------------------------------------------------------
+    // Product blocks. In the email's HTML a block is one empty element with
+    // its options as data attributes; the server fills it from the catalog
+    // when the email is sent. Here it is drawn with the products it would
+    // show right now, and its options are edited in the settings panel.
+    if (cfg.widgets) {
+        var w = cfg.widgets;
+        var wt = w.t;
+        var optionNames = ['layout', 'source', 'category', 'skus', 'heading', 'intro', 'limit', 'columns', 'sort', 'min_products',
+            'show_view_all', 'view_all_url', 'view_all_label', 'show_price', 'show_brand', 'image_width', 'label', 'blurb', 'button'];
+        var yesNo = [{id: '1', name: wt.yes}, {id: '0', name: wt.no}];
+
+        var traitsFor = function (layout) {
+            var traits = [
+                {type: 'select', name: 'data-source', label: wt.source, options: w.sources},
+                {type: 'select', name: 'data-category', label: wt.categoryField, options: w.categories},
+                {type: 'text', name: 'data-skus', label: wt.skus, placeholder: 'ABC-1, ABC-2'}
+            ];
+
+            if (layout === 'feature') {
+                traits.push({type: 'text', name: 'data-label', label: wt.label},
+                    {type: 'text', name: 'data-blurb', label: wt.blurb},
+                    {type: 'text', name: 'data-button', label: wt.button},
+                    {type: 'select', name: 'data-show_price', label: wt.show_price, options: yesNo},
+                    {type: 'number', name: 'data-image_width', label: wt.image_width, min: 40, max: 300});
+            } else {
+                traits.push({type: 'text', name: 'data-heading', label: wt.heading},
+                    {type: 'text', name: 'data-intro', label: wt.intro},
+                    {type: 'number', name: 'data-limit', label: wt.limit, min: 1, max: 24},
+                    {type: 'number', name: 'data-columns', label: wt.columns, min: 1, max: 4},
+                    {type: 'select', name: 'data-sort', label: wt.sort, options: w.sorts},
+                    {type: 'number', name: 'data-min_products', label: wt.min_products, min: 0, max: 24},
+                    {type: 'select', name: 'data-show_view_all', label: wt.show_view_all, options: yesNo},
+                    {type: 'text', name: 'data-view_all_url', label: wt.view_all_url},
+                    {type: 'text', name: 'data-view_all_label', label: wt.view_all_label},
+                    {type: 'select', name: 'data-show_price', label: wt.show_price, options: yesNo},
+                    {type: 'select', name: 'data-show_brand', label: wt.show_brand, options: yesNo},
+                    {type: 'number', name: 'data-image_width', label: wt.image_width, min: 40, max: 600});
+            }
+
+            return traits;
+        };
+
+        editor.DomComponents.addType('ec-products', {
+            isComponent: function (el) {
+                return !!el.getAttribute && el.getAttribute('data-ec-widget') === 'products';
+            },
+            model: {
+                defaults: {
+                    tagName: 'div',
+                    name: wt.name,
+                    droppable: false,
+                    editable: false,
+                    traits: []
+                },
+                init: function () {
+                    this.set('traits', traitsFor(this.getAttributes()['data-layout'] || 'grid'));
+                    // Whatever was inside the element is not part of the
+                    // email: the server writes the products in when it sends
+                    this.components('');
+                    this.on('change:attributes', function () { this.trigger('ec:refresh'); });
+                },
+                // Saved as the empty element and nothing else
+                toHTML: function () {
+                    var attrs = this.getAttributes();
+                    var out = '<div data-ec-widget="products"';
+
+                    Object.keys(attrs).forEach(function (name) {
+                        var value = attrs[name];
+                        if (name.indexOf('data-') === 0 && name !== 'data-ec-widget' && value !== '' && value !== null && value !== undefined) {
+                            out += ' ' + name + '="' + String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '"';
+                        }
+                    });
+
+                    return out + '></div>';
+                }
+            },
+            view: {
+                init: function () {
+                    this.listenTo(this.model, 'ec:refresh', this.refresh);
+                },
+                onRender: function () {
+                    this.refresh();
+                },
+                refresh: function () {
+                    var view = this;
+                    var attrs = this.model.getAttributes();
+                    var options = {};
+
+                    optionNames.forEach(function (name) {
+                        var value = attrs['data-' + name];
+                        if (value !== undefined && value !== null && value !== '') { options[name] = String(value); }
+                    });
+
+                    clearTimeout(this._timer);
+                    this._timer = setTimeout(function () {
+                        var body = new FormData();
+                        body.append('form_key', cfg.formKey);
+                        body.append('store_id', w.storeId || '');
+                        body.append('options', JSON.stringify(options));
+                        var ticket = view._ticket = (view._ticket || 0) + 1;
+
+                        fetch(w.previewUrl, {method: 'POST', body: body, credentials: 'same-origin'})
+                            .then(function (r) { return r.json(); })
+                            .then(function (json) {
+                                // Only the latest answer is drawn
+                                if (ticket !== view._ticket) { return; }
+
+                                if (json.html) {
+                                    // The server's own markup for this block, built from the catalog
+                                    view.el.innerHTML = json.html;
+                                } else {
+                                    view.el.innerHTML = '';
+                                    var note = document.createElement('div');
+                                    note.style.cssText = 'padding:24px;margin:8px 40px;border:1px dashed #b5b5b5;color:#777;font:13px Arial,sans-serif;text-align:center';
+                                    note.appendChild(document.createTextNode(wt.empty));
+                                    view.el.appendChild(note);
+                                }
+
+                                // Links in the preview must not navigate the canvas
+                                Array.prototype.forEach.call(view.el.querySelectorAll('a'), function (a) {
+                                    a.addEventListener('click', function (e) { e.preventDefault(); });
+                                });
+                            })
+                            ['catch'](function () {});
+                    }, 350);
+                }
+            }
+        });
+
+        w.layouts.forEach(function (layout) {
+            var attributes = {'data-ec-widget': 'products'};
+
+            Object.keys(layout.defaults).forEach(function (name) {
+                var value = layout.defaults[name];
+                if (value !== '' && value !== null) { attributes['data-' + name] = String(value); }
+            });
+
+            blocks.add('ec-products-' + layout.id, {
+                label: layout.label,
+                category: wt.category,
+                attributes: {'class': 'gjs-fonts gjs-f-b' + (layout.id === 'feature' ? '1' : (layout.id === 'deals' ? '3' : '2')), title: layout.hint},
+                content: {type: 'ec-products', attributes: attributes}
+            });
+        });
+    }
+
+    // ------------------------------------------------------------------
     // Pre-send checks, on the saved template.
     editor.Commands.add('ec-checks', {
         run: function (ed) {

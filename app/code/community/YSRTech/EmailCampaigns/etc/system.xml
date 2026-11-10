@@ -280,6 +280,16 @@
                             <show_in_website>1</show_in_website>
                             <show_in_store>1</show_in_store>
                         </font>
+                        <heading_font translate="label comment">
+                            <label>Heading Font</label>
+                            <frontend_type>select</frontend_type>
+                            <source_model>ysrtech_emailcampaigns/system_config_source_brand_headingfont</source_model>
+                            <comment>For section headings and product names in the product blocks.</comment>
+                            <sort_order>62</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </heading_font>
                         <footer_links translate="label comment">
                             <label>Footer Links</label>
                             <frontend_type>textarea</frontend_type>

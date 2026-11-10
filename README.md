@@ -81,6 +81,7 @@ php <module>/dev/tests/import.php         # a provider migration against a stand
 php <module>/dev/tests/providers.php      # the six provider clients, on fixtures
 php <module>/dev/tests/automation.php     # flow validation, versions, queueing
 php <module>/dev/tests/sending.php        # the send job's pacing, with a transport that sends nothing
+php <module>/dev/tests/widgets.php        # product blocks against the catalog (run dev/staging/seed-catalog.php first)
 ```
 
 ## License

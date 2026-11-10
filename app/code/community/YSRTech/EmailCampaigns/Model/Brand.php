@@ -23,6 +23,8 @@ class YSRTech_EmailCampaigns_Model_Brand
         'link_color'        => '#1f4e79',
         'muted_color'       => '#888888',
         'font'              => 'Arial,Helvetica,sans-serif',
+        // Empty means "the same as the text"
+        'heading_font'      => '',
         'logo_width'        => 180,
     ];
 
@@ -55,7 +57,7 @@ class YSRTech_EmailCampaigns_Model_Brand
 
             if ($field === 'logo_width') {
                 $brand[$field] = max(40, min(self::WIDTH - 64, (int) $value ?: self::DEFAULTS[$field]));
-            } elseif ($field === 'font') {
+            } elseif ($field === 'font' || $field === 'heading_font') {
                 // Only ever one of the listed stacks: this goes into a style
                 // attribute in every email
                 $fonts = Mage::getModel('ysrtech_emailcampaigns/system_config_source_brand_font')->toOptionArray();
@@ -64,6 +66,22 @@ class YSRTech_EmailCampaigns_Model_Brand
                 $brand[$field] = strtolower($value);
             }
         }
+
+        if ($brand['heading_font'] === '') {
+            $brand['heading_font'] = $brand['font'];
+        }
+
+        // The @import for whichever of the two is a web font, if either is
+        $families = [];
+
+        foreach (YSRTech_EmailCampaigns_Model_System_Config_Source_Brand_Font::webFonts() as $family => $query) {
+            if (strpos($brand['font'] . $brand['heading_font'], "'" . $family . "'") !== false) {
+                $families[] = 'family=' . $query;
+            }
+        }
+
+        $brand['font_import'] = $families
+            ? "@import url('https://fonts.googleapis.com/css2?" . implode('&', $families) . "&display=swap');" : '';
 
         $logo = trim((string) Mage::getStoreConfig('ysrtech_emailcampaigns/brand/logo', $store));
 
