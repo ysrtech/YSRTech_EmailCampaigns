@@ -22,101 +22,386 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
         $this->renderLayout();
     }
 
+    /**
+     * A new campaign is a draft from the first moment, so that everything
+     * typed into it is being saved from the first keystroke.
+     */
     public function newAction()
     {
-        $this->_forward('edit');
+        $campaign = Mage::getModel('ysrtech_emailcampaigns/campaign')->setData([
+            'name'     => $this->__('Untitled campaign'),
+            'status'   => YSRTech_EmailCampaigns_Model_Campaign::STATUS_DRAFT,
+            'store_id' => 0,
+        ])->save();
+
+        $this->_redirect('*/*/edit', ['id' => $campaign->getId()]);
     }
 
     public function editAction()
     {
-        $id = (int) $this->getRequest()->getParam('id');
-        /** @var YSRTech_EmailCampaigns_Model_Campaign $model */
-        $model = Mage::getModel('ysrtech_emailcampaigns/campaign');
-        if ($id) {
-            $model->load($id);
-            if (!$model->getId()) {
-                $this->_getSession()->addError($this->__('Campaign no longer exists.'));
-                $this->_redirect('*/*/index');
-                return;
-            }
-        }
-        Mage::register('ysrtech_emailcampaigns_campaign', $model);
+        $campaign = $this->_campaign();
 
-        $this->_title($model->getId() ? $model->getName() : $this->__('New Campaign'));
+        if (!$campaign) {
+            $this->_getSession()->addError($this->__('Campaign no longer exists.'));
+            $this->_redirect('*/*/index');
+
+            return;
+        }
+
+        Mage::register('ysrtech_emailcampaigns_campaign', $campaign);
+
+        $this->_title($this->__('Email Campaigns'))->_title($campaign->getName());
         $this->loadLayout();
         $this->_setActiveMenu('ysrtech_emailcampaigns/campaign');
-        $this->getLayout()->getBlock('head')->setCanLoadExtJs(true);
-        $this->_addContent($this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_campaign_edit'));
+        $this->_addContent($this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_campaign_editor'));
         $this->renderLayout();
     }
 
     /**
-     * How many people the segments currently chosen on the form would reach.
-     *
-     * Answered from the same query that fills the queue, so the number shown
-     * before sending is the number that gets sent.
+     * Save whichever fields the editor sends, and answer with the campaign
+     * as it now stands: summaries, recipient count, checks, what is missing.
      */
-    public function recipientCountAction()
+    public function autosaveAction()
     {
-        $this->_validateFormKey();
+        $this->_json(function ($campaign) {
+            $post = $this->getRequest()->getPost();
+            $h    = Mage::helper('ysrtech_emailcampaigns');
 
-        $response = ['count' => 0, 'formatted' => '0'];
+            foreach (['name' => 255, 'subject' => 500, 'preheader' => 255, 'from_name' => 255] as $field => $max) {
+                if (array_key_exists($field, $post)) {
+                    $campaign->setData($field, mb_substr(trim((string) $post[$field]), 0, $max));
+                }
+            }
 
-        try {
-            $included = array_map('intval', (array) $this->getRequest()->getParam('included_segment_ids', []));
-            $excluded = array_map('intval', (array) $this->getRequest()->getParam('excluded_segment_ids', []));
+            if (array_key_exists('name', $post) && $campaign->getName() === '') {
+                $campaign->setName($this->__('Untitled campaign'));
+            }
 
-            // Same rule the save applies, so the estimate matches the campaign
-            // that would be saved rather than what was clicked
-            $included = array_values(array_diff($included, $excluded));
+            if (array_key_exists('from_local', $post)) {
+                $local = strtolower(trim((string) $post['from_local']));
 
-            // Rebuilds the chosen segments first, so the answer describes the
-            // list as it is now rather than as it was at the last nightly run
-            $count = YSRTech_EmailCampaigns_Model_Campaign::countRecipients($included, $excluded);
+                // The part before the @ and nothing else: the domain is not
+                // this page's to choose
+                if ($local !== '' && !preg_match('/^[a-z0-9][a-z0-9._+-]{0,63}$/', $local)) {
+                    Mage::throwException($h->__('The sender address can only have letters, digits, dots, dashes and underscores before the @.'));
+                }
 
-            $response = ['count' => $count, 'formatted' => number_format($count)];
-        } catch (Exception $e) {
-            $response['error'] = $e->getMessage();
-        }
+                $campaign->setFromLocal($local ?: null);
+            }
 
-        $this->getResponse()
-            ->setHeader('Content-Type', 'application/json', true)
-            ->setBody(Mage::helper('core')->jsonEncode($response));
+            if (array_key_exists('reply_to', $post)) {
+                $reply = trim((string) $post['reply_to']);
+
+                if ($reply !== '' && !filter_var($reply, FILTER_VALIDATE_EMAIL)) {
+                    Mage::throwException($h->__('"%s" is not an email address.', $reply));
+                }
+
+                $campaign->setReplyTo($reply ?: null);
+            }
+
+            if (array_key_exists('store_id', $post)) {
+                $campaign->setStoreId((int) $post['store_id']);
+            }
+
+            if (array_key_exists('segments', $post)) {
+                /*
+                 * Sent as one field, so that clearing every box still sends
+                 * something: a multiselect with nothing chosen posts nothing,
+                 * and nothing would read as "leave them as they were".
+                 */
+                $segments = json_decode((string) $post['segments'], true) ?: [];
+
+                $campaign->setData('included_segment_ids', array_map('intval', (array) ($segments['included'] ?? [])));
+                $campaign->setData('excluded_segment_ids', array_map('intval', (array) ($segments['excluded'] ?? [])));
+            }
+
+            $campaign->save();
+        });
     }
 
     /**
-     * The campaign as a recipient would see it.
+     * Where the campaign's email comes from: a copy of a template, a
+     * starter, or nothing again.
+     *
+     * A copy, always. From here on the campaign edits its own email, and
+     * the template it started from is not changed by anything done to it.
+     */
+    public function contentAction()
+    {
+        $this->_json(function ($campaign) {
+            $request = $this->getRequest();
+            $source  = (string) $request->getPost('source');
+            $h       = Mage::helper('ysrtech_emailcampaigns');
+
+            /** @var YSRTech_EmailCampaigns_Model_Template_Starter $starter */
+            $starter = Mage::getSingleton('ysrtech_emailcampaigns/template_starter');
+
+            if ($source === 'clear') {
+                $campaign->addData(['html' => null, 'template_id' => null]);
+            } elseif ($source === 'template') {
+                $template = Mage::getModel('ysrtech_emailcampaigns/template')->load((int) $request->getPost('template_id'));
+
+                if (!$template->getId() || trim((string) $template->getHtml()) === '') {
+                    Mage::throwException($h->__('That template has nothing in it.'));
+                }
+
+                $campaign->addData(['html' => (string) $template->getHtml(), 'template_id' => (int) $template->getId()]);
+                $this->_fillFrom($campaign, (string) $template->getSubject(), (string) $template->getPreheader());
+            } elseif ($source === 'starter') {
+                $code     = (string) $request->getPost('starter');
+                $starters = $starter->getStarters();
+
+                if (!isset($starters[$code])) {
+                    Mage::throwException($h->__('Choose a starting point.'));
+                }
+
+                $campaign->addData(['html' => $starter->build($code, $campaign->getStoreId() ?: null), 'template_id' => null]);
+                $this->_fillFrom($campaign, $starters[$code]['subject'], $starters[$code]['preheader']);
+            } else {
+                Mage::throwException($h->__('Choose a starting point.'));
+            }
+
+            $campaign->save();
+        });
+    }
+
+    /**
+     * A starting point brings its subject and preview text, but only into
+     * fields that are still empty: what somebody typed is theirs.
+     */
+    protected function _fillFrom($campaign, string $subject, string $preheader): void
+    {
+        if (trim((string) $campaign->getSubject()) === '' && $subject !== '') {
+            $campaign->setSubject($subject);
+        }
+
+        if (trim((string) $campaign->getPreheader()) === '' && $preheader !== '') {
+            $campaign->setPreheader($preheader);
+        }
+    }
+
+    /**
+     * The designer, on this campaign's own copy of the email.
+     */
+    public function designerAction()
+    {
+        $campaign = $this->_campaign();
+
+        if (!$campaign || !$this->_editable($campaign)) {
+            $this->_getSession()->addError($this->__('This campaign can no longer be edited.'));
+            $this->_redirect('*/*/index');
+
+            return;
+        }
+
+        // A campaign still pointing at a template gets its copy now: the
+        // designer must never be editing the shared one from here.
+        if (!$campaign->hasOwnContent()) {
+            $template = $campaign->getContentTemplate();
+
+            $campaign->setData('html', $template ? (string) $template->getHtml()
+                : Mage::getSingleton('ysrtech_emailcampaigns/template_starter')->build('plain'))->save();
+        }
+
+        Mage::register('ysrtech_emailcampaigns_campaign', $campaign);
+        Mage::register('ysrtech_emailcampaigns_template', $campaign->getContentTemplate());
+
+        $this->_title($this->__('Email Campaigns'))->_title($this->__('Designer'))->_title($campaign->getName());
+        $this->loadLayout();
+        $this->_setActiveMenu('ysrtech_emailcampaigns/campaign');
+        $this->_addContent($this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_campaign_designer'));
+        $this->renderLayout();
+    }
+
+    /**
+     * What the designer posts when Save Content is pressed.
+     */
+    public function saveDesignAction()
+    {
+        $campaign = $this->_campaign();
+
+        if (!$campaign || !$this->getRequest()->isPost() || !$this->_editable($campaign)) {
+            $this->_redirect('*/*/index');
+
+            return;
+        }
+
+        try {
+            $html = (string) $this->getRequest()->getPost('html');
+
+            if (trim($html) === '') {
+                Mage::throwException($this->__('There is nothing in the design to save.'));
+            }
+
+            $campaign->setData('html', $html);
+
+            // What it sends has changed, so sending it is a decision to
+            // make again
+            if ($campaign->getStatus() === YSRTech_EmailCampaigns_Model_Campaign::STATUS_SCHEDULED) {
+                $campaign->setStatus(YSRTech_EmailCampaigns_Model_Campaign::STATUS_DRAFT)->setScheduledAt(null);
+                $this->_getSession()->addNotice($this->__('The campaign was scheduled; it is a draft again until you schedule it.'));
+            }
+
+            $campaign->save();
+            $this->_getSession()->addSuccess($this->__('Design saved.'));
+        } catch (Exception $e) {
+            Mage::logException($e);
+            $this->_getSession()->addError($e->getMessage());
+        }
+
+        $this->_redirect('*/*/designer', ['id' => $campaign->getId()]);
+    }
+
+    /**
+     * The pre-send checks for this campaign, for the designer's Check button.
+     */
+    public function checksAction()
+    {
+        $campaign = $this->_campaign();
+        $template = $campaign ? $campaign->getContentTemplate() : null;
+
+        $this->getResponse()
+            ->setHeader('Content-Type', 'application/json', true)
+            ->setBody(Mage::helper('core')->jsonEncode([
+                'checks' => $template
+                    ? Mage::getSingleton('ysrtech_emailcampaigns/template_checks')
+                        ->run($template, (string) $campaign->getSubject(), $campaign->getStoreId())
+                    : [],
+            ]));
+    }
+
+    /**
+     * Send now, or at a date and time.
+     *
+     * Either way this only marks the campaign scheduled. The cron job that
+     * launches scheduled campaigns queues the recipients in the background,
+     * so "now" means within a minute or two, and nothing heavy happens in
+     * this request.
+     */
+    public function sendAction()
+    {
+        $this->_json(function ($campaign) {
+            $C      = YSRTech_EmailCampaigns_Model_Campaign::class;
+            $editor = Mage::getSingleton('ysrtech_emailcampaigns/campaign_editor');
+            $state  = $editor->state($campaign);
+
+            if ($state['problems']) {
+                Mage::throwException(reset($state['problems']));
+            }
+
+            if ($this->getRequest()->getPost('mode') === 'scheduled') {
+                $at = $editor->toUtc((string) $this->getRequest()->getPost('date'), (string) $this->getRequest()->getPost('time'));
+
+                if ($at <= Varien_Date::now()) {
+                    Mage::throwException($this->__('That time has already passed.'));
+                }
+            } else {
+                $at = Varien_Date::now();
+            }
+
+            $campaign->setStatus($C::STATUS_SCHEDULED)->setScheduledAt($at)->save();
+        }, false);
+    }
+
+    /**
+     * Take a scheduled campaign back to a draft, while it has not started.
+     */
+    public function unscheduleAction()
+    {
+        $this->_json(function ($campaign) {
+            $C = YSRTech_EmailCampaigns_Model_Campaign::class;
+
+            if ($campaign->getStatus() !== $C::STATUS_SCHEDULED) {
+                Mage::throwException($this->__('This campaign has already started.'));
+            }
+
+            $campaign->setStatus($C::STATUS_DRAFT)->setScheduledAt(null)->save();
+        }, false);
+    }
+
+    /**
+     * A copy of the campaign as a new draft: same audience, sender, subject
+     * and email, no schedule and no history.
+     */
+    public function duplicateAction()
+    {
+        $campaign = $this->_campaign();
+
+        if (!$campaign || !$this->getRequest()->isPost()) {
+            $this->_redirect('*/*/index');
+
+            return;
+        }
+
+        $copy = Mage::getModel('ysrtech_emailcampaigns/campaign')->setData([
+            'name'        => $this->__('%s (copy)', $campaign->getName()),
+            'status'      => YSRTech_EmailCampaigns_Model_Campaign::STATUS_DRAFT,
+            'subject'     => $campaign->getSubject(),
+            'preheader'   => $campaign->getPreheader(),
+            'from_name'   => $campaign->getFromName(),
+            'from_local'  => $campaign->getFromLocal(),
+            'reply_to'    => $campaign->getReplyTo(),
+            'template_id' => $campaign->getTemplateId(),
+            'html'        => $campaign->getData('html'),
+            'store_id'    => $campaign->getStoreId(),
+            'included_segment_ids' => $campaign->getIncludedSegmentIds(),
+            'excluded_segment_ids' => $campaign->getExcludedSegmentIds(),
+        ])->save();
+
+        $this->_getSession()->addSuccess($this->__('Duplicated as a draft.'));
+        $this->_redirect('*/*/edit', ['id' => $copy->getId()]);
+    }
+
+    public function deleteAction()
+    {
+        $campaign = $this->_campaign();
+        $C        = YSRTech_EmailCampaigns_Model_Campaign::class;
+
+        if ($campaign && $this->getRequest()->isPost()) {
+            if (in_array($campaign->getStatus(), [$C::STATUS_SCHEDULED, $C::STATUS_SENDING, $C::STATUS_PAUSED], true)) {
+                $this->_getSession()->addError($this->__('Cancel the campaign before deleting it.'));
+                $this->_redirect('*/*/edit', ['id' => $campaign->getId()]);
+
+                return;
+            }
+
+            try {
+                $campaign->delete();
+                $this->_getSession()->addSuccess($this->__('Campaign deleted.'));
+            } catch (Exception $e) {
+                Mage::logException($e);
+                $this->_getSession()->addError($e->getMessage());
+            }
+        }
+
+        $this->_redirect('*/*/index');
+    }
+
+    /**
+     * The email in a tab of its own, as a recipient would see it.
      */
     public function previewAction()
     {
-        /** @var YSRTech_EmailCampaigns_Model_Campaign $campaign */
-        $campaign = Mage::getModel('ysrtech_emailcampaigns/campaign')->load((int) $this->getRequest()->getParam('id'));
+        $campaign = $this->_campaign();
 
-        if (!$campaign->getId()) {
+        if (!$campaign) {
             $this->_getSession()->addError($this->__('Campaign no longer exists.'));
             $this->_redirect('*/*/index');
             return;
         }
 
         try {
-            /** @var YSRTech_EmailCampaigns_Model_Template $template */
-            $template = Mage::getModel('ysrtech_emailcampaigns/template')->load($campaign->getTemplateId());
+            $template = $campaign->getContentTemplate();
 
-            if (!$template->getId()) {
-                Mage::throwException($this->__('This campaign has no template to preview.'));
+            if ($template === null) {
+                Mage::throwException($this->__('This campaign has no content to preview yet.'));
             }
-
-            $helper = Mage::helper('ysrtech_emailcampaigns');
 
             $this->_renderPreviewPage(
                 Mage::getSingleton('ysrtech_emailcampaigns/sender')
                     ->renderPreview($template, $campaign->getStoreId()),
                 (string) $campaign->getSubject(),
-                sprintf(
-                    '%s <%s>',
-                    $helper->getConfig('sending/from_name') ?: Mage::app()->getStore()->getFrontendName(),
-                    $helper->getConfig('sending/from_email') ?: $this->__('(no from address configured)')
-                )
+                sprintf('%s <%s>', $campaign->getFromNameOrDefault(), $campaign->getFromEmail() ?: $this->__('(no from address configured)'))
             );
         } catch (Exception $e) {
             $this->_getSession()->addError($e->getMessage());
@@ -125,169 +410,85 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
     }
 
     /**
-     * Send one copy of the campaign to a named address.
-     *
-     * Nothing is queued and nothing is marked sent - this is a way to read the
-     * email in a real client before it goes to thousands of people.
+     * Send one copy to an address, exactly as recipients will get it.
      */
     public function sendTestAction()
     {
-        $this->_validateFormKey();
+        $this->_json(function ($campaign) {
+            Mage::getSingleton('ysrtech_emailcampaigns/sender')
+                ->sendTest($campaign, (string) $this->getRequest()->getPost('test_email'));
+        }, false, false);
+    }
 
-        $id = (int) $this->getRequest()->getParam('id');
+    /**
+     * @return YSRTech_EmailCampaigns_Model_Campaign|null
+     */
+    protected function _campaign()
+    {
+        $campaign = Mage::getModel('ysrtech_emailcampaigns/campaign')->load((int) $this->getRequest()->getParam('id'));
+
+        return $campaign->getId() ? $campaign : null;
+    }
+
+    protected function _editable($campaign): bool
+    {
+        return in_array($campaign->getStatus(), [
+            YSRTech_EmailCampaigns_Model_Campaign::STATUS_DRAFT,
+            YSRTech_EmailCampaigns_Model_Campaign::STATUS_SCHEDULED,
+        ], true);
+    }
+
+    /**
+     * Run a change to a campaign and answer with its new state as JSON.
+     *
+     * @param callable $work       Given the campaign; throws to refuse
+     * @param bool     $draftOnly  Refuse unless the campaign is still editable
+     * @param bool     $needsEdit  False for actions allowed on any campaign
+     */
+    protected function _json(callable $work, bool $draftOnly = true, bool $needsEdit = true): void
+    {
+        $response = ['ok' => false];
 
         try {
-            /** @var YSRTech_EmailCampaigns_Model_Campaign $campaign */
-            $campaign = Mage::getModel('ysrtech_emailcampaigns/campaign')->load($id);
+            if (!$this->getRequest()->isPost() || !$this->_validateFormKey()) {
+                Mage::throwException($this->__('This page has been open a while. Reload it and try again.'));
+            }
 
-            if (!$campaign->getId()) {
+            $campaign = $this->_campaign();
+
+            if (!$campaign) {
                 Mage::throwException($this->__('Campaign no longer exists.'));
             }
 
-            $email = (string) $this->getRequest()->getParam('test_email');
-
-            Mage::getSingleton('ysrtech_emailcampaigns/sender')->sendTest($campaign, $email);
-
-            $this->_getSession()->addSuccess(
-                $this->__('Test sent to %s. Nothing was queued and the campaign is unchanged.', $email)
-            );
-        } catch (Exception $e) {
-            $this->_getSession()->addError($this->__('Test send failed: %s', $e->getMessage()));
-            Mage::logException($e);
-        }
-
-        $this->_redirect('*/*/edit', ['id' => $id]);
-    }
-
-    public function saveAction()
-    {
-        if (!$this->getRequest()->isPost()) {
-            $this->_redirect('*/*/index');
-            return;
-        }
-        $data = $this->getRequest()->getPost();
-        /** @var YSRTech_EmailCampaigns_Model_Campaign $model */
-        $model = Mage::getModel('ysrtech_emailcampaigns/campaign');
-        $id = (int) $this->getRequest()->getParam('id');
-        if ($id) {
-            $model->load($id);
-        }
-
-        try {
-            $model->addData([
-                'name'          => (string) $data['name'],
-                'subject'       => (string) ($data['subject'] ?? ''),
-                /*
-                 * Null, not 0, when nothing is picked: both columns carry a
-                 * foreign key, and there is no template or segment numbered 0
-                 * for the row to point at.
-                 */
-                'template_id'   => !empty($data['template_id']) ? (int) $data['template_id'] : null,
-                /*
-                 * Multiselects post an array, and post nothing at all when the
-                 * user clears every option - so the key's absence has to read
-                 * as "none selected", not "leave as it was", or an exclusion
-                 * could never be removed.
-                 */
-                'included_segment_ids' => array_map('intval', (array) ($data['included_segment_ids'] ?? [])),
-                'excluded_segment_ids' => array_map('intval', (array) ($data['excluded_segment_ids'] ?? [])),
-                'store_id'      => (int) ($data['store_id'] ?? 0),
-                /*
-                 * formatDate, because Varien_Date::toDbTimestamp() does not
-                 * exist - calling it fataled the moment anyone set a date. The
-                 * field posts DATETIME_INTERNAL_FORMAT already; this normalises
-                 * it in the same frame the scheduler reads, which is
-                 * Varien_Date::now(), i.e. server local time.
-                 */
-                'scheduled_at'  => !empty($data['scheduled_at'])
-                    ? Varien_Date::formatDate($data['scheduled_at'], true) : null,
-            ]);
+            if ($needsEdit && !$this->_editable($campaign)) {
+                Mage::throwException($this->__('This campaign has started and can no longer be changed.'));
+            }
 
             /*
-             * Before anything is scheduled, the message is checked as it
-             * would be sent. A problem that makes it unlawful or unreadable -
-             * no subject, no postal address, a body Gmail will cut off before
-             * the unsubscribe link - keeps it a draft. Everything else is
-             * said and left to the person sending.
+             * Editing a scheduled campaign is allowed, but anything that
+             * changes what or whom it sends puts the decision to send back
+             * in front of a person: it returns to draft.
              */
-            $blocked = [];
-
-            if (($data['action'] ?? '') === 'schedule') {
-                $template = Mage::getModel('ysrtech_emailcampaigns/template')->load((int) $model->getTemplateId());
-
-                if (!$template->getId()) {
-                    $blocked[] = $this->__('Choose a template.');
-                } else {
-                    $C = YSRTech_EmailCampaigns_Model_Template_Checks::class;
-
-                    foreach (Mage::getSingleton('ysrtech_emailcampaigns/template_checks')
-                                 ->run($template, (string) $model->getSubject(), $model->getStoreId()) as $check) {
-                        if ($check['level'] === $C::BAD) {
-                            $blocked[] = $check['label'] . ': ' . $check['message'];
-                        } elseif ($check['level'] === $C::WARN) {
-                            $this->_getSession()->addNotice($check['label'] . ': ' . $check['message']);
-                        }
-                    }
-                }
+            if ($draftOnly && $campaign->getStatus() === YSRTech_EmailCampaigns_Model_Campaign::STATUS_SCHEDULED) {
+                $campaign->setStatus(YSRTech_EmailCampaigns_Model_Campaign::STATUS_DRAFT)->setScheduledAt(null);
+                $response['unscheduled'] = true;
             }
 
-            if ($blocked) {
-                $model->setStatus($model->getStatus() ?: YSRTech_EmailCampaigns_Model_Campaign::STATUS_DRAFT)->save();
+            $work($campaign);
 
-                $this->_getSession()->addError($this->__('Saved as a draft, not scheduled. These have to be fixed first:'));
-
-                foreach ($blocked as $message) {
-                    $this->_getSession()->addError($message);
-                }
-
-                $this->_redirect('*/*/edit', ['id' => $model->getId()]);
-
-                return;
-            }
-
-            // Schedule action: queue it up.
-            if (($data['action'] ?? '') === 'schedule') {
-                $model->setStatus(YSRTech_EmailCampaigns_Model_Campaign::STATUS_SCHEDULED);
-            } elseif ($model->getStatus() === null || $model->getStatus() === '') {
-                $model->setStatus(YSRTech_EmailCampaigns_Model_Campaign::STATUS_DRAFT);
-            }
-
-            $model->save();
-
-            if ($model->getStatus() === YSRTech_EmailCampaigns_Model_Campaign::STATUS_SCHEDULED) {
-                /*
-                 * Scheduled, and nothing more in this request. Building the
-                 * queue means recalculating the segments and writing a row
-                 * per recipient - tens of thousands of inserts for a real
-                 * list - and it used to happen right here for a campaign due
-                 * now, with the admin's browser waiting on it and the web
-                 * server doing the work. The cron job that launches scheduled
-                 * campaigns does exactly the same thing a minute later, in
-                 * the background, whether the time is now or next week.
-                 */
-                $due = !$model->getScheduledAt() || $model->getScheduledAt() <= Varien_Date::now();
-
-                if ($due) {
-                    if (!$model->getScheduledAt()) {
-                        $model->setScheduledAt(Varien_Date::now())->save();
-                    }
-
-                    $this->_getSession()->addSuccess(
-                        $this->__('Campaign scheduled. Its recipients are queued in the background within a minute or two, and sending starts straight after.')
-                    );
-                } else {
-                    $this->_getSession()->addSuccess(
-                        $this->__('Campaign scheduled for %s.', $model->getScheduledAt())
-                    );
-                }
-            } else {
-                $this->_getSession()->addSuccess($this->__('Campaign saved.'));
-            }
-        } catch (Exception $e) {
-            $this->_getSession()->addError($e->getMessage());
+            $response['ok']    = true;
+            $response['state'] = Mage::getSingleton('ysrtech_emailcampaigns/campaign_editor')
+                ->state(Mage::getModel('ysrtech_emailcampaigns/campaign')->load($campaign->getId()));
+        } catch (Mage_Core_Exception $e) {
+            $response['message'] = $e->getMessage();
+        } catch (Throwable $e) {
             Mage::logException($e);
+            $response['message'] = $e->getMessage();
         }
-        $this->_redirect('*/*/index');
+
+        $this->getResponse()
+            ->setHeader('Content-Type', 'application/json', true)
+            ->setBody(Mage::helper('core')->jsonEncode($response));
     }
 
     public function pauseAction()

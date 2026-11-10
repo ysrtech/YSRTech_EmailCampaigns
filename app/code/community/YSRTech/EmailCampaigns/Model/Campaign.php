@@ -74,6 +74,93 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
      *
      * @return $this
      */
+    protected function _beforeSave()
+    {
+        parent::_beforeSave();
+        $this->setUpdatedAt(Varien_Date::now());
+
+        return $this;
+    }
+
+    /**
+     * Whether the campaign has its own copy of the email.
+     */
+    public function hasOwnContent(): bool
+    {
+        return trim((string) $this->getData('html')) !== '';
+    }
+
+    /**
+     * What this campaign sends, as a template the renderer understands.
+     *
+     * Its own copy when it has one. Otherwise the template it points at,
+     * which is how every campaign worked before campaigns could carry their
+     * content - those keep sending exactly what they did.
+     *
+     * @return YSRTech_EmailCampaigns_Model_Template|null Null when there is nothing to send
+     */
+    public function getContentTemplate()
+    {
+        if ($this->hasOwnContent()) {
+            // Never saved: a stand-in so that one renderer serves both
+            return Mage::getModel('ysrtech_emailcampaigns/template')->setData([
+                'name'      => (string) $this->getName(),
+                'subject'   => (string) $this->getSubject(),
+                'preheader' => (string) $this->getPreheader(),
+                'html'      => (string) $this->getData('html'),
+            ]);
+        }
+
+        $template = Mage::getModel('ysrtech_emailcampaigns/template')->load((int) $this->getTemplateId());
+
+        if (!$template->getId()) {
+            return null;
+        }
+
+        // The campaign's own preview text wins over the template's
+        if (trim((string) $this->getPreheader()) !== '') {
+            $template->setPreheader((string) $this->getPreheader());
+        }
+
+        return $template;
+    }
+
+    /**
+     * The domain every campaign is sent from: the configured default
+     * sender's, or the Mailgun sending domain when no default is set.
+     */
+    public static function senderDomain(): string
+    {
+        $helper  = Mage::helper('ysrtech_emailcampaigns');
+        $default = (string) $helper->getConfig('sending/from_email');
+        $at      = strrpos($default, '@');
+
+        return strtolower(trim($at !== false ? substr($default, $at + 1) : (string) $helper->getConfig('sending/mailgun_domain')));
+    }
+
+    /**
+     * The sender address: this campaign's local part at the fixed domain, or
+     * the configured default when the campaign has none.
+     */
+    public function getFromEmail(): string
+    {
+        $local  = trim((string) $this->getFromLocal());
+        $domain = self::senderDomain();
+
+        if ($local !== '' && $domain !== '') {
+            return $local . '@' . $domain;
+        }
+
+        return (string) Mage::helper('ysrtech_emailcampaigns')->getConfig('sending/from_email');
+    }
+
+    public function getFromNameOrDefault(): string
+    {
+        return trim((string) $this->getFromName())
+            ?: (string) (Mage::helper('ysrtech_emailcampaigns')->getConfig('sending/from_name')
+                ?: Mage::app()->getStore($this->getStoreId())->getFrontendName());
+    }
+
     protected function _afterSave()
     {
         parent::_afterSave();

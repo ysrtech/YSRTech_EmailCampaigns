@@ -1,0 +1,13 @@
+<?php
+/**
+ * @var YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Editor $this
+ */
+?>
+<link rel="stylesheet" type="text/css" href="<?php echo $this->escapeHtml($this->getSkinUrl('ysrtech/emailcampaigns/campaign-editor.css')) ?>" />
+<div id="ecc-root" class="ecc"></div>
+<script type="text/javascript">
+//<![CDATA[
+window.ysrtechCampaignEditorConfig = <?php echo $this->getConfigJson() ?>;
+//]]>
+</script>
+<script type="text/javascript" src="<?php echo $this->escapeHtml($this->getSkinUrl('ysrtech/emailcampaigns/campaign-editor.js')) ?>"></script>

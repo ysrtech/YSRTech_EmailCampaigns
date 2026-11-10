@@ -388,6 +388,9 @@ $config = Mage::getModel('core/config');
 $config->saveConfig('system/smtp/disable', 1);
 // An invented address, so the footer and the pre-send checks have one to find
 $config->saveConfig('general/store_information/name', 'Staging Store');
+// A default sender, so a campaign has an address to be from. Not a credential.
+$config->saveConfig('ysrtech_emailcampaigns/sending/from_name', 'Staging Store');
+$config->saveConfig('ysrtech_emailcampaigns/sending/from_email', 'news@mail.example.invalid');
 $config->saveConfig('general/store_information/address', "1 Example Street\nSpringfield, EX 00000");
 $config->saveConfig('ysrtech_emailcampaigns/sending/transport', 'smtp');
 // So an admin URL can be opened directly, by a person or a browser script

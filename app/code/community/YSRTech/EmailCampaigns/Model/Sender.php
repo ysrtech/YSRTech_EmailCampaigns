@@ -212,6 +212,17 @@ class YSRTech_EmailCampaigns_Model_Sender
                 }
             } finally {
                 try {
+                    // Whatever happened, the next campaign and every
+                    // triggered message start from the default sender
+                    $this->_applyEnvelope(
+                        Mage::getSingleton('ysrtech_emailcampaigns/transport_factory')->get(),
+                        null
+                    );
+                } catch (Throwable $e) {
+                    Mage::logException($e);
+                }
+
+                try {
                     // On the failure path too: a campaign whose every row
                     // ended up failed is finished, and nothing else would
                     // ever say so.
@@ -396,10 +407,17 @@ class YSRTech_EmailCampaigns_Model_Sender
         }
 
         /** @var YSRTech_EmailCampaigns_Model_Template $template */
-        $template  = Mage::getModel('ysrtech_emailcampaigns/template')->load($campaign->getTemplateId());
+        $template  = $campaign->getContentTemplate();
+
+        if ($template === null) {
+            Mage::throwException('This campaign has no content to send.');
+        }
+
         $renderer  = Mage::getSingleton('ysrtech_emailcampaigns/renderer');
         $transport = Mage::getSingleton('ysrtech_emailcampaigns/transport_factory')->get();
         $now       = Varien_Date::now();
+
+        $this->_applyEnvelope($transport, $campaign);
 
         $names     = $this->_loadRecipientNames($items);
         $storeName = $this->storeName($campaign->getStoreId());
@@ -502,6 +520,35 @@ class YSRTech_EmailCampaigns_Model_Sender
          * marking everything, or its recipients would be retried forever.
          */
         $markSent(array_map(static fn ($r) => ['email' => $r['email']], $recipients));
+
+        $this->_applyEnvelope($transport, null);
+    }
+
+    /**
+     * Give the transport this campaign's sender and reply address, or take
+     * them away again with null so the next send starts from the defaults.
+     *
+     * @param YSRTech_EmailCampaigns_Model_Transport_Interface $transport
+     * @param YSRTech_EmailCampaigns_Model_Campaign|null       $campaign
+     */
+    protected function _applyEnvelope($transport, $campaign): void
+    {
+        if (!method_exists($transport, 'setEnvelope')) {
+            return;
+        }
+
+        if ($campaign === null) {
+            $transport->setEnvelope(null, null);
+
+            return;
+        }
+
+        $email = $campaign->getFromEmail();
+
+        $transport->setEnvelope(
+            $email !== '' ? sprintf('%s <%s>', $campaign->getFromNameOrDefault(), $email) : null,
+            trim((string) $campaign->getReplyTo()) ?: null
+        );
     }
 
     /**
@@ -642,10 +689,10 @@ class YSRTech_EmailCampaigns_Model_Sender
         }
 
         /** @var YSRTech_EmailCampaigns_Model_Template $template */
-        $template = Mage::getModel('ysrtech_emailcampaigns/template')->load($campaign->getTemplateId());
+        $template = $campaign->getContentTemplate();
 
-        if (!$template->getId()) {
-            Mage::throwException(Mage::helper('ysrtech_emailcampaigns')->__('This campaign has no template to send.'));
+        if ($template === null) {
+            Mage::throwException(Mage::helper('ysrtech_emailcampaigns')->__('This campaign has no content to send yet.'));
         }
 
         $renderer  = Mage::getSingleton('ysrtech_emailcampaigns/renderer');
@@ -676,6 +723,17 @@ class YSRTech_EmailCampaigns_Model_Sender
 
         $subject = Mage::helper('ysrtech_emailcampaigns')->__('[TEST] %s', (string) $campaign->getSubject());
 
+        $this->_applyEnvelope($transport, $campaign);
+
+        try {
+            $this->_sendTestBatch($transport, $email, $vars, $html, $subject);
+        } finally {
+            $this->_applyEnvelope($transport, null);
+        }
+    }
+
+    private function _sendTestBatch($transport, string $email, array $vars, string $html, string $subject): void
+    {
         $transport->sendBatch(
             [[
                 'email' => $email,

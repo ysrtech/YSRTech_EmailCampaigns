@@ -15,10 +15,16 @@ class YSRTech_EmailCampaigns_Model_Transport_Noop implements YSRTech_EmailCampai
 {
     public static $calls = 0;
     public static $recipients = 0;
+    public static $envelope = [];
+    public static $sentWith = [];
+    public static $lastHtml = '';
+    public function setEnvelope(?string $from, ?string $replyTo = null): void { self::$envelope = [$from, $replyTo]; }
     public function supportsRecipientVariables(): bool { return true; }
     public function send(string $to, string $subject, string $html, array $vars = [], ?int $timestamp = null) { return null; }
     public function sendBatch(array $recipients, string $subject, string $html, ?int $timestamp = null, ?callable $onChunkSent = null)
     {
+        self::$sentWith[] = self::$envelope;
+        self::$lastHtml = $html;
         self::$calls++;
         self::$recipients += count($recipients);
         return null;
@@ -94,6 +100,30 @@ while ($count('pending') > 0) {
 
 $ok('the campaign is marked sent when its queue is empty',
     Mage::getModel('ysrtech_emailcampaigns/campaign')->load($id)->getStatus() === 'sent' && $count('sent') === $total);
+
+// ---- a campaign with its own email and its own sender
+$own = Mage::getModel('ysrtech_emailcampaigns/campaign')->setData([
+    'name' => '[test] own content', 'subject' => 'Own', 'template_id' => $templateId, 'store_id' => 0,
+    'status' => 'scheduled', 'scheduled_at' => Varien_Date::now(), 'included_segment_ids' => [$segmentId],
+    'html' => '<p>ONLY-IN-THE-CAMPAIGN {{ customer.firstname|there }}</p>', 'preheader' => 'Own preview text',
+    'from_name' => 'Deals Desk', 'from_local' => 'deals', 'reply_to' => 'help@example.invalid',
+]);
+$own->save();
+$ownId = (int) $own->getId();
+$set('ysrtech_emailcampaigns/sending/from_email', 'news@mail.example.invalid');
+$set('ysrtech_emailcampaigns/sending/max_per_minute', 500);
+YSRTech_EmailCampaigns_Model_Transport_Noop::$sentWith = [];
+$sender->launchScheduledCampaigns();
+$sender->processQueue();
+$ok('a campaign sends its own copy, not the template it started from',
+    strpos(YSRTech_EmailCampaigns_Model_Transport_Noop::$lastHtml, 'ONLY-IN-THE-CAMPAIGN') !== false
+    && strpos(YSRTech_EmailCampaigns_Model_Transport_Noop::$lastHtml, 'Own preview text') !== false);
+$ok('from its own sender at the configured domain, with its reply address',
+    YSRTech_EmailCampaigns_Model_Transport_Noop::$sentWith[0] === ['Deals Desk <deals@mail.example.invalid>', 'help@example.invalid']);
+$ok('and the sender is put back to the default afterwards',
+    YSRTech_EmailCampaigns_Model_Transport_Noop::$envelope === [null, null]);
+$db->delete($t('ysrtech_emailcampaigns/queue'), ['campaign_id = ?' => $ownId]);
+$db->delete($t('ysrtech_emailcampaigns/campaign'), ['campaign_id = ?' => $ownId]);
 
 $db->delete($t('ysrtech_emailcampaigns/queue'), ['campaign_id = ?' => $id]);
 $db->delete($t('ysrtech_emailcampaigns/campaign'), ['campaign_id = ?' => $id]);

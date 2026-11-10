@@ -156,6 +156,10 @@ class YSRTech_EmailCampaigns_Model_Transport_Mailgun
          */
         $params['v:tracking_token'] = '%recipient.tracking_token%';
 
+        if (!empty($this->_envelope['reply_to'])) {
+            $params['h:Reply-To'] = $this->_envelope['reply_to'];
+        }
+
         if ($timestamp !== null) {
             $params['o:deliverytime'] = gmdate('D, d M Y H:i:s', $timestamp) . ' +0000';
         }
@@ -202,8 +206,30 @@ class YSRTech_EmailCampaigns_Model_Transport_Mailgun
     /**
      * @return string
      */
+    /** @var array{from?:string, reply_to?:string} Set for one send, then cleared */
+    private $_envelope = [];
+
+    /**
+     * Sender and reply address for the sends that follow, until cleared.
+     *
+     * A campaign can have its own; the configured default is used for
+     * anything left empty. Not part of the transport interface: the caller
+     * checks for it, and a transport without it sends from its default.
+     *
+     * @param string|null $from    "Name <address>"
+     * @param string|null $replyTo
+     */
+    public function setEnvelope(?string $from, ?string $replyTo = null): void
+    {
+        $this->_envelope = array_filter(['from' => $from, 'reply_to' => $replyTo]);
+    }
+
     private function _getFrom(): string
     {
+        if (!empty($this->_envelope['from'])) {
+            return $this->_envelope['from'];
+        }
+
         $helper = Mage::helper('ysrtech_emailcampaigns');
 
         return sprintf(

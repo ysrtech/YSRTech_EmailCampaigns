@@ -1,0 +1,602 @@
+/*
+ * The campaign editor: five steps and a live preview.
+ *
+ * One function, no globals beyond the config it is handed, and nothing from
+ * prototype.js. The page is a rendering of `state`, which comes from the
+ * server; every change is posted, and what comes back replaces it. Whether
+ * a step is done, how many people will get the email and what is wrong with
+ * it are the server's answers, never worked out here.
+ */
+(function () {
+    'use strict';
+
+    var cfg = window.ysrtechCampaignEditorConfig;
+    var root = document.getElementById('ecc-root');
+
+    if (!cfg || !root) {
+        return;
+    }
+
+    var t = cfg.t;
+    var state = cfg.state;
+    var open = firstUnfinished();
+    var device = 'desktop';
+    var when = {mode: null, date: '', time: '09:30'};
+    var saveTimer = null;
+    var pending = {};
+    var savedText = t.saved;
+    var savedError = false;
+    var renderLater = false;
+
+    if (state.status === 'scheduled' && state.when.scheduled_at) {
+        when = {mode: 'scheduled', date: state.when.scheduled_at.date, time: state.when.scheduled_at.time};
+    }
+
+    if (!when.date) {
+        var tomorrow = new Date(Date.now() + 864e5);
+        when.date = tomorrow.getFullYear() + '-' + pad(tomorrow.getMonth() + 1) + '-' + pad(tomorrow.getDate());
+    }
+
+    // ------------------------------------------------------------ helpers
+
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+
+    function esc(value) {
+        return String(value === null || value === undefined ? '' : value)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function fmt(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+    function tr(key) {
+        var text = t[key] || key;
+        for (var i = 1; i < arguments.length; i++) {
+            text = text.replace('%' + i, arguments[i]);
+        }
+        return text;
+    }
+
+    function $(selector, scope) { return (scope || root).querySelector(selector); }
+
+    function $$(selector, scope) { return Array.prototype.slice.call((scope || root).querySelectorAll(selector)); }
+
+    // What a merge tag looks like to a reader, for the inbox row
+    function sample(text) {
+        return String(text || '')
+            .replace(/\{\{\s*customer\.firstname[^}]*\}\}/g, 'Chaya')
+            .replace(/\{\{\s*customer\.lastname[^}]*\}\}/g, 'Rosenberg')
+            .replace(/\{\{[^}]+\}\}/g, '');
+    }
+
+    function firstUnfinished() {
+        var s = cfg.state;
+        if (!s.editable) { return null; }
+        if (s.problems.aud) { return 'aud'; }
+        if (s.problems.subj) { return 'subj'; }
+        if (s.problems.content) { return 'content'; }
+        return s.problems.from ? 'from' : 'when';
+    }
+
+    function typing() {
+        var el = document.activeElement;
+        return !!el && root.contains(el) && /^(INPUT|TEXTAREA)$/.test(el.tagName)
+            && el.type !== 'checkbox' && el.type !== 'radio';
+    }
+
+    function post(url, fields) {
+        var body = new FormData();
+        body.append('form_key', cfg.formKey);
+        Object.keys(fields || {}).forEach(function (key) { body.append(key, fields[key]); });
+
+        return fetch(url, {method: 'POST', body: body, credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}})
+            .then(function (response) { return response.json(); })
+            .then(function (json) {
+                if (!json || !json.ok) {
+                    throw new Error((json && json.message) || t.failed);
+                }
+                return json;
+            });
+    }
+
+    function toast(message) {
+        var el = document.createElement('div');
+        el.className = 'ecc-toast';
+        el.textContent = message;
+        root.appendChild(el);
+        setTimeout(function () { if (el.parentNode) { el.parentNode.removeChild(el); } }, 3800);
+    }
+
+    /*
+     * A small dialog. `body` is markup built here from escaped values;
+     * `onConfirm` may return a promise, and a rejection is shown in the
+     * dialog instead of closing it.
+     */
+    function modal(options) {
+        var back = document.createElement('div');
+        back.className = 'ecc-modal-back';
+        back.innerHTML = '<div class="ecc-modal" role="dialog" aria-modal="true"><h4>' + esc(options.title) + '</h4>'
+            + (options.desc ? '<div class="desc">' + esc(options.desc) + '</div>' : '')
+            + (options.body || '')
+            + '<div class="err" hidden></div><div class="acts">'
+            + '<button type="button" class="btn" data-x>' + esc(options.cancel || 'Cancel') + '</button>'
+            + '<button type="button" class="btn ' + (options.danger ? 'btn-danger' : 'btn-primary') + '" data-ok>' + esc(options.label) + '</button>'
+            + '</div></div>';
+        root.appendChild(back);
+
+        function close() { if (back.parentNode) { back.parentNode.removeChild(back); } }
+
+        back.addEventListener('click', function (e) { if (e.target === back) { close(); } });
+        $('[data-x]', back).onclick = close;
+        $('[data-ok]', back).onclick = function () {
+            var button = this;
+            var result = options.onConfirm(back);
+
+            if (result && typeof result.then === 'function') {
+                button.disabled = true;
+                result.then(close, function (error) {
+                    button.disabled = false;
+                    var err = $('.err', back);
+                    err.hidden = false;
+                    err.textContent = error.message;
+                });
+            } else if (result !== false) {
+                close();
+            }
+        };
+
+        var first = $('input', back);
+        if (first) { first.focus(); first.select(); }
+    }
+
+    // ------------------------------------------------------------- saving
+
+    function paintSaved() {
+        var el = $('#ecc-saved');
+        if (el) {
+            el.textContent = savedText;
+            el.className = 'saved' + (savedError ? ' err' : '');
+        }
+    }
+
+    /*
+     * Saves merge, so a quick edit to a second field never drops the first.
+     * After a save the page is redrawn only if nobody is typing: a redraw
+     * mid-word would take the caret away. Otherwise it waits for focus to
+     * leave the field.
+     */
+    function save(fields, immediately) {
+        if (!state.editable) { return Promise.resolve(); }
+
+        Object.keys(fields).forEach(function (key) { pending[key] = fields[key]; });
+        clearTimeout(saveTimer);
+        savedText = t.saving; savedError = false; paintSaved();
+
+        function run() {
+            var body = pending;
+            pending = {};
+
+            return post(cfg.urls.autosave, body).then(function (json) {
+                applyState(json, immediately);
+            }, function (error) {
+                savedText = t.notSaved + ': ' + error.message; savedError = true; paintSaved();
+                toast(error.message);
+            });
+        }
+
+        if (immediately) { return run(); }
+
+        return new Promise(function (resolve) { saveTimer = setTimeout(function () { run().then(resolve); }, 600); });
+    }
+
+    function applyState(json, forceRender) {
+        state = json.state;
+        savedText = t.saved; savedError = false;
+
+        if (json.unscheduled) {
+            when.mode = null;
+            toast(t.unscheduled);
+        }
+
+        if (!forceRender && typing()) {
+            renderLater = true;
+            paintSaved();
+            paintLive();
+        } else {
+            renderLater = false;
+            render();
+        }
+    }
+
+    root.addEventListener('focusout', function () {
+        setTimeout(function () { if (renderLater && !typing()) { renderLater = false; render(); } }, 0);
+    });
+
+    // ------------------------------------------------------------ sections
+
+    function audienceSummary() {
+        if (!state.to.included.length) { return ''; }
+        var n = state.to.recipients;
+        return state.to.names.join(', ') + (n === null ? '' : ' · ' + (n === 1 ? t.recipient : tr('recipients', fmt(n))));
+    }
+
+    function segmentRows(kind) {
+        var chosen = state.to[kind];
+        var other = state.to[kind === 'included' ? 'excluded' : 'included'];
+
+        return cfg.segments.map(function (segment) {
+            var on = chosen.indexOf(segment.id) >= 0;
+            var taken = other.indexOf(segment.id) >= 0;
+            return '<label class="aud ' + (on ? 'on' : '') + '"><input type="checkbox" data-seg="' + kind + '" value="' + segment.id + '"'
+                + (on ? ' checked' : '') + (taken || !state.editable ? ' disabled' : '') + '>'
+                + '<span class="nm">' + esc(segment.name) + '</span><span class="n">' + fmt(segment.count) + '</span></label>';
+        }).join('');
+    }
+
+    function sections() {
+        var p = state.problems;
+        var ro = state.editable ? '' : ' disabled';
+        var content = state.content;
+        var notOk = content.checks.filter(function (c) { return c.level !== 'ok'; }).length;
+
+        return [
+            {
+                k: 'aud', title: t.to, summary: audienceSummary(), done: !p.aud, problem: state.to.included.length ? p.aud : null,
+                body: function () {
+                    if (!cfg.segments.length) {
+                        return '<p class="faint">' + esc(t.noSegments) + ' <a href="' + esc(cfg.urls.segments) + '">' + esc(t.manageSegments) + '</a></p>';
+                    }
+                    return '<div class="aud-label">' + esc(t.include) + '</div><div class="aud-list">' + segmentRows('included') + '</div>'
+                        + '<div class="aud-label">' + esc(t.exclude) + '</div><div class="aud-list">' + segmentRows('excluded') + '</div>'
+                        + (state.to.recipients !== null ? '<div class="aud-total"><b>' + esc(state.to.recipients === 1 ? t.recipient : tr('recipients', fmt(state.to.recipients)))
+                            + '</b> <span class="faint">' + esc(t.recipientsNote) + '</span></div>' : '')
+                        + '<p class="help" style="margin-top:8px"><a href="' + esc(cfg.urls.segments) + '">' + esc(t.manageSegments) + '</a></p>';
+                }
+            },
+            {
+                k: 'from', title: t.from, summary: state.from.email ? state.from.display_name + ' <' + state.from.email + '>' : '', done: !p.from, problem: p.from,
+                body: function () {
+                    return '<div class="row2"><div class="field"><label for="ecc-fn">' + esc(t.senderName) + '</label>'
+                        + '<input type="text" id="ecc-fn" maxlength="120" value="' + esc(state.from.name) + '" placeholder="' + esc(state.from.display_name) + '"' + ro + '></div>'
+                        + '<div class="field"><label for="ecc-fl">' + esc(t.senderAddress) + '</label><div class="addr">'
+                        + '<input type="text" id="ecc-fl" maxlength="64" value="' + esc(state.from.local) + '" placeholder="' + esc((state.from.email || '').split('@')[0]) + '"' + ro + '>'
+                        + '<span>@' + esc(state.from.domain) + '</span></div></div></div>'
+                        + '<p class="help" style="margin:-6px 0 14px">' + esc(tr('domainLocked', state.from.domain)) + '</p>'
+                        + '<div class="field"><label for="ecc-rt">' + esc(t.replyTo) + ' <span class="faint">(' + esc(t.optional) + ')</span></label>'
+                        + '<input type="email" id="ecc-rt" value="' + esc(state.from.reply_to) + '" placeholder="' + esc(t.replyHint) + '"' + ro + '></div>';
+                }
+            },
+            {
+                k: 'subj', title: t.subject, summary: state.subject ? state.subject + (state.preheader ? ' — ' + state.preheader : '') : '',
+                done: !p.subj, warn: state.subject.length > 60, problem: null,
+                body: function () {
+                    return '<div class="field"><label for="ecc-sj">' + esc(t.subjectLine) + '</label>'
+                        + '<input type="text" id="ecc-sj" maxlength="255" value="' + esc(state.subject) + '" placeholder="' + esc(t.subjectHint) + '"' + ro + '>'
+                        + '<div class="counter' + (state.subject.length > 60 ? ' over' : '') + '" id="ecc-sjc">' + esc(tr('recommended', state.subject.length)) + '</div></div>'
+                        + '<div class="field"><label for="ecc-pr">' + esc(t.previewText) + '</label>'
+                        + '<input type="text" id="ecc-pr" maxlength="255" value="' + esc(state.preheader) + '" placeholder="' + esc(t.previewHint) + '"' + ro + '></div>';
+                }
+            },
+            {
+                k: 'content', title: t.content,
+                summary: content.has ? t.yourDesign + ' · ' + content.size_kb + ' KB' + (notOk ? ' · ' + notOk + ' !' : '') : '',
+                done: content.has && !p.content, problem: content.has ? p.content : null,
+                body: function () {
+                    if (content.has) {
+                        return '<div class="ct-design"><div class="ct-thumb" id="ecc-thumb"><iframe id="ecc-thumbf" sandbox="" tabindex="-1" title="' + esc(t.preview) + '"></iframe>'
+                            + (state.editable ? '<span class="ct-hover">' + esc(t.editDesign) + '</span>' : '') + '</div>'
+                            + '<div class="ct-side"><b>' + esc(t.yourDesign) + '</b><small>' + esc(tr('sizeNote', content.size_kb)) + '</small>'
+                            + '<ul class="checks">' + content.checks.map(function (c) {
+                                return '<li class="' + esc(c.level) + '">' + esc(c.level === 'ok' ? c.label : c.label + ': ' + c.message) + '</li>';
+                            }).join('') + '</ul>'
+                            + (content.own ? '' : '<p class="help" style="margin-top:8px">' + esc(t.usesTemplate) + '</p>')
+                            + (state.editable ? '<div class="ct-acts"><button type="button" class="btn btn-primary btn-sm" id="ecc-edit">' + esc(t.editDesign) + '</button>'
+                                + '<button type="button" class="btn btn-sm" id="ecc-over">' + esc(t.startOver) + '</button></div>' : '')
+                            + '</div></div>';
+                    }
+
+                    return '<div class="ct-start"><button type="button" class="ct-opt" data-starter="plain"' + ro + '><b>' + esc(t.fromScratch) + '</b><small>' + esc(t.fromScratchNote) + '</small></button></div>'
+                        + '<div class="ins-label">' + esc(t.fromStarter) + '</div><div class="ct-start">'
+                        + cfg.starters.filter(function (s) { return s.code !== 'plain'; }).map(function (s) {
+                            return '<button type="button" class="ct-opt" data-starter="' + esc(s.code) + '"' + ro + '><b>' + esc(s.name) + '</b><small>' + esc(s.description) + '</small></button>';
+                        }).join('') + '</div>'
+                        + (cfg.templates.length ? '<div class="ins-label">' + esc(t.fromTemplate) + '</div><div class="ct-start">'
+                            + cfg.templates.slice(0, 18).map(function (tpl) {
+                                return '<button type="button" class="ct-opt" data-tpl="' + tpl.id + '"' + ro + '><b>' + esc(tpl.name) + '</b></button>';
+                            }).join('') + '</div>' : '')
+                        + '<p class="help" style="margin-top:12px">' + esc(t.copyNote) + '</p>';
+                }
+            },
+            {
+                k: 'when', title: t.when,
+                summary: state.status === 'scheduled' && state.when.scheduled_at ? tr('scheduledFor', state.when.scheduled_at.label)
+                    : (when.mode === 'now' ? t.now : (when.mode === 'scheduled' && when.date ? when.date + ' ' + when.time : '')),
+                done: state.status === 'scheduled' || when.mode === 'now' || (when.mode === 'scheduled' && !!when.date && !!when.time), problem: null,
+                body: function () {
+                    return '<div class="radio-cards">' + [['now', t.now, t.nowNote], ['scheduled', t.later, t.laterNote]].map(function (o) {
+                        return '<label class="radio-card ' + (when.mode === o[0] ? 'on' : '') + '" data-when="' + o[0] + '"><span class="dot"></span><div><b>' + esc(o[1]) + '</b><span>' + esc(o[2]) + '</span></div></label>';
+                    }).join('') + '</div>'
+                        + (when.mode === 'scheduled' ? '<div class="row2" style="margin-top:14px"><div class="field"><label for="ecc-wd">' + esc(t.date) + '</label>'
+                            + '<input type="date" id="ecc-wd" value="' + esc(when.date) + '"' + ro + '></div><div class="field"><label for="ecc-wt">' + esc(t.time) + '</label>'
+                            + '<input type="time" id="ecc-wt" value="' + esc(when.time) + '"' + ro + '></div></div>'
+                            + '<p class="help" style="margin-top:6px">' + esc(tr('storeTime', state.when.timezone)) + '</p>' : '');
+                }
+            }
+        ];
+    }
+
+    // ------------------------------------------------------------- render
+
+    function isReady() {
+        return !Object.keys(state.problems).length && !!when.mode;
+    }
+
+    function topButtons() {
+        var html = '';
+
+        if (state.status === 'scheduled') {
+            html += '<button type="button" class="btn" id="ecc-unsch">' + esc(t.backToDraft) + '</button>';
+        }
+        if (state.status === 'sending') {
+            html += '<button type="button" class="btn" data-go="pause">' + esc(t.pause) + '</button>';
+        }
+        if (state.status === 'paused') {
+            html += '<button type="button" class="btn" data-go="resume">' + esc(t.resume) + '</button>';
+        }
+        if (['scheduled', 'sending', 'paused'].indexOf(state.status) >= 0) {
+            html += '<button type="button" class="btn btn-danger" data-go="cancel" data-confirm="' + esc(t.confirmCancel) + '">' + esc(t.cancel) + '</button>';
+        }
+
+        html += '<button type="button" class="btn" data-go="duplicate">' + esc(t.duplicate) + '</button>';
+
+        if (['draft', 'sent', 'cancelled', 'failed'].indexOf(state.status) >= 0) {
+            html += '<button type="button" class="btn btn-danger" data-go="delete" data-confirm="' + esc(t.confirmDelete) + '">' + esc(t.delete) + '</button>';
+        }
+        if (state.content.has) {
+            html += '<button type="button" class="btn" id="ecc-test">' + esc(t.sendTest) + '</button>';
+        }
+        if (state.editable) {
+            var problems = Object.keys(state.problems);
+            var why = problems.length ? state.problems[problems[0]] : (when.mode ? '' : t.chooseTime);
+            html += '<button type="button" class="btn btn-primary" id="ecc-go"' + (isReady() ? '' : ' disabled') + ' title="' + esc(why) + '">'
+                + esc(state.status === 'scheduled' ? t.updateSchedule : (when.mode === 'now' ? t.sendNow : t.schedule)) + '</button>';
+        }
+
+        return html;
+    }
+
+    function render() {
+        var list = sections();
+        var doneCount = list.filter(function (s) { return s.done && !s.problem; }).length;
+
+        root.innerHTML = '<a class="back" href="' + esc(cfg.urls.back) + '">← ' + esc(t.back) + '</a>'
+            + '<div class="top"><input type="text" class="title" id="ecc-name" maxlength="255" value="' + esc(state.name) + '"' + (state.editable ? '' : ' disabled') + '>'
+            + '<span class="chip ' + esc(state.status) + '">' + esc(t['status_' + state.status] || state.status) + '</span>'
+            + '<span class="saved" id="ecc-saved"></span><span class="spacer"></span>' + topButtons() + '</div>'
+            + (state.editable ? '' : '<div class="banner">' + esc(t.readOnly) + ' <a href="' + esc(cfg.urls.dashboard) + '">' + esc(t.viewResults) + '</a></div>')
+            + '<div class="builder"><div>'
+            + '<div class="ready"><b>' + esc(isReady() ? t.ready : tr('ofReady', doneCount, list.length)) + '</b><div class="bars">'
+            + list.map(function (s) { return '<span class="' + (s.done && !s.problem ? 'on' : '') + '"></span>'; }).join('') + '</div></div>'
+            + list.map(function (s) {
+                var cls = s.problem || s.warn ? 'warn' : (s.done ? 'done' : '');
+                return '<div class="sec ' + (open === s.k ? 'open ' : '') + cls + '" data-k="' + s.k + '"><div class="sec-head">'
+                    + '<span class="sec-st">' + (s.problem || s.warn ? '!' : (s.done ? '✓' : '')) + '</span><div class="mid"><div class="t">' + esc(s.title) + '</div>'
+                    + '<div class="s ' + (s.summary ? '' : 'unset') + '" data-sum="' + s.k + '">' + esc(s.summary || t.notSet) + '</div>'
+                    + (s.problem ? '<div class="s problem">' + esc(s.problem) + '</div>' : '') + '</div>'
+                    + '<button type="button" class="btn btn-sm">' + esc(open === s.k ? t.done : (s.done ? t.edit : t.add)) + '</button></div>'
+                    + '<div class="sec-body">' + (open === s.k ? s.body() : '') + '</div></div>';
+            }).join('')
+            + (state.content.checks.length ? '<div class="precheck"><div class="head"><span>' + esc(t.checks) + '</span><span class="badge">'
+                + esc(tr('passing', state.content.checks.filter(function (c) { return c.level === 'ok'; }).length, state.content.checks.length)) + '</span></div>'
+                + '<ul class="checks">' + state.content.checks.map(function (c) {
+                    return '<li class="' + esc(c.level) + '"><span><b>' + esc(c.label) + '</b> — ' + esc(c.message) + '</span></li>';
+                }).join('') + '</ul></div>' : '')
+            + '</div><aside class="preview-pane"><div class="pp-head"><span>' + esc(t.preview) + '</span><div class="seg">'
+            + '<button type="button" data-dev="desktop" class="' + (device === 'desktop' ? 'on' : '') + '">' + esc(t.desktop) + '</button>'
+            + '<button type="button" data-dev="mobile" class="' + (device === 'mobile' ? 'on' : '') + '">' + esc(t.mobile) + '</button></div></div>'
+            + '<div class="inbox-mock"><div class="cap">' + esc(t.inbox) + '</div><div class="im-row"><span class="dot"></span>'
+            + '<span class="fr" id="ecc-im-from"></span><span class="sj"><b id="ecc-im-subj"></b> <span id="ecc-im-pre"></span></span><span class="tm">09:30</span></div></div>'
+            + '<div class="pp-body"><div class="pp-fit" id="ecc-fit"><iframe class="pp-frame ' + device + '" id="ecc-frame" sandbox="" title="' + esc(t.preview) + '"></iframe></div></div></aside></div>';
+
+        paintSaved();
+        paintLive();
+        paintFrames();
+        bind();
+    }
+
+    // The inbox row, from what is in the fields right now
+    function paintLive() {
+        var fn = $('#ecc-fn'), sj = $('#ecc-sj'), pr = $('#ecc-pr');
+        var from = (fn && fn.value.trim()) || state.from.display_name || state.from.email;
+        var subject = sj ? sj.value : state.subject;
+        var pre = pr ? pr.value : state.preheader;
+
+        $('#ecc-im-from').textContent = from;
+        $('#ecc-im-subj').textContent = sample(subject) || t.yourSubject;
+        $('#ecc-im-pre').textContent = '— ' + (sample(pre) || t.previewHere);
+    }
+
+    /*
+     * The desktop preview is the email at the width a desktop mail client
+     * gives it, scaled down to fit the pane - not the email squeezed into
+     * the pane, which would show a layout no recipient ever sees.
+     */
+    var DESKTOP_WIDTH = 700;
+    var FRAME_HEIGHT = 900;
+
+    function fitFrame() {
+        var fit = $('#ecc-fit'), frame = $('#ecc-frame');
+        if (!fit || !frame) { return; }
+
+        var room = fit.parentNode.clientWidth - 24;
+        var width = device === 'mobile' ? 375 : DESKTOP_WIDTH;
+        var scale = Math.min(1, room / width);
+
+        frame.style.width = width + 'px';
+        frame.style.height = FRAME_HEIGHT + 'px';
+        frame.style.transform = 'scale(' + scale + ')';
+        fit.style.width = Math.round(width * scale) + 'px';
+        fit.style.height = Math.round(FRAME_HEIGHT * scale) + 'px';
+    }
+
+    window.addEventListener('resize', fitFrame);
+
+    function paintFrames() {
+        fitFrame();
+        var empty = '<html><body style="font-family:-apple-system,Segoe UI,sans-serif;display:grid;place-items:center;height:90vh;color:#a1a1aa;margin:0;background:#f4f4f5">'
+            + esc(t.designFirst) + '</body></html>';
+        $('#ecc-frame').srcdoc = state.content.html || empty;
+
+        var thumb = $('#ecc-thumbf');
+        if (thumb) { thumb.srcdoc = state.content.html || empty; }
+    }
+
+    function readSegments() {
+        var chosen = {included: [], excluded: []};
+        $$('[data-seg]').forEach(function (box) { if (box.checked) { chosen[box.getAttribute('data-seg')].push(parseInt(box.value, 10)); } });
+        return JSON.stringify(chosen);
+    }
+
+    function content(fields) {
+        return post(cfg.urls.content, fields).then(function (json) { applyState(json, true); }, function (error) { toast(error.message); });
+    }
+
+    function bind() {
+        $$('.sec-head').forEach(function (head) {
+            head.onclick = function () {
+                var k = head.parentNode.getAttribute('data-k');
+                open = open === k ? null : k;
+                render();
+            };
+        });
+
+        $$('[data-dev]').forEach(function (button) {
+            button.onclick = function () { device = button.getAttribute('data-dev'); render(); };
+        });
+
+        $$('[data-go]').forEach(function (button) {
+            button.onclick = function () {
+                var go = function () {
+                    var form = document.createElement('form');
+                    form.method = 'post';
+                    form.action = cfg.urls[button.getAttribute('data-go')];
+                    var key = document.createElement('input');
+                    key.type = 'hidden'; key.name = 'form_key'; key.value = cfg.formKey;
+                    form.appendChild(key);
+                    document.body.appendChild(form);
+                    form.submit();
+                };
+                var question = button.getAttribute('data-confirm');
+                if (question) {
+                    modal({title: button.textContent, desc: question, label: button.textContent, danger: true, onConfirm: go});
+                } else {
+                    go();
+                }
+            };
+        });
+
+        var test = $('#ecc-test');
+        if (test) {
+            test.onclick = function () {
+                modal({
+                    title: t.sendTest, label: t.sendTest,
+                    body: '<div class="field"><label for="ecc-testto">' + esc(t.testTo) + '</label><input type="email" id="ecc-testto" value="' + esc(cfg.adminEmail) + '"></div>',
+                    onConfirm: function (dialog) {
+                        var to = $('#ecc-testto', dialog).value.trim();
+                        return post(cfg.urls.test, {test_email: to}).then(function () { toast(tr('testSent', to)); });
+                    }
+                });
+            };
+        }
+
+        if (!state.editable) { return; }
+
+        $('#ecc-name').oninput = function () { save({name: this.value}); };
+
+        $$('[data-seg]').forEach(function (box) {
+            box.onchange = function () { save({segments: readSegments()}, true); };
+        });
+
+        var fn = $('#ecc-fn'), fl = $('#ecc-fl'), rt = $('#ecc-rt'), sj = $('#ecc-sj'), pr = $('#ecc-pr');
+        if (fn) { fn.oninput = function () { paintLive(); save({from_name: fn.value}); }; }
+        if (fl) { fl.oninput = function () { save({from_local: fl.value}); }; }
+        if (rt) { rt.onchange = function () { save({reply_to: rt.value}); }; }
+        if (sj) {
+            sj.oninput = function () {
+                var counter = $('#ecc-sjc');
+                counter.textContent = tr('recommended', sj.value.length);
+                counter.className = 'counter' + (sj.value.length > 60 ? ' over' : '');
+                paintLive();
+                save({subject: sj.value});
+            };
+        }
+        if (pr) { pr.oninput = function () { paintLive(); save({preheader: pr.value}); }; }
+
+        $$('[data-starter]').forEach(function (button) {
+            button.onclick = function () { button.disabled = true; content({source: 'starter', starter: button.getAttribute('data-starter')}); };
+        });
+        $$('[data-tpl]').forEach(function (button) {
+            button.onclick = function () { button.disabled = true; content({source: 'template', template_id: button.getAttribute('data-tpl')}); };
+        });
+
+        var designer = function () { window.location.href = cfg.urls.designer; };
+        var thumb = $('#ecc-thumb'), edit = $('#ecc-edit'), over = $('#ecc-over');
+        if (thumb) { thumb.onclick = designer; }
+        if (edit) { edit.onclick = designer; }
+        if (over) {
+            over.onclick = function () {
+                modal({title: t.startOver, desc: t.startOverConfirm, label: t.startOver, danger: true,
+                    onConfirm: function () { return content({source: 'clear'}); }});
+            };
+        }
+
+        $$('[data-when]').forEach(function (card) {
+            card.onclick = function () { when.mode = card.getAttribute('data-when'); render(); };
+        });
+        var wd = $('#ecc-wd'), wt = $('#ecc-wt');
+        if (wd) { wd.onchange = function () { when.date = wd.value; }; }
+        if (wt) { wt.onchange = function () { when.time = wt.value; }; }
+
+        var unschedule = $('#ecc-unsch');
+        if (unschedule) {
+            unschedule.onclick = function () {
+                post(cfg.urls.unschedule, {}).then(function (json) { when.mode = null; applyState(json, true); }, function (error) { toast(error.message); });
+            };
+        }
+
+        var go = $('#ecc-go');
+        if (go) {
+            go.onclick = function () {
+                if (!when.mode) { open = 'when'; render(); return; }
+
+                var now = when.mode === 'now';
+                var n = state.to.recipients === null ? '' : fmt(state.to.recipients);
+
+                modal({
+                    title: now ? t.sendNow : t.schedule,
+                    desc: now ? tr('confirmNow', n) : tr('confirmLater', when.date, when.time, state.when.timezone),
+                    body: '<p class="faint">' + esc(state.subject) + '</p>',
+                    label: now ? t.sendNow : t.schedule,
+                    onConfirm: function () {
+                        return post(cfg.urls.send, now ? {mode: 'now'} : {mode: 'scheduled', date: when.date, time: when.time})
+                            .then(function (json) {
+                                state = json.state;
+                                open = null;
+                                render();
+                                toast(now ? t.started : t.scheduled);
+                            });
+                    }
+                });
+            };
+        }
+    }
+
+    // Leaving with a save still waiting would lose it
+    window.addEventListener('beforeunload', function (e) {
+        if (Object.keys(pending).length) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+
+    render();
+}());
