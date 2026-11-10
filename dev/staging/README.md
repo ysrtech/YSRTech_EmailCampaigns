@@ -42,6 +42,31 @@ smoke test, drop a class implementing
 `ysrtech_emailcampaigns/sending/transport` at it; the `local` pool overrides
 `community` without touching this repo).
 
+## Realistic volume
+
+The install seeds two customers. For data that looks like a store:
+
+```
+cd ../openmage-core && php ../YSRTech_EmailCampaigns/dev/staging/seed-volume.php
+```
+
+About ten seconds for 24,000 subscribers, 9,600 customers with orders, 1,600
+suppressions and 150,000 sent messages with opens, clicks, bounces and
+complaints over two months. Every address is under `example.invalid`. It also
+turns the store's own mail off and turns the admin URL secret key off, so a
+page can be opened by its address.
+
+`./dev/staging/link.sh` re-links the module's templates and layout into the
+core and clears the cache; run it after adding a file under `app/design`.
+
+There is no cron here. To move things that wait on it:
+
+```
+php -r "require 'app/Mage.php'; Mage::app('admin'); Mage::getModel('ysrtech_emailcampaigns/observer')->processImports();"
+```
+
+or use **Process a Batch Now** on an import's page.
+
 ## Env vars
 
 | | |
