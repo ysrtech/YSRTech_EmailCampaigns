@@ -2,7 +2,7 @@
 <config>
     <modules>
         <YSRTech_EmailCampaigns>
-            <version>0.13.0</version>
+            <version>0.13.1</version>
         </YSRTech_EmailCampaigns>
     </modules>
 
@@ -323,7 +323,8 @@
             <sending>
                 <transport>smtp</transport>
                 <mailgun_region>us</mailgun_region>
-                <batch_size>100</batch_size>
+                <batch_size>500</batch_size>
+                <max_per_minute>1000</max_per_minute>
                 <max_attempts>3</max_attempts>
             </sending>
             <cleanup>
@@ -338,8 +339,10 @@
 
     <crontab>
         <jobs>
+            <!-- Every minute; how much goes out per run is the Maximum Per
+                 Minute setting, not how often this fires. -->
             <ysrtech_emailcampaigns_process_queue>
-                <schedule><cron_expr>*/5 * * * *</cron_expr></schedule>
+                <schedule><cron_expr>* * * * *</cron_expr></schedule>
                 <run><model>ysrtech_emailcampaigns/observer::processQueue</model></run>
             </ysrtech_emailcampaigns_process_queue>
             <ysrtech_emailcampaigns_send_scheduled>

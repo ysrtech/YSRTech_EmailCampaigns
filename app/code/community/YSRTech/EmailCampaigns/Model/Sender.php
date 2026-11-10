@@ -14,6 +14,34 @@ class YSRTech_EmailCampaigns_Model_Sender
             ->addFieldToFilter('status', YSRTech_EmailCampaigns_Model_Campaign::STATUS_SCHEDULED)
             ->addFieldToFilter('scheduled_at', ['lteq' => Varien_Date::now()]);
 
+        if (!count($collection)) {
+            return;
+        }
+
+        /*
+         * One launcher at a time. Queueing a large list can outlast the
+         * minute between two cron runs, and the campaign still reads as
+         * scheduled until it is done - so the next run would start building
+         * the same queue alongside this one.
+         */
+        $adapter = Mage::getSingleton('core/resource')->getConnection('core_write');
+
+        if (!$adapter->fetchOne('SELECT GET_LOCK(?, 0)', ['ysrtech_emailcampaigns_launch'])) {
+            return;
+        }
+
+        try {
+            $this->_launch($collection);
+        } finally {
+            $adapter->query('SELECT RELEASE_LOCK(?)', ['ysrtech_emailcampaigns_launch']);
+        }
+    }
+
+    /**
+     * @param YSRTech_EmailCampaigns_Model_Resource_Campaign_Collection $collection
+     */
+    protected function _launch($collection): void
+    {
         foreach ($collection as $campaign) {
             try {
                 $count = $campaign->buildQueue();
@@ -52,10 +80,30 @@ class YSRTech_EmailCampaigns_Model_Sender
      */
     private const CLAIM_TIMEOUT_MINUTES = 30;
 
+    /** Seconds one cron run keeps sending before it leaves the rest to the next */
+    private const TIME_BUDGET = 40;
+
+    /** Named database lock that keeps this to one sender at a time */
+    private const LOCK_NAME = 'ysrtech_emailcampaigns_send';
+
     /**
-     * Send one batch of queued messages.
+     * Cron, every minute: send what is due, up to the configured rate.
+     *
+     * It used to send one batch every five minutes and then sit idle, which
+     * made the batch size the only throttle and a blunt one: a hundred rows
+     * per run is twelve hundred an hour, and a list of twenty-four thousand
+     * took most of a day. Now a run keeps claiming batches until there is
+     * nothing due, the time budget is spent, or the per-minute limit is
+     * reached - so how fast mail goes out is a number somebody chose rather
+     * than a side effect of two others.
+     *
+     * None of this happens in a page request. It runs in the cron process,
+     * and for a campaign on Mailgun a batch is one API call however many
+     * people are in it.
+     *
+     * @return int Messages handled in this run
      */
-    public function processQueue(): void
+    public function processQueue(): int
     {
         /*
          * The store's own "Disable Email Communications" switch. A campaign is
@@ -65,19 +113,67 @@ class YSRTech_EmailCampaigns_Model_Sender
          * its own rather than Mage_Core_Model_Email_Template.
          */
         if (Mage::getStoreConfigFlag('system/smtp/disable')) {
-            return;
+            return 0;
         }
 
         $helper      = Mage::helper('ysrtech_emailcampaigns');
-        $batchSize   = max(1, (int) $helper->getConfig('sending/batch_size') ?: 100);
+        $batchSize   = max(1, (int) $helper->getConfig('sending/batch_size') ?: 500);
         $maxAttempts = max(1, (int) $helper->getConfig('sending/max_attempts') ?: 3);
+        // 0 or empty: no limit beyond what fits in the time budget
+        $perMinute   = max(0, (int) $helper->getConfig('sending/max_per_minute'));
 
-        $this->_releaseStaleClaims();
+        $adapter = Mage::getSingleton('core/resource')->getConnection('core_write');
 
+        /*
+         * One sender at a time. The claim below is atomic, so two runs would
+         * never send the same row twice - but two runs would each send up to
+         * the limit, and a slow run overlapping the next would make the
+         * limit mean nothing. The server drops a named lock if this process
+         * dies, which a flag in a table would not.
+         */
+        if (!$adapter->fetchOne('SELECT GET_LOCK(?, 0)', [self::LOCK_NAME])) {
+            return 0;
+        }
+
+        $deadline = microtime(true) + self::TIME_BUDGET;
+        $handled  = 0;
+
+        try {
+            $this->_releaseStaleClaims();
+
+            while (microtime(true) < $deadline) {
+                $room = $perMinute > 0 ? $perMinute - $handled : $batchSize;
+
+                if ($room <= 0) {
+                    break;
+                }
+
+                $claimed = $this->_processBatch(min($batchSize, $room), $maxAttempts);
+
+                if ($claimed === 0) {
+                    break;
+                }
+
+                $handled += $claimed;
+            }
+        } finally {
+            $adapter->query('SELECT RELEASE_LOCK(?)', [self::LOCK_NAME]);
+        }
+
+        return $handled;
+    }
+
+    /**
+     * Claim and send one batch.
+     *
+     * @return int Rows claimed; 0 when nothing was due
+     */
+    protected function _processBatch(int $batchSize, int $maxAttempts): int
+    {
         $token = $this->_claim($batchSize);
 
         if ($token === null) {
-            return;
+            return 0;
         }
 
         /** @var YSRTech_EmailCampaigns_Model_Resource_Queue_Collection $queue */
@@ -143,6 +239,8 @@ class YSRTech_EmailCampaigns_Model_Sender
                 $this->_markFailure($item, $e->getMessage(), $maxAttempts);
             }
         }
+
+        return count($queue);
     }
 
     /**

@@ -41,6 +41,10 @@ scheduled campaigns, sends the queue in batches, moves imports forward,
 finds abandoned carts and syncs suppressions. If cron is not running,
 nothing sends and imports only move when pushed by hand from their page.
 
+Sending never happens while a page loads. Scheduling a campaign only marks it;
+cron queues its recipients and sends them, at most **Maximum Per Minute**
+(Sending settings, 1000 by default) across campaigns and automations.
+
 ## Installation
 
 ### Composer (recommended)
@@ -76,6 +80,7 @@ php <module>/dev/tests/suppressions.php   # suppression list, Mailgun sync, webh
 php <module>/dev/tests/import.php         # a provider migration against a stand-in
 php <module>/dev/tests/providers.php      # the six provider clients, on fixtures
 php <module>/dev/tests/automation.php     # flow validation, versions, queueing
+php <module>/dev/tests/sending.php        # the send job's pacing, with a transport that sends nothing
 ```
 
 ## License

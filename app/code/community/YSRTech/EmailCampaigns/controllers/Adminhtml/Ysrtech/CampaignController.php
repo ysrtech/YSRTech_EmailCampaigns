@@ -256,17 +256,24 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
 
             if ($model->getStatus() === YSRTech_EmailCampaigns_Model_Campaign::STATUS_SCHEDULED) {
                 /*
-                 * A campaign due later stays scheduled and is picked up by the
-                 * launchScheduledCampaigns cron when its time comes. Queueing
-                 * it here regardless is what made "schedule" mean "send now".
+                 * Scheduled, and nothing more in this request. Building the
+                 * queue means recalculating the segments and writing a row
+                 * per recipient - tens of thousands of inserts for a real
+                 * list - and it used to happen right here for a campaign due
+                 * now, with the admin's browser waiting on it and the web
+                 * server doing the work. The cron job that launches scheduled
+                 * campaigns does exactly the same thing a minute later, in
+                 * the background, whether the time is now or next week.
                  */
                 $due = !$model->getScheduledAt() || $model->getScheduledAt() <= Varien_Date::now();
 
                 if ($due) {
-                    $count = $model->buildQueue();
-                    $model->setStatus(YSRTech_EmailCampaigns_Model_Campaign::STATUS_SENDING)->save();
+                    if (!$model->getScheduledAt()) {
+                        $model->setScheduledAt(Varien_Date::now())->save();
+                    }
+
                     $this->_getSession()->addSuccess(
-                        $this->__('Campaign queued. %d recipients queued.', $count)
+                        $this->__('Campaign scheduled. Its recipients are queued in the background within a minute or two, and sending starts straight after.')
                     );
                 } else {
                     $this->_getSession()->addSuccess(

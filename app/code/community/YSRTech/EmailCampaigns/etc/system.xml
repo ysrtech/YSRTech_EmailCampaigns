@@ -114,9 +114,19 @@
                             <sort_order>40</sort_order>
                             <show_in_default>1</show_in_default>
                         </from_email>
-                        <batch_size translate="label">
-                            <label>Batch Size (per cron run)</label>
+                        <max_per_minute translate="label comment">
+                            <label>Maximum Per Minute</label>
                             <frontend_type>text</frontend_type>
+                            <validate>validate-digits</validate>
+                            <comment>The most messages sent in any one minute, campaigns and automations together. 1000 is 60,000 an hour. Lower it to go easier on the server or to warm up a new sending domain; 0 means no limit beyond what one cron run can do. Sending happens in the background from cron, never while a page loads.</comment>
+                            <sort_order>49</sort_order>
+                            <show_in_default>1</show_in_default>
+                        </max_per_minute>
+                        <batch_size translate="label comment">
+                            <label>Batch Size</label>
+                            <frontend_type>text</frontend_type>
+                            <validate>validate-digits</validate>
+                            <comment>How many queued messages are taken at a time. With Mailgun a batch of campaign mail is one API call, up to 500 recipients. If a call fails, this is how many wait for the retry.</comment>
                             <sort_order>50</sort_order>
                             <show_in_default>1</show_in_default>
                         </batch_size>

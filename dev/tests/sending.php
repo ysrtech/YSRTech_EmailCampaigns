@@ -1,0 +1,102 @@
+<?php
+/**
+ * The send job's pacing, with a transport that sends nothing.
+ *
+ *   cd <openmage-core> && php <module>/dev/tests/sending.php
+ *
+ * Nothing leaves the machine: the transport defined below only counts what
+ * it is handed, and it is selected in memory for this process alone. The
+ * saved configuration - mail disabled, no credentials - is never touched.
+ */
+require_once 'app/Mage.php';
+Mage::app('admin');
+
+class YSRTech_EmailCampaigns_Model_Transport_Noop implements YSRTech_EmailCampaigns_Model_Transport_Interface
+{
+    public static $calls = 0;
+    public static $recipients = 0;
+    public function supportsRecipientVariables(): bool { return true; }
+    public function send(string $to, string $subject, string $html, array $vars = [], ?int $timestamp = null) { return null; }
+    public function sendBatch(array $recipients, string $subject, string $html, ?int $timestamp = null, ?callable $onChunkSent = null)
+    {
+        self::$calls++;
+        self::$recipients += count($recipients);
+        return null;
+    }
+}
+
+$res  = Mage::getSingleton('core/resource');
+$db   = $res->getConnection('core_write');
+$t    = fn ($n) => $res->getTableName($n);
+$fail = 0;
+$ok   = function (string $what, bool $pass) use (&$fail) { echo ($pass ? 'PASS ' : 'FAIL ') . $what . "\n"; $fail += $pass ? 0 : 1; };
+$set  = fn (string $path, $value) => Mage::app()->getStore()->setConfig($path, $value);
+
+$pendingElsewhere = (int) $db->fetchOne("SELECT COUNT(*) FROM {$t('ysrtech_emailcampaigns/queue')} WHERE status IN ('pending', 'sending')");
+
+if ($pendingElsewhere) {
+    echo "There is other mail waiting in the queue; this test would mark it sent. Not running.\n";
+    exit(1);
+}
+
+$templateId = (int) $db->fetchOne("SELECT MIN(template_id) FROM {$t('ysrtech_emailcampaigns/template')}");
+$segmentId  = (int) $db->fetchOne("SELECT MIN(segment_id) FROM {$t('ysrtech_emailcampaigns/segment')}");
+
+$campaign = Mage::getModel('ysrtech_emailcampaigns/campaign')->setData([
+    'name' => '[test] pacing', 'subject' => 'Pacing', 'template_id' => $templateId, 'store_id' => 0,
+    'status' => 'scheduled', 'scheduled_at' => Varien_Date::now(), 'included_segment_ids' => [$segmentId],
+]);
+$campaign->save();
+$id = (int) $campaign->getId();
+$count = fn (string $status) => (int) $db->fetchOne(
+    "SELECT COUNT(*) FROM {$t('ysrtech_emailcampaigns/queue')} WHERE campaign_id = ? AND status = ?", [$id, $status]
+);
+
+$sender = Mage::getSingleton('ysrtech_emailcampaigns/sender');
+
+// The store's switch is still on "disabled" here, exactly as saved
+$sender->launchScheduledCampaigns();
+$total = $count('pending');
+$ok("the launcher queues the campaign in the background ({$total} recipients)", $total > 1500
+    && Mage::getModel('ysrtech_emailcampaigns/campaign')->load($id)->getStatus() === 'sending');
+$ok('nothing is sent while the store has email disabled', $sender->processQueue() === 0 && $count('sent') === 0);
+
+// For this process only: mail "enabled", through the transport above
+$set('system/smtp/disable', 0);
+$set('ysrtech_emailcampaigns/sending/transport', 'noop');
+$set('ysrtech_emailcampaigns/sending/batch_size', 500);
+$set('ysrtech_emailcampaigns/sending/max_per_minute', 700);
+
+$handled = $sender->processQueue();
+$ok('one run stops at the per-minute limit', $handled === 700 && $count('sent') === 700 && $count('pending') === $total - 700);
+$ok('in batches: 500 then 200, one call each', YSRTech_EmailCampaigns_Model_Transport_Noop::$calls === 2
+    && YSRTech_EmailCampaigns_Model_Transport_Noop::$recipients === 700);
+$ok('nothing is left claimed', $count('sending') === 0);
+
+// A second sender while one holds the lock does nothing
+$other = new Varien_Db_Adapter_Pdo_Mysql($db->getConfig());
+$other->fetchOne("SELECT GET_LOCK('ysrtech_emailcampaigns_send', 0)");
+$ok('a run that overlaps another stands aside', $sender->processQueue() === 0 && $count('sent') === 700);
+$other->query("SELECT RELEASE_LOCK('ysrtech_emailcampaigns_send')");
+$other->closeConnection();
+
+// No limit: everything due goes in one run, inside the time budget
+$set('ysrtech_emailcampaigns/sending/max_per_minute', 0);
+$start   = microtime(true);
+$handled = $sender->processQueue();
+$took    = microtime(true) - $start;
+$ok(sprintf('with no limit a run sends until done or out of time (%d in %.1fs)', $handled, $took),
+    $handled > 0 && $took < 60 && ($count('pending') === 0 || $took >= 39));
+
+while ($count('pending') > 0) {
+    $sender->processQueue();
+}
+
+$ok('the campaign is marked sent when its queue is empty',
+    Mage::getModel('ysrtech_emailcampaigns/campaign')->load($id)->getStatus() === 'sent' && $count('sent') === $total);
+
+$db->delete($t('ysrtech_emailcampaigns/queue'), ['campaign_id = ?' => $id]);
+$db->delete($t('ysrtech_emailcampaigns/campaign'), ['campaign_id = ?' => $id]);
+
+echo $fail ? "\n{$fail} FAILED\n" : "\nall passed\n";
+exit($fail ? 1 : 0);
