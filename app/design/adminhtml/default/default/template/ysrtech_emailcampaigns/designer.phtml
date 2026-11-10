@@ -51,6 +51,9 @@ $template = $this->getEmailTemplate();
 </div>
 
 <div id="ec-designer"></div>
+<?php if ($this->isBranded()): ?>
+<p class="ec-designer-note"><strong><?php echo $this->__('This is the part between the store\'s header and footer.') ?></strong> <?php echo $this->__('They are added around it when it is sent, and shown in Preview. Leave the logo, the address and the unsubscribe link out of the design.') ?></p>
+<?php endif ?>
 <p class="ec-designer-note">
     <?php echo $this->__('Saving writes inlined HTML into the same content field the plain editor uses, so a template can be started here and finished by hand. Placeholders such as {{ customer.firstname|there }} are kept exactly as typed.') ?>
 </p>
@@ -153,6 +156,7 @@ $template = $this->getEmailTemplate();
     ysrtechDesignerExtras(editor, {
         formKey: formKey,
         sectionsUrl: '<?php echo $this->escapeHtml($this->getSectionsUrl()) ?>',
+        canvasCss: <?php echo Mage::helper('core')->jsonEncode($this->getCanvasCss()) ?>,
         checksUrl: '<?php echo $this->escapeHtml($this->getChecksUrl()) ?>',
         sections: <?php echo Mage::helper('core')->jsonEncode($this->getSectionBlocks()) ?>,
         mergeTags: <?php echo Mage::helper('core')->jsonEncode($this->getMergeTags()) ?>,

@@ -164,6 +164,7 @@ window.ysrtechDesignerExtras = function (editor, cfg) {
             var style = doc.createElement('style');
             style.appendChild(doc.createTextNode(
                 '[data-ec-tag]{background:#e7f1fb;border:1px solid #9ec5f4;border-radius:3px;padding:0 3px;white-space:nowrap;cursor:default}'
+                + (cfg.canvasCss || '')
             ));
             doc.head.appendChild(style);
         }

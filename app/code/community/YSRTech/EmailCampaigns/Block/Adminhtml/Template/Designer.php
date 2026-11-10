@@ -92,6 +92,47 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Designer extends Mage_Admi
     /**
      * @return string
      */
+    /**
+     * Styles for the designer's canvas only, never saved or sent.
+     *
+     * An email that wears the store's header and footer is designed as the
+     * part in between, with no frame of its own. Left like that the canvas
+     * shows it stretched across the whole screen, which is nothing like the
+     * 600px column it is sent in - so the canvas is given that column, on
+     * the brand's page colour.
+     */
+    public function getCanvasCss(): string
+    {
+        /** @var YSRTech_EmailCampaigns_Model_Brand $brand */
+        $brand   = Mage::getSingleton('ysrtech_emailcampaigns/brand');
+        $storeId = $this->getStoreIdForBrand();
+
+        if ((int) $this->getEmailTemplate()->getUseBrand() !== 1 || !$brand->isEnabled($storeId)) {
+            return '';
+        }
+
+        $b = $brand->get($storeId);
+
+        return 'html{background-color:' . $b['page_bg'] . ' !important;}'
+            . 'body{max-width:' . YSRTech_EmailCampaigns_Model_Brand::WIDTH . 'px;margin:24px auto !important;background-color:'
+            . $b['content_bg'] . ' !important;min-height:300px;}';
+    }
+
+    /**
+     * Whether the email being designed is wrapped in the store's header and
+     * footer, for the note under the canvas.
+     */
+    public function isBranded(): bool
+    {
+        return $this->getCanvasCss() !== '';
+    }
+
+    /** The store view whose brand applies; a template has none of its own */
+    public function getStoreIdForBrand()
+    {
+        return null;
+    }
+
     public function getSectionsUrl(): string
     {
         return $this->getUrl('*/*/sections');

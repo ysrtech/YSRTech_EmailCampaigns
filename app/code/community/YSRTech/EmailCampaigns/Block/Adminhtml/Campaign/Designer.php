@@ -14,6 +14,12 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Designer
     }
 
     #[Override]
+    public function getStoreIdForBrand()
+    {
+        return (int) Mage::registry('ysrtech_emailcampaigns_campaign')->getStoreId() ?: null;
+    }
+
+    #[Override]
     public function getSaveUrl(): string
     {
         return $this->getUrl('*/*/saveDesign', ['id' => $this->_campaignId()]);
