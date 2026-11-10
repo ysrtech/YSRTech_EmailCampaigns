@@ -37,6 +37,12 @@ $template = $this->getEmailTemplate();
     <p class="form-buttons ec-designer-bar">
         <button type="button" class="scalable back" id="ec-designer-back">
             <span><span><span><?php echo $this->__('Back') ?></span></span></span></button>
+        <button type="button" class="scalable" id="ec-designer-save-section">
+            <span><span><span><?php echo $this->__('Save Selection as Section') ?></span></span></span></button>
+        <button type="button" class="scalable" id="ec-designer-sections">
+            <span><span><span><?php echo $this->__('Saved Sections') ?></span></span></span></button>
+        <button type="button" class="scalable" id="ec-designer-checks">
+            <span><span><span><?php echo $this->__('Check') ?></span></span></span></button>
         <button type="button" class="scalable go" id="ec-designer-preview">
             <span><span><span><?php echo $this->__('Preview') ?></span></span></span></button>
         <button type="button" class="scalable save" id="ec-designer-save">
@@ -51,6 +57,7 @@ $template = $this->getEmailTemplate();
 
 <script type="text/javascript" src="<?php echo $this->escapeHtml($this->getAssetUrl('grapes.min.js')) ?>"></script>
 <script type="text/javascript" src="<?php echo $this->escapeHtml($this->getAssetUrl('preset-newsletter.js')) ?>"></script>
+<script type="text/javascript" src="<?php echo $this->escapeHtml($this->getSkinUrl('ysrtech/emailcampaigns/designer-extras.js')) ?>"></script>
 
 <script type="text/javascript">
 //<![CDATA[
@@ -142,6 +149,39 @@ $template = $this->getEmailTemplate();
             is_active: <?php echo (int) $template->getIsActive() ?>
         });
     });
+
+    ysrtechDesignerExtras(editor, {
+        formKey: formKey,
+        sectionsUrl: '<?php echo $this->escapeHtml($this->getSectionsUrl()) ?>',
+        checksUrl: '<?php echo $this->escapeHtml($this->getChecksUrl()) ?>',
+        sections: <?php echo Mage::helper('core')->jsonEncode($this->getSectionBlocks()) ?>,
+        mergeTags: <?php echo Mage::helper('core')->jsonEncode($this->getMergeTags()) ?>,
+        labels: <?php echo Mage::helper('core')->jsonEncode([
+            'content'         => $this->__('Content'),
+            'rows'            => $this->__('Rows'),
+            'sections'        => $this->__('Sections'),
+            'saved'           => $this->__('Saved Sections'),
+            'savedHint'       => $this->__('Saved from the designer. Manage them under Saved Sections.'),
+            'selectFirst'     => $this->__('Click the part of the email to save first.'),
+            'sectionName'     => $this->__('A name for this section, e.g. "Footer" or "Shipping banner":'),
+            'noSaved'         => $this->__('Nothing saved yet. Select part of an email and use Save Selection as Section.'),
+            'remove'          => $this->__('Remove'),
+            'removeConfirm'   => $this->__('Remove this saved section? Templates already using it keep their copy.'),
+            'failed'          => $this->__('That did not work. Reload the page and try again.'),
+            'placeholder'     => $this->__('Placeholder'),
+            'insert'          => $this->__('Insert placeholder'),
+            'insertHint'      => $this->__('Insert a placeholder, filled in per recipient'),
+            'fallback'        => $this->__('What to show for somebody with no name on file (leave empty for nothing):'),
+            'fallbackDefault' => $this->__('there'),
+            'checks'          => $this->__('Pre-send Checks'),
+            'checking'        => $this->__('Checking...'),
+            'checksNote'      => $this->__('These are for the template as last saved. Save Content first to check what is on screen.'),
+        ]) ?>
+    });
+
+    $('ec-designer-save-section').observe('click', function () { editor.runCommand('ec-save-section'); });
+    $('ec-designer-sections').observe('click', function () { editor.runCommand('ec-manage-sections'); });
+    $('ec-designer-checks').observe('click', function () { editor.runCommand('ec-checks'); });
 
     $('ec-designer-back').observe('click', function () {
         setLocation(backUrl);

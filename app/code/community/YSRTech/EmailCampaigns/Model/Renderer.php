@@ -25,7 +25,31 @@ class YSRTech_EmailCampaigns_Model_Renderer
         $html = $helper->renderMergeVars($html, $vars);
         $html = $this->_injectUnsubscribe($html, $vars);
 
-        return $this->_wrapDocument($html, $vars);
+        return $this->_wrapDocument($this->_preheader($template, $vars) . $html, $vars);
+    }
+
+    /**
+     * The preview text, as the first thing in the body and nowhere on screen.
+     *
+     * An inbox shows the opening words of a message after its subject. A
+     * hidden element at the very top makes those words ours instead of
+     * "View in browser" or a logo's alt text. The run of zero-width spaces
+     * after it is padding: without it a short preview is topped up with
+     * whatever comes next in the body, which is the thing being avoided.
+     */
+    protected function _preheader(YSRTech_EmailCampaigns_Model_Template $template, array $vars): string
+    {
+        $text = trim((string) $template->getPreheader());
+
+        if ($text === '') {
+            return '';
+        }
+
+        $text = Mage::helper('ysrtech_emailcampaigns')->renderMergeVars($text, $vars);
+
+        return '<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">'
+            . htmlspecialchars($text, ENT_QUOTES, 'UTF-8')
+            . str_repeat('&#8203;&nbsp;', 60) . '</div>';
     }
 
     /**

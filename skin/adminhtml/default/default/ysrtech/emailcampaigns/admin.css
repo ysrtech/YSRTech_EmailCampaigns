@@ -51,3 +51,20 @@ td.ysrtech-ec-flag { color: #df280a; font-weight: bold; }
 .ysrtech-ec-progress { height: 12px; margin: 0 0 16px; background: #e4e4e4; border-radius: 6px; overflow: hidden; }
 .ysrtech-ec-progress span { display: block; height: 12px; background: #2a78d6; border-radius: 6px; transition: width .4s; }
 .ysrtech-ec-progress span.unknown { background: repeating-linear-gradient(135deg, #2a78d6 0 12px, #5598e7 12px 24px); }
+
+/* Starter gallery */
+.ysrtech-ec-gallery { display: flex; flex-wrap: wrap; gap: 20px; padding: 16px; margin-bottom: 16px; background: #fff; border: 1px solid #d6d6d6; border-top: 0; }
+.ysrtech-ec-card { width: 240px; flex: 0 0 240px; }
+.ysrtech-ec-card .thumb { width: 240px; height: 300px; overflow: hidden; position: relative; box-sizing: border-box; border: 1px solid #d6d6d6; background: #f4f4f4; margin-bottom: 8px; }
+.ysrtech-ec-card iframe { position: absolute; top: 0; left: 0; display: block; width: 648px; height: 810px; border: 0; transform: scale(.37); transform-origin: 0 0; pointer-events: none; }
+.ysrtech-ec-card h5 { margin: 0 0 2px; font-size: 14px; }
+.ysrtech-ec-card p { margin: 0 0 8px; color: #666; min-height: 54px; }
+
+/* Pre-send checks */
+.ysrtech-ec-checks { list-style: none; margin: 0; padding: 0; }
+.ysrtech-ec-checks li { padding: 5px 0 5px 22px; position: relative; border-bottom: 1px solid #ececec; }
+.ysrtech-ec-checks li:last-child { border-bottom: 0; }
+.ysrtech-ec-checks li:before { content: ""; position: absolute; left: 2px; top: 10px; width: 10px; height: 10px; border-radius: 50%; background: #3d6611; }
+.ysrtech-ec-checks li.warn:before { background: #e8a100; }
+.ysrtech-ec-checks li.bad:before { background: #df280a; }
+.ysrtech-ec-checks strong { margin-right: 6px; }

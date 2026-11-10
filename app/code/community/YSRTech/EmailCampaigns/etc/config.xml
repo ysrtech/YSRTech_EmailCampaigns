@@ -2,7 +2,7 @@
 <config>
     <modules>
         <YSRTech_EmailCampaigns>
-            <version>0.10.0</version>
+            <version>0.13.0</version>
         </YSRTech_EmailCampaigns>
     </modules>
 
@@ -53,6 +53,12 @@
                     <import>
                         <table>ysrtech_emailcampaigns_import</table>
                     </import>
+                    <section>
+                        <table>ysrtech_emailcampaigns_section</table>
+                    </section>
+                    <import_seen>
+                        <table>ysrtech_emailcampaigns_import_seen</table>
+                    </import_seen>
                 </entities>
             </ysrtech_emailcampaigns_resource>
         </models>

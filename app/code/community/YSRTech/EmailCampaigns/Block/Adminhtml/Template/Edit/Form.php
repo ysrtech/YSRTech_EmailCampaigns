@@ -40,6 +40,12 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Edit_Form extends Mage_Adm
             'name'     => 'subject',
             'value'    => $model->getSubject(),
         ]);
+        $fieldset->addField('preheader', 'text', [
+            'label' => $h->__('Preview Text'),
+            'name'  => 'preheader',
+            'value' => $model->getPreheader(),
+            'note'  => $h->__('The line an inbox shows after the subject. Left empty, it shows the first words of the email instead. About 40 to 90 characters.'),
+        ]);
         $fieldset->addField('html', 'textarea', [
             'label'    => $h->__('Email Content (HTML)'),
             'name'     => 'html',

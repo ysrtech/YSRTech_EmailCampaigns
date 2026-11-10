@@ -384,6 +384,9 @@ $insertMail($rows, true);
 $config = Mage::getModel('core/config');
 // No path out: the store's own mail is off, and it is the only transport set
 $config->saveConfig('system/smtp/disable', 1);
+// An invented address, so the footer and the pre-send checks have one to find
+$config->saveConfig('general/store_information/name', 'Staging Store');
+$config->saveConfig('general/store_information/address', "1 Example Street\nSpringfield, EX 00000");
 $config->saveConfig('ysrtech_emailcampaigns/sending/transport', 'smtp');
 // So an admin URL can be opened directly, by a person or a browser script
 $config->saveConfig('admin/security/use_form_key', 0);

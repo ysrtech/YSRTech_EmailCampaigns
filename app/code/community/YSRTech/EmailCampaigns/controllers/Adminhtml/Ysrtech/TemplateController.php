@@ -22,9 +22,120 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_TemplateController
         $this->renderLayout();
     }
 
+    /**
+     * A new template starts from the gallery of starters. "Blank" there
+     * leads to the plain form this used to open.
+     */
     public function newAction()
     {
-        $this->_forward('edit');
+        if ($this->getRequest()->getParam('blank')) {
+            $this->_forward('edit');
+
+            return;
+        }
+
+        $this->_title($this->__('Email Campaigns'))->_title($this->__('New Template'));
+        $this->loadLayout();
+        $this->_setActiveMenu('ysrtech_emailcampaigns/template');
+        $this->_addContent($this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_template_gallery'));
+        $this->renderLayout();
+    }
+
+    /**
+     * Create a template from a starter and open it in the designer.
+     */
+    public function createAction()
+    {
+        if (!$this->getRequest()->isPost()) {
+            $this->_redirect('*/*/new');
+
+            return;
+        }
+
+        /** @var YSRTech_EmailCampaigns_Model_Template_Starter $starter */
+        $starter  = Mage::getSingleton('ysrtech_emailcampaigns/template_starter');
+        $starters = $starter->getStarters();
+        $code     = (string) $this->getRequest()->getPost('starter');
+
+        if (!isset($starters[$code])) {
+            $this->_getSession()->addError($this->__('Choose a starter.'));
+            $this->_redirect('*/*/new');
+
+            return;
+        }
+
+        try {
+            $template = Mage::getModel('ysrtech_emailcampaigns/template')->setData([
+                'name'      => $starters[$code]['name'] . ' ' . Mage::app()->getLocale()->date()->toString('yyyy-MM-dd HH:mm'),
+                'subject'   => $starters[$code]['subject'],
+                'preheader' => $starters[$code]['preheader'] ?: null,
+                'html'      => $starter->build($code),
+                'is_active' => 1,
+            ])->save();
+
+            $this->_getSession()->addSuccess($this->__('Template created from "%s". Rename it under Back when you are ready.', $starters[$code]['name']));
+            $this->_redirect('*/*/designer', ['id' => $template->getId()]);
+        } catch (Exception $e) {
+            Mage::logException($e);
+            $this->_getSession()->addError($e->getMessage());
+            $this->_redirect('*/*/new');
+        }
+    }
+
+    /**
+     * The pre-send checks for a template, as JSON, for the designer's Check
+     * button. Runs on what is saved, not on what is on screen.
+     */
+    public function checksAction()
+    {
+        $template = Mage::getModel('ysrtech_emailcampaigns/template')->load((int) $this->getRequest()->getParam('id'));
+        $checks   = $template->getId()
+            ? Mage::getSingleton('ysrtech_emailcampaigns/template_checks')->run($template)
+            : [];
+
+        $this->getResponse()
+            ->setHeader('Content-Type', 'application/json', true)
+            ->setBody(Mage::helper('core')->jsonEncode(['checks' => $checks]));
+    }
+
+    /**
+     * Saved sections: list them, save one, or delete one.
+     */
+    public function sectionsAction()
+    {
+        $resource = Mage::getSingleton('core/resource');
+        $adapter  = $resource->getConnection('core_write');
+        $table    = $resource->getTableName('ysrtech_emailcampaigns/section');
+        $request  = $this->getRequest();
+        $error    = null;
+
+        try {
+            if ($request->isPost() && $this->_validateFormKey()) {
+                if ($request->getPost('delete')) {
+                    $adapter->delete($table, ['section_id = ?' => (int) $request->getPost('delete')]);
+                } elseif (trim((string) $request->getPost('name')) !== '' && trim((string) $request->getPost('html')) !== '') {
+                    if (strlen((string) $request->getPost('html')) > 500000) {
+                        Mage::throwException($this->__('That section is too large to save.'));
+                    }
+
+                    $adapter->insert($table, [
+                        'name'       => mb_substr(trim((string) $request->getPost('name')), 0, 255),
+                        'html'       => (string) $request->getPost('html'),
+                        'created_at' => Varien_Date::now(),
+                    ]);
+                }
+            }
+        } catch (Exception $e) {
+            $error = $e->getMessage();
+        }
+
+        $sections = $adapter->fetchAll(
+            $adapter->select()->from($table, ['id' => 'section_id', 'name', 'html'])->order('name')
+        );
+
+        $this->getResponse()
+            ->setHeader('Content-Type', 'application/json', true)
+            ->setBody(Mage::helper('core')->jsonEncode(['sections' => $sections, 'error' => $error]));
     }
 
     public function editAction()
@@ -251,6 +362,12 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_TemplateController
                 'html'         => (string) ($data['html'] ?? ''),
                 'is_active'    => (int) (!empty($data['is_active'])),
             ]);
+
+            // Only when the form that posted has the field: the designer
+            // saves content alone, and must not blank what it does not show.
+            if (array_key_exists('preheader', $data)) {
+                $model->setPreheader(mb_substr(trim((string) $data['preheader']), 0, 255) ?: null);
+            }
             $model->save();
             $this->_getSession()->addSuccess($this->__('Template saved.'));
         } catch (Exception $e) {

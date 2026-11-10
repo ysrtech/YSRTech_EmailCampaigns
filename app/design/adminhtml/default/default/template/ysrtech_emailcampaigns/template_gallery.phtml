@@ -1,0 +1,33 @@
+<?php /** @var YSRTech_EmailCampaigns_Block_Adminhtml_Template_Gallery $this */ ?>
+<div class="content-header">
+    <table cellspacing="0">
+        <tr>
+            <td><h3 class="icon-head"><?php echo $this->escapeHtml($this->__('New Template')) ?></h3></td>
+            <td class="form-buttons">
+                <button type="button" class="scalable back" onclick="setLocation('<?php echo $this->getUrl('*/*/index') ?>')"><span><span><span><?php echo $this->escapeHtml($this->__('Back')) ?></span></span></span></button>
+                <button type="button" class="scalable" onclick="setLocation('<?php echo $this->getUrl('*/*/new', ['blank' => 1]) ?>')"><span><span><span><?php echo $this->escapeHtml($this->__('Start From My Own HTML')) ?></span></span></span></button>
+            </td>
+        </tr>
+    </table>
+</div>
+<p class="ysrtech-ec-lede"><?php echo $this->escapeHtml($this->__('Choose a starting point. It opens in the designer with this store\'s name, address and links already in place; every word and picture in it can be changed.')) ?></p>
+<form id="ysrtech-ec-starter" method="post" action="<?php echo $this->getUrl('*/*/create') ?>">
+    <?php echo $this->getBlockHtml('formkey') ?>
+    <input type="hidden" name="starter" id="ysrtech-ec-starter-code" value=""/>
+</form>
+<?php foreach ($this->getStartersByCategory() as $category => $starters): ?>
+    <div class="entry-edit">
+        <div class="entry-edit-head"><h4><?php echo $this->escapeHtml($category) ?></h4></div>
+        <div class="ysrtech-ec-gallery">
+            <?php foreach ($starters as $code => $starter): ?>
+                <div class="ysrtech-ec-card">
+                    <?php /* Sandboxed and inert: a picture of the email, not a page in the admin */ ?>
+                    <div class="thumb"><iframe sandbox="" scrolling="no" tabindex="-1" title="<?php echo $this->escapeHtml($starter['name']) ?>" srcdoc="<?php echo $this->escapeHtml('<body style="margin:0">' . $starter['html'] . '</body>') ?>"></iframe></div>
+                    <h5><?php echo $this->escapeHtml($starter['name']) ?></h5>
+                    <p><?php echo $this->escapeHtml($starter['description']) ?></p>
+                    <button type="button" class="scalable add" onclick="$('ysrtech-ec-starter-code').value='<?php echo $code ?>';$('ysrtech-ec-starter').submit()"><span><span><span><?php echo $this->escapeHtml($this->__('Use This')) ?></span></span></span></button>
+                </div>
+            <?php endforeach ?>
+        </div>
+    </div>
+<?php endforeach ?>

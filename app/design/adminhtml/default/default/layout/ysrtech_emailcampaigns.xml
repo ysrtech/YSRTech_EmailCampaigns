@@ -65,6 +65,10 @@
         <update handle="ysrtech_emailcampaigns_admin_css"/>
     </adminhtml_ysrtech_import_provider>
 
+    <adminhtml_ysrtech_template_new>
+        <update handle="ysrtech_emailcampaigns_admin_css"/>
+    </adminhtml_ysrtech_template_new>
+
     <adminhtml_ysrtech_campaign_edit>
         <update handle="ysrtech_emailcampaigns_admin_css"/>
     </adminhtml_ysrtech_campaign_edit>

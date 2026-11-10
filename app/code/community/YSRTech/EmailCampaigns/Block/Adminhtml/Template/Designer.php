@@ -92,6 +92,51 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Designer extends Mage_Admi
     /**
      * @return string
      */
+    public function getSectionsUrl(): string
+    {
+        return $this->getUrl('*/*/sections');
+    }
+
+    public function getChecksUrl(): string
+    {
+        return $this->getUrl('*/*/checks', ['id' => $this->getEmailTemplate()->getId()]);
+    }
+
+    /**
+     * The placeholders the designer offers, with whether a fallback makes
+     * sense for each.
+     *
+     * @return array<int, array{token:string, label:string, fallback:bool}>
+     */
+    public function getMergeTags(): array
+    {
+        $h = Mage::helper('ysrtech_emailcampaigns');
+
+        return [
+            ['token' => 'customer.firstname', 'label' => $h->__('First name'), 'fallback' => true],
+            ['token' => 'customer.lastname', 'label' => $h->__('Last name'), 'fallback' => true],
+            ['token' => 'customer.email', 'label' => $h->__('Email address'), 'fallback' => false],
+            ['token' => 'store.name', 'label' => $h->__('Store name'), 'fallback' => false],
+            ['token' => 'unsubscribe_url', 'label' => $h->__('Unsubscribe link address'), 'fallback' => false],
+            ['token' => 'order.increment_id', 'label' => $h->__('Order number (automations)'), 'fallback' => false],
+            ['token' => 'order.grand_total', 'label' => $h->__('Order total (automations)'), 'fallback' => false],
+            ['token' => 'order.url', 'label' => $h->__('Order link address (automations)'), 'fallback' => false],
+            ['token' => 'cart.item_names', 'label' => $h->__('Cart items (cart reminder)'), 'fallback' => false],
+            ['token' => 'cart.grand_total', 'label' => $h->__('Cart total (cart reminder)'), 'fallback' => false],
+            ['token' => 'cart.url', 'label' => $h->__('Cart link address (cart reminder)'), 'fallback' => false],
+        ];
+    }
+
+    /**
+     * Ready-made sections for the block panel, in this store's name.
+     *
+     * @return array<int, array{id:string, label:string, html:string}>
+     */
+    public function getSectionBlocks(): array
+    {
+        return Mage::getSingleton('ysrtech_emailcampaigns/template_starter')->getSections();
+    }
+
     public function getFormKey(): string
     {
         return Mage::getSingleton('core/session')->getFormKey();
