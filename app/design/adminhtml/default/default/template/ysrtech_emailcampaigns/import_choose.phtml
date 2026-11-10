@@ -1,0 +1,58 @@
+<?php
+/** @var YSRTech_EmailCampaigns_Block_Adminhtml_Import_Page $this */
+$import = $this->getImport();
+$P      = YSRTech_EmailCampaigns_Model_Import_Provider_Interface::class;
+$found  = (array) ($import->getOptions()['found'] ?? []);
+$client = YSRTech_EmailCampaigns_Model_Import::providerClient((string) $import->getProvider());
+$labels = $this->getStageLabels();
+?>
+<div class="content-header">
+    <table cellspacing="0">
+        <tr>
+            <td><h3 class="icon-head"><?php echo $this->escapeHtml($this->__('Migrate from %s: Step 2 of 2', $this->getProviderName())) ?></h3></td>
+            <td class="form-buttons">
+                <button type="button" class="scalable back" onclick="setLocation('<?php echo $this->getUrl('*/*/index') ?>')"><span><span><span><?php echo $this->escapeHtml($this->__('Back')) ?></span></span></span></button>
+                <button type="button" class="scalable save" onclick="$('ysrtech-ec-choose').submit()"><span><span><span><?php echo $this->escapeHtml($this->__('Start Migration')) ?></span></span></span></button>
+            </td>
+        </tr>
+    </table>
+</div>
+<form id="ysrtech-ec-choose" method="post" action="<?php echo $this->getUrl('*/*/startProvider', ['id' => $import->getId()]) ?>">
+    <?php echo $this->getBlockHtml('formkey') ?>
+    <div class="entry-edit">
+        <div class="entry-edit-head"><h4><?php echo $this->escapeHtml($this->__('Connected to %s. What to bring across:', $import->getSourceName() ?: $this->getProviderName())) ?></h4></div>
+        <div class="fieldset">
+            <table cellspacing="0" class="form-list">
+                <?php foreach ($client->stages() as $stage): ?>
+                    <tr>
+                        <td class="label"><label for="stage_<?php echo $stage ?>"><?php echo $this->escapeHtml($labels[$stage] ?? $stage) ?></label></td>
+                        <td class="value">
+                            <input type="checkbox" id="stage_<?php echo $stage ?>" name="stages[]" value="<?php echo $stage ?>" checked="checked"<?php if ($stage === $P::STAGE_SUPPRESSIONS): ?> onclick="return false" title="<?php echo $this->escapeHtml($this->__('Always brought when contacts are')) ?>"<?php endif ?>/>
+                            <label for="stage_<?php echo $stage ?>"><?php echo isset($found[$stage]) && $found[$stage] !== null ? $this->escapeHtml($this->__('%s found', number_format((int) $found[$stage]))) : $this->escapeHtml($this->__('counted as they are read')) ?></label>
+                            <?php if ($stage === $P::STAGE_SUPPRESSIONS): ?>
+                                <p class="note"><span><?php echo $this->escapeHtml($this->__('Always first, so that nobody who opted out, bounced or complained can be mailed in between.')) ?></span></p>
+                            <?php elseif ($stage === $P::STAGE_CONTACTS): ?>
+                                <p class="note"><span><?php echo $this->escapeHtml($this->__('Added to Newsletter Subscribers with their name, linked to the customer account with the same address. Lists, tags and custom fields are not carried over. Anybody unsubscribed, bounced or complained at the provider is imported as unsubscribed.')) ?></span></p>
+                            <?php elseif ($stage === $P::STAGE_TEMPLATES): ?>
+                                <p class="note"><span><?php echo $this->escapeHtml($this->__('Saved under Templates with the provider\'s name after each, merge tags converted. Check each one before sending it.')) ?></span></p>
+                            <?php endif ?>
+                        </td>
+                    </tr>
+                <?php endforeach ?>
+                <?php if (in_array($P::STAGE_CONTACTS, $client->stages(), true)): ?>
+                <tr>
+                    <td class="label"><label for="consent"><?php echo $this->escapeHtml($this->__('Permission')) ?> <span class="required">*</span></label></td>
+                    <td class="value"><input type="checkbox" id="consent" name="consent" value="1"/> <label for="consent"><?php echo $this->escapeHtml($this->__('These contacts asked to receive email from this store.')) ?></label></td>
+                </tr>
+                <tr>
+                    <td class="label"><label for="include_roles"><?php echo $this->escapeHtml($this->__('Role Addresses')) ?></label></td>
+                    <td class="value"><input type="checkbox" id="include_roles" name="include_roles" value="1"/> <label for="include_roles"><?php echo $this->escapeHtml($this->__('Import info@, sales@, support@ and the like')) ?></label></td>
+                </tr>
+                <?php endif ?>
+            </table>
+            <?php foreach ((array) ($found['notes'] ?? []) as $note): ?>
+                <p class="note"><span><?php echo $this->escapeHtml($note) ?></span></p>
+            <?php endforeach ?>
+        </div>
+    </div>
+</form>

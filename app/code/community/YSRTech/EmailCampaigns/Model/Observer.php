@@ -32,6 +32,22 @@ class YSRTech_EmailCampaigns_Model_Observer
         return $this;
     }
 
+    /**
+     * Cron, every minute: move any running import or migration forward.
+     *
+     * @return $this
+     */
+    public function processImports()
+    {
+        try {
+            Mage::getSingleton('ysrtech_emailcampaigns/import_runner')->run();
+        } catch (Throwable $e) {
+            Mage::logException($e);
+        }
+
+        return $this;
+    }
+
     public function syncSuppressions()
     {
         $counts = Mage::getSingleton('ysrtech_emailcampaigns/suppressions')->sync();

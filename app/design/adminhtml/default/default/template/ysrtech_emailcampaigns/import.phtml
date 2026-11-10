@@ -1,0 +1,11 @@
+<?php /** @var YSRTech_EmailCampaigns_Block_Adminhtml_Import $this */ ?>
+<div class="content-header">
+    <table cellspacing="0">
+        <tr>
+            <td style="<?php echo $this->getHeaderWidth() ?>"><?php echo $this->getHeaderHtml() ?></td>
+            <td class="form-buttons"><?php echo $this->getButtonsHtml() ?></td>
+        </tr>
+    </table>
+</div>
+<p class="ysrtech-ec-lede"><?php echo $this->escapeHtml($this->__('Bring subscribers in from a CSV file, or move an account across from %s. Unsubscribes, bounces and spam complaints are always brought first, and nobody is ever re-subscribed. Imports run in the background; this page lists them.', implode(', ', $this->getProviderNames()))) ?></p>
+<?php echo $this->getGridHtml() ?>

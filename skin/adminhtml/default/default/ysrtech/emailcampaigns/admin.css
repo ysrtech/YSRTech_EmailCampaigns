@@ -45,3 +45,9 @@ td.ysrtech-ec-flag { color: #df280a; font-weight: bold; }
 .ysrtech-ec-legend li { display: flex; align-items: center; }
 .ysrtech-ec-legend { display: flex; flex-wrap: wrap; gap: 4px 18px; }
 .ysrtech-ec-legend li { float: none; margin-right: 0; }
+
+/* Import / Migrate */
+.ysrtech-ec-sample { color: #666; }
+.ysrtech-ec-progress { height: 12px; margin: 0 0 16px; background: #e4e4e4; border-radius: 6px; overflow: hidden; }
+.ysrtech-ec-progress span { display: block; height: 12px; background: #2a78d6; border-radius: 6px; transition: width .4s; }
+.ysrtech-ec-progress span.unknown { background: repeating-linear-gradient(135deg, #2a78d6 0 12px, #5598e7 12px 24px); }

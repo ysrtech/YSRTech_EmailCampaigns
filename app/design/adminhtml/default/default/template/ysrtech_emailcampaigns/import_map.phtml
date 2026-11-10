@@ -1,0 +1,73 @@
+<?php
+/** @var YSRTech_EmailCampaigns_Block_Adminhtml_Import_Page $this */
+$import  = $this->getImport();
+$preview = Mage::registry('ysrtech_emailcampaigns_import_preview');
+$mapping = $import->getMapping();
+$fields  = $this->getFieldOptions();
+?>
+<div class="content-header">
+    <table cellspacing="0">
+        <tr>
+            <td><h3 class="icon-head"><?php echo $this->escapeHtml($this->__('Import a CSV File: Step 2 of 2')) ?></h3></td>
+            <td class="form-buttons">
+                <button type="button" class="scalable back" onclick="setLocation('<?php echo $this->getUrl('*/*/index') ?>')"><span><span><span><?php echo $this->escapeHtml($this->__('Back')) ?></span></span></span></button>
+                <button type="button" class="scalable save" onclick="$('ysrtech-ec-map').submit()"><span><span><span><?php echo $this->escapeHtml($this->__('Start Import')) ?></span></span></span></button>
+            </td>
+        </tr>
+    </table>
+</div>
+<form id="ysrtech-ec-map" method="post" action="<?php echo $this->getUrl('*/*/start', ['id' => $import->getId()]) ?>">
+    <?php echo $this->getBlockHtml('formkey') ?>
+    <div class="entry-edit">
+        <div class="entry-edit-head"><h4><?php echo $this->escapeHtml($this->__('What each column of %s holds (%s rows)', $import->getSourceName(), number_format($preview['rows']))) ?></h4></div>
+        <div class="grid">
+            <table cellspacing="0" class="data">
+                <thead>
+                    <tr class="headings">
+                        <th><?php echo $this->escapeHtml($this->__('Column')) ?></th>
+                        <th><?php echo $this->escapeHtml($this->__('First rows')) ?></th>
+                        <th style="width:320px"><?php echo $this->escapeHtml($this->__('Import as')) ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($preview['columns'] as $index => $column): ?>
+                    <tr class="<?php echo $index % 2 ? 'odd' : 'even' ?>">
+                        <td><strong><?php echo $this->escapeHtml($column !== '' ? $column : $this->__('(no name)')) ?></strong></td>
+                        <td class="ysrtech-ec-sample"><?php echo $this->escapeHtml(implode('  ·  ', array_filter(array_map(static fn ($row) => mb_substr(trim((string) ($row[$index] ?? '')), 0, 40), $preview['sample']), 'strlen'))) ?></td>
+                        <td>
+                            <select name="mapping[<?php echo (int) $index ?>]" class="select" style="width:300px">
+                                <?php foreach ($fields as $value => $label): ?>
+                                    <option value="<?php echo $value ?>"<?php if (($mapping[$index] ?? 'skip') === $value): ?> selected="selected"<?php endif ?>><?php echo $this->escapeHtml($label) ?></option>
+                                <?php endforeach ?>
+                            </select>
+                        </td>
+                    </tr>
+                <?php endforeach ?>
+                </tbody>
+            </table>
+        </div>
+        <p class="note ysrtech-ec-lede"><?php echo $this->escapeHtml($this->__('Subscribers here have an address and a name. Other columns - tags, custom fields, list names - have nowhere to go yet and are not imported.')) ?></p>
+    </div>
+    <div class="entry-edit">
+        <div class="entry-edit-head"><h4><?php echo $this->escapeHtml($this->__('Options')) ?></h4></div>
+        <div class="fieldset">
+            <table cellspacing="0" class="form-list">
+                <tr>
+                    <td class="label"><label for="update_existing"><?php echo $this->escapeHtml($this->__('Existing Subscribers')) ?></label></td>
+                    <td class="value"><input type="checkbox" id="update_existing" name="update_existing" value="1" checked="checked"/> <label for="update_existing"><?php echo $this->escapeHtml($this->__('Fill in or update their names from the file')) ?></label>
+                        <p class="note"><span><?php echo $this->escapeHtml($this->__('Their subscription status is never changed by an import: somebody who unsubscribed stays unsubscribed.')) ?></span></p></td>
+                </tr>
+                <tr>
+                    <td class="label"><label for="include_roles"><?php echo $this->escapeHtml($this->__('Role Addresses')) ?></label></td>
+                    <td class="value"><input type="checkbox" id="include_roles" name="include_roles" value="1"/> <label for="include_roles"><?php echo $this->escapeHtml($this->__('Import info@, sales@, support@ and the like')) ?></label>
+                        <p class="note"><span><?php echo $this->escapeHtml($this->__('Shared inboxes complain more than people do. Left out unless ticked.')) ?></span></p></td>
+                </tr>
+                <tr>
+                    <td class="label"><label for="check_domains"><?php echo $this->escapeHtml($this->__('Dead Domains')) ?></label></td>
+                    <td class="value"><input type="checkbox" id="check_domains" name="check_domains" value="1" checked="checked"/> <label for="check_domains"><?php echo $this->escapeHtml($this->__('Skip addresses whose domain cannot receive email')) ?></label>
+                        <p class="note"><span><?php echo $this->escapeHtml($this->__('Looks each domain up once. Those are certain hard bounces.')) ?></span></p></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</form>

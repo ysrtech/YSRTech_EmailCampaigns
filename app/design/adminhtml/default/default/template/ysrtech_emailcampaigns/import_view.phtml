@@ -1,0 +1,81 @@
+<?php
+/** @var YSRTech_EmailCampaigns_Block_Adminhtml_Import_Page $this */
+$import   = $this->getImport();
+$I        = YSRTech_EmailCampaigns_Model_Import::class;
+$statuses = $I::statuses();
+$percent  = $this->getPercent();
+$isCsv    = $import->getType() === $I::TYPE_CSV;
+$stages   = $this->getStageLabels();
+$level    = ['done' => 'success', 'failed' => 'error', 'cancelled' => 'notice'][$import->getStatus()] ?? 'notice';
+?>
+<div class="content-header">
+    <table cellspacing="0">
+        <tr>
+            <td><h3 class="icon-head"><?php echo $this->escapeHtml($isCsv ? $this->__('Import #%d: %s', $import->getId(), $import->getSourceName()) : $this->__('Migration #%d from %s', $import->getId(), $this->getProviderName())) ?></h3></td>
+            <td class="form-buttons">
+                <button type="button" class="scalable back" onclick="setLocation('<?php echo $this->getUrl('*/*/index') ?>')"><span><span><span><?php echo $this->escapeHtml($this->__('Back')) ?></span></span></span></button>
+                <?php if ($import->isRunning()): ?>
+                    <form method="post" action="<?php echo $this->getUrl('*/*/cancel', ['id' => $import->getId()]) ?>" style="display:inline" onsubmit="return confirm('<?php echo $this->jsQuoteEscape($this->__('Stop this import? What has been imported so far is kept.')) ?>')">
+                        <?php echo $this->getBlockHtml('formkey') ?>
+                        <button type="submit" class="scalable delete"><span><span><span><?php echo $this->escapeHtml($this->__('Cancel Import')) ?></span></span></span></button>
+                    </form>
+                    <form method="post" action="<?php echo $this->getUrl('*/*/process', ['id' => $import->getId()]) ?>" style="display:inline">
+                        <?php echo $this->getBlockHtml('formkey') ?>
+                        <button type="submit" class="scalable"><span><span><span><?php echo $this->escapeHtml($this->__('Process a Batch Now')) ?></span></span></span></button>
+                    </form>
+                <?php endif ?>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<ul class="messages">
+    <li class="<?php echo $level ?>-msg"><ul><li>
+        <strong><?php echo $this->escapeHtml($statuses[$import->getStatus()] ?? $import->getStatus()) ?>.</strong>
+        <?php if ($import->isRunning()): ?>
+            <?php if (!$isCsv && $import->getStage()): ?><?php echo $this->escapeHtml($this->__('On: %s.', $stages[$import->getStage()] ?? $import->getStage())) ?><?php endif ?>
+            <?php echo $this->escapeHtml($this->__('%s read so far%s.', number_format((int) $import->getProcessedRows()), $import->getTotalRows() ? ' ' . $this->__('of %s', number_format((int) $import->getTotalRows())) : '')) ?>
+            <?php echo $this->escapeHtml($this->__('It runs in the background from cron, a batch a minute; this page refreshes itself. If it is not moving, cron is not running: use Process a Batch Now.')) ?>
+        <?php elseif ($import->getStatus() === $I::STATUS_DONE): ?>
+            <?php echo $this->escapeHtml($this->__('%s read.', number_format((int) $import->getProcessedRows()))) ?>
+        <?php endif ?>
+        <?php if ($import->getError()): ?><?php echo $this->escapeHtml($import->getError()) ?><?php endif ?>
+    </li></ul></li>
+</ul>
+
+<?php if ($import->isRunning()): ?>
+    <div class="ysrtech-ec-progress"><span style="width:<?php echo $percent === null ? 100 : $percent ?>%"<?php if ($percent === null): ?> class="unknown"<?php endif ?>></span></div>
+<?php endif ?>
+
+<div class="entry-edit">
+    <div class="entry-edit-head"><h4><?php echo $this->escapeHtml($this->__('Result')) ?></h4></div>
+    <div class="grid">
+        <table cellspacing="0" class="data">
+            <tbody>
+            <?php $rows = $this->getStatRows(); ?>
+            <?php if (!$rows): ?>
+                <tr><td class="empty-text a-center"><?php echo $this->escapeHtml($this->__('Nothing counted yet.')) ?></td></tr>
+            <?php endif ?>
+            <?php foreach ($rows as $i => $row): ?>
+                <tr class="<?php echo $i % 2 ? 'odd' : 'even' ?>">
+                    <td><?php echo $this->escapeHtml($row['label']) ?></td>
+                    <td class="a-right" style="width:120px"><strong><?php echo number_format($row['value']) ?></strong></td>
+                </tr>
+            <?php endforeach ?>
+            </tbody>
+        </table>
+    </div>
+    <?php if ($isCsv && is_file($import->getSkippedFile())): ?>
+        <p class="ysrtech-ec-lede"><a href="<?php echo $this->getUrl('*/*/skipped', ['id' => $import->getId()]) ?>"><?php echo $this->escapeHtml($this->__('Download the rows that were skipped, with the reason for each')) ?></a></p>
+    <?php endif ?>
+    <p class="note ysrtech-ec-lede"><?php echo $this->escapeHtml($this->__('Started by %s on %s.', $import->getAdminUser() ?: $this->__('unknown'), $this->formatDate($import->getCreatedAt(), 'medium', true))) ?></p>
+</div>
+
+<?php if ($import->isRunning()): ?>
+<script type="text/javascript">
+//<![CDATA[
+// The page is the progress report: reload it while there is progress to show.
+setTimeout(function () { window.location.reload(); }, 5000);
+//]]>
+</script>
+<?php endif ?>
