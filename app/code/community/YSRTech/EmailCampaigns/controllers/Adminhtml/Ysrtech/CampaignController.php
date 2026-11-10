@@ -203,6 +203,48 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
                     ? Varien_Date::formatDate($data['scheduled_at'], true) : null,
             ]);
 
+            /*
+             * Before anything is scheduled, the message is checked as it
+             * would be sent. A problem that makes it unlawful or unreadable -
+             * no subject, no postal address, a body Gmail will cut off before
+             * the unsubscribe link - keeps it a draft. Everything else is
+             * said and left to the person sending.
+             */
+            $blocked = [];
+
+            if (($data['action'] ?? '') === 'schedule') {
+                $template = Mage::getModel('ysrtech_emailcampaigns/template')->load((int) $model->getTemplateId());
+
+                if (!$template->getId()) {
+                    $blocked[] = $this->__('Choose a template.');
+                } else {
+                    $C = YSRTech_EmailCampaigns_Model_Template_Checks::class;
+
+                    foreach (Mage::getSingleton('ysrtech_emailcampaigns/template_checks')
+                                 ->run($template, (string) $model->getSubject(), $model->getStoreId()) as $check) {
+                        if ($check['level'] === $C::BAD) {
+                            $blocked[] = $check['label'] . ': ' . $check['message'];
+                        } elseif ($check['level'] === $C::WARN) {
+                            $this->_getSession()->addNotice($check['label'] . ': ' . $check['message']);
+                        }
+                    }
+                }
+            }
+
+            if ($blocked) {
+                $model->setStatus($model->getStatus() ?: YSRTech_EmailCampaigns_Model_Campaign::STATUS_DRAFT)->save();
+
+                $this->_getSession()->addError($this->__('Saved as a draft, not scheduled. These have to be fixed first:'));
+
+                foreach ($blocked as $message) {
+                    $this->_getSession()->addError($message);
+                }
+
+                $this->_redirect('*/*/edit', ['id' => $model->getId()]);
+
+                return;
+            }
+
             // Schedule action: queue it up.
             if (($data['action'] ?? '') === 'schedule') {
                 $model->setStatus(YSRTech_EmailCampaigns_Model_Campaign::STATUS_SCHEDULED);

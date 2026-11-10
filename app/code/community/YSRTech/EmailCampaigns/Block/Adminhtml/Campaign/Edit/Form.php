@@ -71,6 +71,13 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Edit_Form extends Mage_Adm
             'text'  => $this->_estimateHtml($model),
         ]);
 
+        if ($model->getId() && $model->getTemplateId()) {
+            $fieldset->addField('presend_checks', 'note', [
+                'label' => $h->__('Pre-send Checks'),
+                'text'  => $this->_checksHtml($model),
+            ]);
+        }
+
         $fieldset->addField('send_test', 'note', [
             'label' => $h->__('Send A Test'),
             'text'  => $this->_testSendHtml($model),
@@ -355,6 +362,31 @@ HTML;
 //]]>
 </script>
 HTML;
+    }
+
+    /**
+     * The checks a scheduled send has to pass, shown while there is still
+     * time to do something about them. For the campaign as saved.
+     */
+    protected function _checksHtml($model): string
+    {
+        $template = Mage::getModel('ysrtech_emailcampaigns/template')->load((int) $model->getTemplateId());
+
+        if (!$template->getId()) {
+            return '';
+        }
+
+        $html = '<ul class="ysrtech-ec-checks">';
+
+        foreach (Mage::getSingleton('ysrtech_emailcampaigns/template_checks')
+                     ->run($template, (string) $model->getSubject(), $model->getStoreId()) as $check) {
+            $html .= '<li class="' . $check['level'] . '"><strong>' . $this->escapeHtml($check['label']) . '</strong>'
+                . $this->escapeHtml($check['message']) . '</li>';
+        }
+
+        return $html . '</ul><p class="note"><span>'
+            . $this->escapeHtml(Mage::helper('ysrtech_emailcampaigns')->__('For the campaign as last saved. Red has to be fixed before it can be scheduled; amber is worth a look.'))
+            . '</span></p>';
     }
 
     protected function _toOptions($collection, string $valueField, string $labelField = 'name'): array
