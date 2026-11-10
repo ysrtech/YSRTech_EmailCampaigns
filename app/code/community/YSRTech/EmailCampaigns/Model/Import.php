@@ -184,6 +184,12 @@ class YSRTech_EmailCampaigns_Model_Import extends Mage_Core_Model_Abstract
             'finished_at'     => Varien_Date::now(),
         ])->save();
 
+        // The uploaded file is a list of people. Once it has been read, or
+        // will not be, there is no reason to keep a copy of it on the server.
+        if ($this->getType() === self::TYPE_CSV && $this->getFilePath() && is_file($this->getFile())) {
+            @unlink($this->getFile());
+        }
+
         // A SendGrid migration keeps the contact export it downloaded on
         // disk between batches; one that stops early leaves it behind.
         if ($this->getProvider() === 'sendgrid') {
