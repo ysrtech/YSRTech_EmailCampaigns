@@ -2,7 +2,7 @@
 <config>
     <modules>
         <YSRTech_EmailCampaigns>
-            <version>0.15.0</version>
+            <version>0.16.0</version>
         </YSRTech_EmailCampaigns>
     </modules>
 
@@ -50,6 +50,9 @@
                     <suppression>
                         <table>ysrtech_emailcampaigns_suppression</table>
                     </suppression>
+                    <ai_usage>
+                        <table>ysrtech_emailcampaigns_ai_usage</table>
+                    </ai_usage>
                     <import>
                         <table>ysrtech_emailcampaigns_import</table>
                     </import>
@@ -346,6 +349,11 @@
             <tracking>
                 <enabled>1</enabled>
             </tracking>
+            <ai>
+                <enabled>0</enabled>
+                <provider>openrouter</provider>
+                <max_calls_per_hour>60</max_calls_per_hour>
+            </ai>
         </ysrtech_emailcampaigns>
     </default>
 

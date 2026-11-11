@@ -58,6 +58,49 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
     }
 
     /**
+     * Subject lines and previews for this campaign's email, from the AI.
+     * Offers; saves nothing.
+     */
+    public function suggestAction()
+    {
+        $response = ['ok' => false];
+
+        try {
+            if (!$this->getRequest()->isPost() || !$this->_validateFormKey()) {
+                Mage::throwException($this->__('This page has been open a while. Reload it and try again.'));
+            }
+
+            $campaign = $this->_campaign();
+
+            if (!$campaign) {
+                Mage::throwException($this->__('Campaign no longer exists.'));
+            }
+
+            $template = $campaign->getContentTemplate();
+
+            if (!$template || trim((string) $template->getHtml()) === '') {
+                Mage::throwException($this->__('Write the email first: suggestions are made from what it says.'));
+            }
+
+            $response = ['ok' => true] + Mage::getSingleton('ysrtech_emailcampaigns/ai_copy')->suggest(
+                (string) $template->getHtml(),
+                (string) $this->getRequest()->getPost('subject'),
+                (string) $this->getRequest()->getPost('preheader'),
+                $campaign->getStoreId()
+            );
+        } catch (Mage_Core_Exception $e) {
+            $response['message'] = $e->getMessage();
+        } catch (Throwable $e) {
+            Mage::logException($e);
+            $response['message'] = $this->__('Suggestions could not be made. Try again.');
+        }
+
+        $this->getResponse()
+            ->setHeader('Content-Type', 'application/json', true)
+            ->setBody(Mage::helper('core')->jsonEncode($response));
+    }
+
+    /**
      * Save whichever fields the editor sends, and answer with the campaign
      * as it now stands: summaries, recipient count, checks, what is missing.
      */

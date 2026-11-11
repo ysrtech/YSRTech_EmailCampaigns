@@ -85,9 +85,12 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Editor extends Mage_Adminh
             'stores'    => $stores,
             'brandUrl'  => $this->getUrl('*/system_config/edit', ['section' => 'ysrtech_emailcampaigns']),
             'formKey'   => Mage::getSingleton('core/session')->getFormKey(),
+            // Offered only when it would work; the settings say how to turn it on
+            'ai'        => Mage::getSingleton('ysrtech_emailcampaigns/ai_client')->configured(),
             'adminEmail' => $user ? (string) $user->getEmail() : '',
             'urls'      => [
                 'autosave'   => $this->getUrl('*/*/autosave', $id),
+                'suggest'    => $this->getUrl('*/*/suggest', $id),
                 'content'    => $this->getUrl('*/*/content', $id),
                 'designer'   => $this->getUrl('*/*/designer', $id),
                 'send'       => $this->getUrl('*/*/send', $id),
@@ -140,6 +143,9 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Editor extends Mage_Adminh
             'optional' => 'optional', 'replyHint' => 'Where replies go, if not the sender',
             'defaultSender' => 'Leave empty to use the default: %1',
             'domainLocked' => 'Campaigns are sent from %1. Mail from another domain fails the checks inboxes run and lands in spam, so only the part before the @ can be changed here.',
+            'suggest' => 'Suggest with AI', 'suggesting' => 'Thinking…', 'suggestSubjects' => 'Subject lines', 'suggestPreviews' => 'Preview text',
+            'suggestHint' => 'Click one to use it. Written from the words of your email; check it says nothing the email does not.',
+            'suggestAgain' => 'More',
             'subjectLine' => 'Subject line', 'subjectHint' => 'What’s new this month, {{ customer.firstname|there }}',
             'recommended' => '%1 / 60 recommended', 'previewText' => 'Preview text',
             'previewHint' => 'Shown after the subject in most inboxes',

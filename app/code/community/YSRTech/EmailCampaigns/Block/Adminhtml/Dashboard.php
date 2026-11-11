@@ -49,6 +49,14 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Dashboard extends Mage_Adminhtml_Bl
         return $this->_stats;
     }
 
+    /**
+     * The last sender check, or null when none has been run lately.
+     */
+    public function getSenderCheck(): ?array
+    {
+        return Mage::getSingleton('ysrtech_emailcampaigns/deliverability')->latest();
+    }
+
     public function getPeriodUrl(int $days, string $type): string
     {
         return $this->getUrl('*/*/index', array_filter(['days' => $days, 'type' => $type]));

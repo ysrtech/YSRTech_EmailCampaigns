@@ -36,6 +36,29 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SendingController extends Mage_Ad
     }
 
     /**
+     * Check the saved AI settings with a one-word request.
+     */
+    public function testAiAction()
+    {
+        if (!$this->getRequest()->isPost() || !$this->_validateFormKey()) {
+            $this->getResponse()->setHttpResponseCode(405);
+
+            return;
+        }
+
+        try {
+            $result = Mage::getSingleton('ysrtech_emailcampaigns/ai_client')->test();
+        } catch (Throwable $e) {
+            Mage::logException($e);
+            $result = ['ok' => false, 'lines' => [['level' => 'error', 'text' => $e->getMessage()]]];
+        }
+
+        $this->getResponse()
+            ->setHeader('Content-Type', 'application/json', true)
+            ->setBody(Mage::helper('core')->jsonEncode($result));
+    }
+
+    /**
      * Put every existing template and draft campaign into the store's
      * header and footer. Behind the button in the Brand settings.
      */

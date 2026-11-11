@@ -42,6 +42,47 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_TemplateController
     }
 
     /**
+     * "Design with AI": a brief becomes a template, opened in the designer
+     * like one made from a starter.
+     */
+    public function aiDesignAction()
+    {
+        if (!$this->getRequest()->isPost() || !$this->_validateFormKey()) {
+            $this->_redirect('*/*/new');
+
+            return;
+        }
+
+        $post = $this->getRequest()->getPost();
+
+        try {
+            $template = Mage::getSingleton('ysrtech_emailcampaigns/ai_designer')->design(
+                (string) ($post['brief'] ?? ''),
+                (string) ($post['link'] ?? ''),
+                (string) ($post['tone'] ?? 'friendly')
+            );
+
+            $this->_getSession()->addSuccess($this->__('Here is a first draft. Check every fact in it, and fill in anything in [square brackets], before it is sent.'));
+            $this->_redirect('*/*/designer', ['id' => $template->getId()]);
+
+            return;
+        } catch (Mage_Core_Exception $e) {
+            $this->_getSession()->addError($e->getMessage());
+        } catch (Throwable $e) {
+            Mage::logException($e);
+            $this->_getSession()->addError($this->__('The design could not be made. Try again.'));
+        }
+
+        // What was typed is worth keeping when it did not work
+        $this->_getSession()->setData('ysrtech_ec_ai_brief', [
+            'brief' => mb_substr((string) ($post['brief'] ?? ''), 0, 1500),
+            'link'  => mb_substr((string) ($post['link'] ?? ''), 0, 500),
+            'tone'  => (string) ($post['tone'] ?? ''),
+        ]);
+        $this->_redirect('*/*/new');
+    }
+
+    /**
      * Create a template from a starter and open it in the designer.
      */
     public function createAction()

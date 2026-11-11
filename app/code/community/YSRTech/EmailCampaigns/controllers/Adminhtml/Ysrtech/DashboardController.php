@@ -19,6 +19,26 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_DashboardController
     }
 
     /**
+     * Run the sender check: DNS lookups and a question to Mailgun, so on a
+     * button rather than on every load of the dashboard.
+     */
+    public function senderCheckAction()
+    {
+        try {
+            if (!$this->getRequest()->isPost() || !$this->_validateFormKey()) {
+                Mage::throwException($this->__('This page has been open a while. Reload it and try again.'));
+            }
+
+            Mage::getSingleton('ysrtech_emailcampaigns/deliverability')->refresh();
+        } catch (Throwable $e) {
+            Mage::logException($e);
+            $this->_getSession()->addError($e->getMessage());
+        }
+
+        $this->_redirect('*/*/index', ['_fragment' => 'ysrtech-ec-sender']);
+    }
+
+    /**
      * The per-campaign grid reloads itself over ajax when sorted or paged.
      */
     public function gridAction()

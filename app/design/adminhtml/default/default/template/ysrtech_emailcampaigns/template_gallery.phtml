@@ -15,6 +15,37 @@
     <?php echo $this->getBlockHtml('formkey') ?>
     <input type="hidden" name="starter" id="ysrtech-ec-starter-code" value=""/>
 </form>
+<?php $ai = $this->getAiState(); ?>
+<div class="entry-edit">
+    <div class="entry-edit-head"><h4><?php echo $this->escapeHtml($this->__('Design With AI')) ?></h4></div>
+    <div class="ysrtech-ec-aiform">
+    <?php if ($ai['unavailable']): ?>
+        <p class="note"><?php echo $this->escapeHtml($this->__('Describe an email and get a first draft, built from the same sections as the designs below and in this store\'s colours.')) ?> <?php echo $this->escapeHtml($ai['unavailable']) ?></p>
+    <?php else: ?>
+        <form method="post" action="<?php echo $this->getUrl('*/*/aiDesign') ?>" id="ysrtech-ec-aidesign" onsubmit="var b=this.down('button');b.disabled=true;b.down('span span span').update('<?php echo $this->jsQuoteEscape($this->escapeHtml($this->__('Designing, about 20 seconds…'))) ?>')">
+            <?php echo $this->getBlockHtml('formkey') ?>
+            <label for="ysrtech-ec-brief"><?php echo $this->escapeHtml($this->__('What is this email about, and what should the reader do?')) ?></label>
+            <textarea id="ysrtech-ec-brief" name="brief" rows="3" maxlength="1500" required="required" placeholder="<?php echo $this->escapeHtml($this->__('For example: Our Chanukah sale starts Sunday. 20% off all children\'s books with the code LIGHTS20, until the end of the week. Show what is on sale.')) ?>"><?php echo $this->escapeHtml($ai['brief']) ?></textarea>
+            <div class="row">
+                <div>
+                    <label for="ysrtech-ec-ailink"><?php echo $this->escapeHtml($this->__('Where the button goes')) ?></label>
+                    <input type="text" class="input-text" id="ysrtech-ec-ailink" name="link" maxlength="500" value="<?php echo $this->escapeHtml($ai['link']) ?>" placeholder="<?php echo $this->escapeHtml($ai['home']) ?>"/>
+                </div>
+                <div>
+                    <label for="ysrtech-ec-aitone"><?php echo $this->escapeHtml($this->__('Tone')) ?></label>
+                    <select id="ysrtech-ec-aitone" name="tone">
+                        <?php foreach ($ai['tones'] as $code => $label): ?>
+                            <option value="<?php echo $code ?>"<?php if ($code === $ai['tone']): ?> selected="selected"<?php endif ?>><?php echo $this->escapeHtml($label) ?></option>
+                        <?php endforeach ?>
+                    </select>
+                </div>
+                <button type="submit" class="scalable add"><span><span><span><?php echo $this->escapeHtml($this->__('Design It')) ?></span></span></span></button>
+            </div>
+            <p class="note"><?php echo $this->escapeHtml($this->__('Only this description and the store\'s name are sent to the AI provider. The draft opens in the designer: it uses only the facts you give, and marks anything missing in [square brackets] for you to fill in.')) ?></p>
+        </form>
+    <?php endif ?>
+    </div>
+</div>
 <?php foreach ($this->getStartersByCategory() as $category => $starters): ?>
     <div class="entry-edit">
         <div class="entry-edit-head"><h4><?php echo $this->escapeHtml($category) ?></h4></div>

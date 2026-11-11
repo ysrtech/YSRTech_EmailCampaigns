@@ -177,3 +177,13 @@
 .ecc .brand-sw { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; }
 .ecc .brand-sw input { margin: 3px 0 0; accent-color: var(--accent); }
 .ecc .field .help { margin-top: 2px; }
+
+/* Suggest with AI */
+.ecc .ai-suggest { margin-top: 4px; }
+.ecc .ai-group { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.ecc .ai-title { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; }
+.ecc .ai-option { text-align: left; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font: inherit; font-size: 14px; cursor: pointer; }
+.ecc .ai-option:hover { border-color: var(--accent); background: var(--accent-soft); }
+.ecc .ai-option.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+.ecc .ai-suggest .help { margin-top: 10px; }
+.ecc .ai-suggest .help.bad { color: var(--bad); }

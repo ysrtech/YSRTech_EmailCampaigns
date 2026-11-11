@@ -84,6 +84,36 @@
             && el.type !== 'checkbox' && el.type !== 'radio';
     }
 
+    /*
+     * The last suggestions offered, kept here because the page redraws a
+     * step whenever a save comes back, and choosing one is a save.
+     */
+    var aiOffer = null;
+
+    function aiList() {
+        if (!aiOffer) { return ''; }
+        var group = function (title, items, kind, current) {
+            return items.length ? '<div class="ai-group"><div class="ai-title">' + esc(title) + '</div>' + items.map(function (item) {
+                return '<button type="button" class="ai-option' + (item === current ? ' on' : '') + '" data-kind="' + kind + '" data-value="' + esc(item) + '">' + esc(item) + '</button>';
+            }).join('') + '</div>' : '';
+        };
+        return group(t.suggestSubjects, aiOffer.subjects, 'subject', state.subject) + group(t.suggestPreviews, aiOffer.preheaders, 'preheader', state.preheader)
+            + '<p class="help">' + esc(t.suggestHint) + '</p>';
+    }
+
+    function aiBind() {
+        $$('#ecc-ai-out .ai-option').forEach(function (option) {
+            option.onclick = function () {
+                var kind = option.getAttribute('data-kind');
+                var box = $(kind === 'subject' ? '#ecc-sj' : '#ecc-pr');
+                box.value = option.getAttribute('data-value');
+                box.oninput();
+                $$('#ecc-ai-out .ai-option[data-kind="' + kind + '"]').forEach(function (o) { o.classList.remove('on'); });
+                option.classList.add('on');
+            };
+        });
+    }
+
     function post(url, fields) {
         var body = new FormData();
         body.append('form_key', cfg.formKey);
@@ -278,7 +308,8 @@
                         + '<input type="text" id="ecc-sj" maxlength="255" value="' + esc(state.subject) + '" placeholder="' + esc(t.subjectHint) + '"' + ro + '>'
                         + '<div class="counter' + (state.subject.length > 60 ? ' over' : '') + '" id="ecc-sjc">' + esc(tr('recommended', state.subject.length)) + '</div></div>'
                         + '<div class="field"><label for="ecc-pr">' + esc(t.previewText) + '</label>'
-                        + '<input type="text" id="ecc-pr" maxlength="255" value="' + esc(state.preheader) + '" placeholder="' + esc(t.previewHint) + '"' + ro + '></div>';
+                        + '<input type="text" id="ecc-pr" maxlength="255" value="' + esc(state.preheader) + '" placeholder="' + esc(t.previewHint) + '"' + ro + '></div>'
+                        + (cfg.ai && !ro ? '<div class="ai-suggest"><button type="button" class="btn btn-sm" id="ecc-ai">' + esc(aiOffer ? t.suggestAgain : t.suggest) + '</button><div id="ecc-ai-out">' + aiList() + '</div></div>' : '');
                 }
             },
             {
@@ -544,6 +575,30 @@
             };
         }
         if (pr) { pr.oninput = function () { paintLive(); save({preheader: pr.value}); }; }
+
+        /*
+         * "Suggest with AI": a few subject lines and previews written from
+         * the email. Choosing one puts it in the box and saves it like typing
+         * would; nothing changes until one is chosen.
+         */
+        var ai = $('#ecc-ai');
+        if (ai) {
+            ai.onclick = function () {
+                ai.disabled = true;
+                ai.textContent = t.suggesting;
+                post(cfg.urls.suggest, {subject: sj.value, preheader: pr.value}).then(function (json) {
+                    aiOffer = {subjects: json.subjects || [], preheaders: json.preheaders || []};
+                    $('#ecc-ai-out').innerHTML = aiList();
+                    aiBind();
+                }).catch(function (error) {
+                    $('#ecc-ai-out').innerHTML = '<p class="help bad">' + esc(error.message) + '</p>';
+                }).then(function () {
+                    var button = $('#ecc-ai');
+                    if (button) { button.disabled = false; button.textContent = aiOffer ? t.suggestAgain : t.suggest; }
+                });
+            };
+            aiBind();
+        }
 
         $$('[data-starter]').forEach(function (button) {
             button.onclick = function () { button.disabled = true; content({source: 'starter', starter: button.getAttribute('data-starter')}); };

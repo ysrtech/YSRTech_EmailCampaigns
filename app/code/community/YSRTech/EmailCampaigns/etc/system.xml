@@ -355,6 +355,65 @@
                         </enabled>
                     </fields>
                 </tracking>
+                <ai translate="label comment">
+                    <label>AI</label>
+                    <comment><![CDATA[Optional. Powers "Suggest" beside a campaign's subject line and "Design with AI" in the template gallery. What is sent to the provider is the wording of the email or your brief and the store's name; no subscriber, customer or order data is ever sent. Each request is billed by the provider to the key below.]]></comment>
+                    <sort_order>25</sort_order>
+                    <show_in_default>1</show_in_default>
+                    <fields>
+                        <enabled translate="label">
+                            <label>Enable AI Features</label>
+                            <frontend_type>select</frontend_type>
+                            <source_model>adminhtml/system_config_source_yesno</source_model>
+                            <sort_order>10</sort_order>
+                            <show_in_default>1</show_in_default>
+                        </enabled>
+                        <provider translate="label comment">
+                            <label>Provider</label>
+                            <frontend_type>select</frontend_type>
+                            <source_model>ysrtech_emailcampaigns/system_config_source_aiprovider</source_model>
+                            <comment>OpenRouter gives one key access to models from many companies. OpenAI is used directly with an OpenAI key.</comment>
+                            <sort_order>20</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <depends><enabled>1</enabled></depends>
+                        </provider>
+                        <api_key translate="label comment">
+                            <label>API Key</label>
+                            <frontend_type>obscure</frontend_type>
+                            <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
+                            <comment>Stored encrypted. Set a spending limit on the key at the provider as well.</comment>
+                            <sort_order>30</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <depends><enabled>1</enabled></depends>
+                        </api_key>
+                        <model translate="label comment">
+                            <label>Model</label>
+                            <frontend_type>text</frontend_type>
+                            <comment><![CDATA[The model's id exactly as the provider lists it. On OpenRouter it has the form <em>company/model-name</em>, copied from the model's page there; on OpenAI it is the model name alone.]]></comment>
+                            <sort_order>40</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <depends><enabled>1</enabled></depends>
+                        </model>
+                        <max_calls_per_hour translate="label comment">
+                            <label>Maximum Requests Per Hour</label>
+                            <frontend_type>text</frontend_type>
+                            <validate>validate-digits validate-greater-than-zero</validate>
+                            <comment>Across every admin user. A ceiling on what a mistake or a stuck button can spend.</comment>
+                            <sort_order>50</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <depends><enabled>1</enabled></depends>
+                        </max_calls_per_hour>
+                        <test translate="label comment">
+                            <label>Connection</label>
+                            <frontend_type>button</frontend_type>
+                            <frontend_model>ysrtech_emailcampaigns/adminhtml_system_config_aitest</frontend_model>
+                            <comment>Sends a one-word request with the saved key and model. Save the configuration first: the test reads what is stored, not what is typed above.</comment>
+                            <sort_order>60</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <depends><enabled>1</enabled></depends>
+                        </test>
+                    </fields>
+                </ai>
             </groups>
         </ysrtech_emailcampaigns>
     </sections>
