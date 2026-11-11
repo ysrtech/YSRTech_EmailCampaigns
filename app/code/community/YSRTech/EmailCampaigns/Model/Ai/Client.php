@@ -18,7 +18,35 @@ class YSRTech_EmailCampaigns_Model_Ai_Client
         'openai'     => 'https://api.openai.com/v1/chat/completions',
     ];
 
-    /** @var callable|null fn(string $url, array $headers, string $body): array{status:int, body:string} */
+    /** Where each provider lists the models a key may use */
+    public const MODEL_LISTS = [
+        'openrouter' => 'https://openrouter.ai/api/v1/models',
+        'openai'     => 'https://api.openai.com/v1/models',
+    ];
+
+    /**
+     * Which models to put first, as patterns rather than names: the newest
+     * model matching each is the one recommended, so the advice keeps up as
+     * providers release new versions. These are the general-purpose text
+     * models priced for everyday use; the largest ones cost several times
+     * more and write a subject line no better.
+     */
+    private const RECOMMENDED = [
+        'openrouter' => [
+            '#^anthropic/claude-sonnet-[\d.]+$#' => 'best writing',
+            '#^anthropic/claude-haiku-[\d.]+$#'  => 'fast, lowest cost',
+            '#^openai/gpt-[\d.]+-mini$#'         => 'fast, low cost',
+            '#^google/gemini-[\d.]+-flash$#'     => 'fast, low cost',
+        ],
+        'openai' => [
+            '#^gpt-[\d.]+-mini$#' => 'fast, low cost',
+            '#^gpt-[\d.]+$#'      => 'best writing',
+        ],
+    ];
+
+    public const MODELS_CACHE_KEY = 'ysrtech_emailcampaigns_ai_models_';
+
+    /** @var callable|null fn(string $url, array $headers, ?string $body): array{status:int, body:string}; a null body is a GET */
     private $_transport;
 
     /**
@@ -184,6 +212,128 @@ class YSRTech_EmailCampaigns_Model_Ai_Client
         return is_array($json) ? $json : null;
     }
 
+    /**
+     * The provider's own list of models, for the selector in the settings,
+     * with the few that suit this work first.
+     *
+     * OpenRouter's list is public. OpenAI's needs the saved key, and lists
+     * what that key may use.
+     *
+     * @return array{recommended:array<int, array{id:string, label:string}>, all:array<int, array{id:string, label:string}>}
+     * @throws Mage_Core_Exception
+     */
+    public function listModels(?string $provider = null): array
+    {
+        $h        = Mage::helper('ysrtech_emailcampaigns');
+        $provider = isset(self::MODEL_LISTS[$provider]) ? $provider : $this->provider();
+        $cache    = Mage::app()->getCache();
+        $cached   = $this->_transport ? null : $cache->load(self::MODELS_CACHE_KEY . $provider);
+
+        if ($cached && is_array($list = json_decode((string) $cached, true))) {
+            return $list;
+        }
+
+        $headers = ['Accept: application/json'];
+
+        if ($provider === 'openai') {
+            if ($this->_key() === '') {
+                Mage::throwException($h->__('OpenAI lists models only for a key. Save the API key first, then choose from the list.'));
+            }
+
+            $headers[] = 'Authorization: Bearer ' . $this->_key();
+        }
+
+        try {
+            $response = $this->_send(self::MODEL_LISTS[$provider], $headers, null);
+        } catch (Throwable $e) {
+            Mage::throwException($h->__('The provider\'s model list could not be reached. Type the model id instead.'));
+        }
+
+        $json = json_decode($response['body'], true);
+
+        if ($response['status'] === 401 || $response['status'] === 403) {
+            Mage::throwException($h->__('The provider refused the saved key, so it would not list its models.'));
+        }
+
+        if ($response['status'] !== 200 || !is_array($json['data'] ?? null)) {
+            Mage::throwException($h->__('The provider did not return a model list (HTTP %d). Type the model id instead.', $response['status']));
+        }
+
+        $list = self::arrangeModels($json['data'], $provider);
+
+        if (!$this->_transport && $list['all']) {
+            $cache->save((string) json_encode($list), self::MODELS_CACHE_KEY . $provider, [], 21600);
+        }
+
+        return $list;
+    }
+
+    /**
+     * A provider's raw list as the selector shows it: text models only,
+     * newest first, each with its price where the provider gives one.
+     *
+     * @param  array<int, mixed> $models
+     * @return array{recommended:array<int, array{id:string, label:string}>, all:array<int, array{id:string, label:string}>}
+     */
+    public static function arrangeModels(array $models, string $provider): array
+    {
+        $usable = [];
+
+        foreach ($models as $model) {
+            $id = is_array($model) && is_string($model['id'] ?? null) ? $model['id'] : '';
+
+            if (!preg_match('#^[A-Za-z0-9._:/-]{2,120}$#', $id)) {
+                continue;
+            }
+
+            // Text in, text out. OpenRouter says; OpenAI's list has to be
+            // read by name, and holds image, audio and embedding models too.
+            $outputs = $model['architecture']['output_modalities'] ?? null;
+
+            if (is_array($outputs) ? $outputs !== ['text'] : !preg_match('#^(gpt-|o\d|chatgpt-)#', $id)
+                || preg_match('#image|audio|realtime|transcribe|tts|embedding|moderation|search|instruct|codex#', $id)) {
+                continue;
+            }
+
+            $price = '';
+            $in    = $model['pricing']['prompt'] ?? null;
+            $out   = $model['pricing']['completion'] ?? null;
+
+            if (is_numeric($in) && is_numeric($out)) {
+                $money = static fn ($perToken) => '$' . rtrim(rtrim(number_format((float) $perToken * 1000000, 2, '.', ''), '0'), '.');
+                $price = (float) $in + (float) $out > 0 ? $money($in) . ' in / ' . $money($out) . ' out per million tokens' : 'free';
+            }
+
+            $usable[] = [
+                'id'      => $id,
+                'name'    => is_string($model['name'] ?? null) ? mb_substr(strip_tags($model['name']), 0, 80) : $id,
+                'price'   => $price,
+                'created' => (int) ($model['created'] ?? 0),
+            ];
+        }
+
+        usort($usable, static fn ($a, $b) => $b['created'] <=> $a['created'] ?: strcmp($a['id'], $b['id']));
+
+        $label       = static fn (array $m, string $note = '') => $m['id'] . ($note !== '' || $m['price'] !== '' ? '  (' . implode('; ', array_filter([$note, $m['price']])) . ')' : '');
+        $recommended = [];
+
+        foreach (self::RECOMMENDED[$provider] ?? [] as $pattern => $note) {
+            foreach ($usable as $model) {
+                if (preg_match($pattern, $model['id'])) {
+                    $recommended[] = ['id' => $model['id'], 'label' => $label($model, $note)]; // the newest: the list is in that order
+                    break;
+                }
+            }
+        }
+
+        usort($usable, static fn ($a, $b) => strcmp($a['id'], $b['id']));
+
+        return [
+            'recommended' => $recommended,
+            'all'         => array_map(static fn ($m) => ['id' => $m['id'], 'label' => $label($m)], $usable),
+        ];
+    }
+
     public function callsLastHour(): int
     {
         $resource = Mage::getSingleton('core/resource');
@@ -259,14 +409,14 @@ class YSRTech_EmailCampaigns_Model_Ai_Client
     /**
      * @return array{status:int, body:string}
      */
-    private function _send(string $url, array $headers, string $body): array
+    private function _send(string $url, array $headers, ?string $body): array
     {
         if ($this->_transport) {
             return call_user_func($this->_transport, $url, $headers, $body);
         }
 
-        // The key goes out with the request, so only ever to the two hosts above
-        if (!in_array($url, self::ENDPOINTS, true)) {
+        // The key goes out with the request, so only ever to the addresses above
+        if (!in_array($url, self::ENDPOINTS, true) && !in_array($url, self::MODEL_LISTS, true)) {
             throw new RuntimeException('Refusing to send an AI key to ' . parse_url($url, PHP_URL_HOST));
         }
 
@@ -274,12 +424,14 @@ class YSRTech_EmailCampaigns_Model_Ai_Client
 
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $body,
             CURLOPT_HTTPHEADER     => $headers,
-            CURLOPT_TIMEOUT        => 60,
+            CURLOPT_TIMEOUT        => $body === null ? 20 : 60,
             CURLOPT_CONNECTTIMEOUT => 10,
         ]);
+
+        if ($body !== null) {
+            curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $body]);
+        }
 
         $response = curl_exec($ch);
         $status   = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);

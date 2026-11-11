@@ -389,7 +389,8 @@
                         <model translate="label comment">
                             <label>Model</label>
                             <frontend_type>text</frontend_type>
-                            <comment><![CDATA[The model's id exactly as the provider lists it. On OpenRouter it has the form <em>company/model-name</em>, copied from the model's page there; on OpenAI it is the model name alone.]]></comment>
+                            <frontend_model>ysrtech_emailcampaigns/adminhtml_system_config_aimodel</frontend_model>
+                            <comment><![CDATA[Choose From List fetches the provider's current models and puts the recommended ones first. An id can also be typed: on OpenRouter it has the form <em>company/model-name</em>, on OpenAI it is the model name alone.]]></comment>
                             <sort_order>40</sort_order>
                             <show_in_default>1</show_in_default>
                             <depends><enabled>1</enabled></depends>

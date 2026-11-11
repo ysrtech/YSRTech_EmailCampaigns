@@ -35,8 +35,8 @@ $reply  = fn (string $content, int $status = 200) => ['status' => $status, 'body
     ? ['model' => 'test/model-1', 'choices' => [['message' => ['content' => $content]]], 'usage' => ['prompt_tokens' => 120, 'completion_tokens' => 40, 'cost' => 0.0012]]
     : ['error' => ['message' => $content]])];
 $queue  = [];
-$client->setTransport(function (string $url, array $headers, string $body) use (&$sent, &$queue, $reply) {
-    $sent[] = ['url' => $url, 'headers' => $headers, 'body' => json_decode($body, true)];
+$client->setTransport(function (string $url, array $headers, ?string $body) use (&$sent, &$queue, $reply) {
+    $sent[] = ['url' => $url, 'headers' => $headers, 'body' => $body === null ? null : json_decode($body, true)];
 
     return $queue ? array_shift($queue) : $reply('ready');
 });
@@ -86,6 +86,52 @@ $set('ai/max_calls_per_hour', 500);
 
 $real = Mage::getModel('ysrtech_emailcampaigns/ai_client');
 $ok('decodeObject digs JSON out of a fence', $real::decodeObject("Here you go:\n```json\n{\"a\": 1}\n```") === ['a' => 1]);
+
+// ------------------------------------------------------ model selector
+$C      = YSRTech_EmailCampaigns_Model_Ai_Client::class;
+$text   = ['output_modalities' => ['text']];
+$models = [
+    ['id' => 'anthropic/claude-sonnet-5.0', 'created' => 100, 'architecture' => $text, 'pricing' => ['prompt' => '0.000003', 'completion' => '0.000015']],
+    ['id' => 'anthropic/claude-sonnet-5.5', 'created' => 300, 'architecture' => $text, 'pricing' => ['prompt' => '0.000002', 'completion' => '0.00001']],
+    ['id' => 'anthropic/claude-sonnet-5.5:batch', 'created' => 301, 'architecture' => $text, 'pricing' => ['prompt' => '0.000001', 'completion' => '0.000005']],
+    ['id' => 'anthropic/claude-haiku-5.5', 'created' => 310, 'architecture' => $text, 'pricing' => ['prompt' => '0.0000001', 'completion' => '0.0000005']],
+    ['id' => 'openai/gpt-5-image-mini', 'created' => 400, 'architecture' => ['output_modalities' => ['image', 'text']], 'pricing' => ['prompt' => '0.000002', 'completion' => '0.000002']],
+    ['id' => 'openai/gpt-5.4-mini', 'created' => 200, 'architecture' => $text, 'pricing' => ['prompt' => '0.00000075', 'completion' => '0.0000045']],
+    ['id' => 'some/free-model:free', 'created' => 500, 'architecture' => $text, 'pricing' => ['prompt' => '0', 'completion' => '0']],
+    ['id' => '<script>alert(1)</script>', 'created' => 600, 'architecture' => $text],
+    'not a model',
+];
+$list = $C::arrangeModels($models, 'openrouter');
+$ok('recommends the newest of each family, never a variant', array_column($list['recommended'], 'id') === ['anthropic/claude-sonnet-5.5', 'anthropic/claude-haiku-5.5', 'openai/gpt-5.4-mini']);
+$ok('labels carry the note and the price per million', $list['recommended'][0]['label'] === 'anthropic/claude-sonnet-5.5  (best writing; $2 in / $10 out per million tokens)');
+$ok('all: text models only, by name, junk ids dropped', array_column($list['all'], 'id') === ['anthropic/claude-haiku-5.5', 'anthropic/claude-sonnet-5.0', 'anthropic/claude-sonnet-5.5', 'anthropic/claude-sonnet-5.5:batch', 'openai/gpt-5.4-mini', 'some/free-model:free']);
+$ok('a free model says so', in_array('some/free-model:free  (free)', array_column($list['all'], 'label'), true));
+
+$list = $C::arrangeModels([
+    ['id' => 'gpt-5-mini', 'created' => 10], ['id' => 'gpt-5.4-mini', 'created' => 30], ['id' => 'gpt-5.4-mini-2026-03-01', 'created' => 31],
+    ['id' => 'gpt-5.5', 'created' => 40], ['id' => 'gpt-image-2', 'created' => 50], ['id' => 'text-embedding-4', 'created' => 60], ['id' => 'whisper-2', 'created' => 70],
+], 'openai');
+$ok('OpenAI: chat models by name, newest mini and newest full recommended', array_column($list['recommended'], 'id') === ['gpt-5.4-mini', 'gpt-5.5']
+    && array_column($list['all'], 'id') === ['gpt-5-mini', 'gpt-5.4-mini', 'gpt-5.4-mini-2026-03-01', 'gpt-5.5']);
+
+$sent  = [];
+$queue = [['status' => 200, 'body' => json_encode(['data' => $models])]];
+$list  = $client->listModels('openrouter');
+$ok('OpenRouter\'s list is asked for without the key', $sent[0]['url'] === 'https://openrouter.ai/api/v1/models' && $sent[0]['body'] === null && !preg_grep('/Authorization/', $sent[0]['headers']) && count($list['recommended']) === 3);
+
+$sent  = [];
+$queue = [['status' => 200, 'body' => json_encode(['data' => [['id' => 'gpt-5.5', 'created' => 1]]])]];
+$client->listModels('openai');
+$ok('OpenAI\'s list is asked for with it', $sent[0]['url'] === 'https://api.openai.com/v1/models' && in_array('Authorization: Bearer sk-test-0000', $sent[0]['headers'], true));
+
+$set('ai/api_key', '');
+$count = count($sent);
+$ok('OpenAI without a saved key: says to save one, calls nothing', strpos($throws(fn () => $client->listModels('openai')), 'Save the API key first') !== false && count($sent) === $count);
+$set('ai/api_key', 'sk-test-0000');
+
+$queue = [['status' => 500, 'body' => 'oops']];
+$ok('a failed list says to type the id', strpos($throws(fn () => $client->listModels('openrouter')), 'Type the model id') !== false);
+$ok('listing models is not counted as an AI request', (int) $db->fetchOne("SELECT COUNT(*) FROM {$log} WHERE feature NOT IN ('test')") === 0);
 
 // --------------------------------------------------- subject suggestions
 /** @var YSRTech_EmailCampaigns_Model_Ai_Copy $copy */
