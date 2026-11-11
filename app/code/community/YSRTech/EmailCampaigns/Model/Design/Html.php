@@ -106,7 +106,7 @@ class YSRTech_EmailCampaigns_Model_Design_Html
 
         switch ($b['type']) {
             case 'heading':
-                return $wrap('<h2 style="margin:0;' . $ff . ';font-size:' . (int) $p['size'] . 'px;line-height:1.25;font-weight:' . (int) $p['weight']
+                return $wrap('<h2 style="margin:0;font-family:' . (($s['headingFont'] ?? '') ?: $s['font']) . ';font-size:' . (int) $p['size'] . 'px;line-height:1.25;font-weight:' . (int) $p['weight']
                     . ';color:' . ($p['color'] ?: $s['heading']) . ';text-align:' . $p['align'] . '">' . $p['html'] . '</h2>');
 
             case 'text':
@@ -123,17 +123,18 @@ class YSRTech_EmailCampaigns_Model_Design_Html
                 $bg = $p['bg'] ?: $s['btn'];
                 $r  = $p['radius'] === null ? (int) $s['radius'] : (int) $p['radius'];
                 $fg = $p['color'] ?: ($s['btnText'] ?? '#FFFFFF');
+                $up = !empty($p['upper']) ? ';text-transform:uppercase;letter-spacing:1px' : '';
                 $a  = '<a href="' . $e($p['href']) . '" style="display:' . ($p['full'] ? 'block' : 'inline-block') . ';background:' . $bg . ';color:' . $fg . ';' . $ff
-                    . ';font-size:' . (int) $p['size'] . 'px;font-weight:700;text-decoration:none;padding:13px 26px;border-radius:' . $r . 'px;text-align:center">' . $e($p['label']) . '</a>';
+                    . ';font-size:' . (int) $p['size'] . 'px;font-weight:700;text-decoration:none;padding:13px 26px;border-radius:' . $r . 'px;text-align:center' . $up . '">' . $e($p['label']) . '</a>';
 
                 return $wrap('<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="' . $e($p['href'])
                     . '" style="height:46px;v-text-anchor:middle;width:220px" arcsize="' . (int) round($r / 46 * 100) . '%" fillcolor="' . $bg
-                    . '" stroke="f"><center style="color:' . $fg . ';font-family:Arial;font-size:' . (int) $p['size'] . 'px;font-weight:bold">' . $e($p['label'])
+                    . '" stroke="f"><center style="color:' . $fg . ';font-family:Arial;font-size:' . (int) $p['size'] . 'px;font-weight:bold' . $up . '">' . $e($p['label'])
                     . '</center></v:roundrect><![endif]--><!--[if !mso]><!-->' . $a . '<!--<![endif]-->', 'text-align:' . $p['align']);
 
             case 'divider':
                 return $wrap('<div style="border-top:' . (int) $p['thick'] . 'px solid ' . $p['color'] . ';width:' . (int) $p['width']
-                    . '%;margin:0 auto;font-size:0;line-height:0">&nbsp;</div>');
+                    . '%;margin:' . (['left' => '0 auto 0 0', 'right' => '0 0 0 auto'][$p['align'] ?? ''] ?? '0 auto') . ';font-size:0;line-height:0">&nbsp;</div>');
 
             case 'spacer':
                 return '<div style="height:' . (int) $p['h'] . 'px;line-height:' . (int) $p['h'] . 'px;font-size:0">&nbsp;</div>';
@@ -161,9 +162,10 @@ class YSRTech_EmailCampaigns_Model_Design_Html
             case 'menu':
                 $links = '';
 
-                foreach (self::menuItems((string) $p['items']) as [$label, $url]) {
-                    $links .= '<a href="' . $e($url) . '" style="' . $ff . ';font-size:14px;font-weight:600;color:' . $s['heading']
-                        . ';text-decoration:none;margin:0 9px;display:inline-block">' . $e($label) . '</a>';
+                foreach (self::menuItems((string) $p['items']) as [$label, $url, $colour]) {
+                    $links .= '<a href="' . $e($url) . '" style="' . $ff . ';font-size:' . (int) ($p['size'] ?? 14) . 'px;font-weight:600;color:'
+                        . ($colour ?: (($p['color'] ?? '') ?: $s['heading'])) . ';text-decoration:none;margin:0 9px;display:inline-block'
+                        . (!empty($p['upper']) ? ';text-transform:uppercase;letter-spacing:1.5px' : '') . '">' . $e($label) . '</a>';
                 }
 
                 return $wrap($links, 'text-align:' . $p['align']);
@@ -172,9 +174,12 @@ class YSRTech_EmailCampaigns_Model_Design_Html
                 return $wrap((string) $p['code']);
 
             case 'footer':
-                return $wrap('<div style="' . $ff . ';font-size:12px;line-height:1.6;color:#71717A;text-align:center"><div>' . $e($p['note'])
-                    . '</div><div style="margin-top:6px"><b style="color:#52525B">' . $e($p['company']) . '</b>' . ($p['address'] !== '' ? ' &middot; ' . $e($p['address']) : '')
-                    . '</div><div style="margin-top:8px"><a href="{{ unsubscribe_url }}" style="color:#71717A">' . $e($p['unsubscribe']) . '</a></div></div>');
+                $fc = ($p['color'] ?? '') ?: '#71717A';
+                $lc = ($p['linkColor'] ?? '') ?: $fc;
+
+                return $wrap('<div style="' . $ff . ';font-size:12px;line-height:1.6;color:' . $fc . ';text-align:center"><div>' . $e($p['note'])
+                    . '</div><div style="margin-top:6px"><b>' . $e($p['company']) . '</b>' . ($p['address'] !== '' ? ' &middot; ' . $e($p['address']) : '')
+                    . '</div><div style="margin-top:8px"><a href="{{ unsubscribe_url }}" style="color:' . $lc . '">' . $e($p['unsubscribe']) . '</a></div></div>');
 
             case 'products':
                 // Filled from the catalog when the email is rendered
@@ -205,19 +210,21 @@ class YSRTech_EmailCampaigns_Model_Design_Html
     }
 
     /**
-     * "Books | https://shop/books, Sale | /sale" as [label, url] pairs.
+     * "Books | https://shop/books, Sale | /sale | #bf9a5e" as [label, url,
+     * colour] triples; the colour, for one item that should stand out, is
+     * optional.
      *
-     * @return array<int, array{0:string, 1:string}>
+     * @return array<int, array{0:string, 1:string, 2:string}>
      */
     public static function menuItems(string $items): array
     {
         $out = [];
 
         foreach (explode(',', $items) as $item) {
-            [$label, $url] = array_map('trim', array_pad(explode('|', $item, 2), 2, ''));
+            [$label, $url, $colour] = array_map('trim', array_pad(explode('|', $item, 3), 3, ''));
 
             if ($label !== '') {
-                $out[] = [$label, $url !== '' ? $url : '#'];
+                $out[] = [$label, $url !== '' ? $url : '#', preg_match('/^#([0-9a-f]{3}|[0-9a-f]{6})$/i', $colour) ? $colour : ''];
             }
         }
 

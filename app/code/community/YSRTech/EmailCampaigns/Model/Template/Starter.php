@@ -121,7 +121,8 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
      *       <subject>...</subject>
      *       <preheader>...</preheader>
      *       <module>Vendor_Module</module>
-     *       <file>data/newsletter/weekly.html</file>
+     *       <doc>data/newsletter/weekly.json</doc>    <!-- a builder document; or -->
+     *       <file>data/newsletter/weekly.html</file>  <!-- a finished HTML file -->
      *       <frame>2</frame>   <!-- Renderer::FRAME_*: 2 is "its own complete design" -->
      *     </my_weekly>
      *   </starters></ysrtech_emailcampaigns></global>
@@ -144,7 +145,8 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
 
         foreach ($node->children() as $code => $definition) {
             $module = (string) $definition->module;
-            $file   = (string) $definition->file;
+            $isDoc  = (string) $definition->doc !== '';
+            $file   = $isDoc ? (string) $definition->doc : (string) $definition->file;
 
             // Inside the declaring module's own directory and nowhere else
             if ($module === '' || $file === '' || strpos($file, '..') !== false) {
@@ -164,6 +166,7 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
                 'subject'     => (string) $definition->subject,
                 'preheader'   => (string) $definition->preheader,
                 'file'        => $path,
+                'is_doc'      => $isDoc,
                 'frame'       => isset($definition->frame) ? (int) $definition->frame : YSRTech_EmailCampaigns_Model_Renderer::FRAME_NONE,
             ];
         }
@@ -188,8 +191,23 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
      */
     public function doc(string $code, $storeId = null): ?array
     {
-        if (isset($this->_fromConfig()[$code])) {
-            return null;
+        $files = $this->_fromConfig();
+
+        if (isset($files[$code])) {
+            if (!$files[$code]['is_doc']) {
+                return null;
+            }
+
+            // A document another module brings: its addresses made this
+            // store's, then cleaned like any design from outside
+            $store = $storeId ? Mage::app()->getStore($storeId) : Mage::app()->getDefaultStoreView();
+            $json  = strtr((string) file_get_contents($files[$code]['file']), [
+                '{{store_url}}' => $store->getBaseUrl(Mage_Core_Model_Store::URL_TYPE_LINK),
+                '{{skin_url}}'  => $store->getBaseUrl(Mage_Core_Model_Store::URL_TYPE_SKIN),
+                '{{media_url}}' => $store->getBaseUrl(Mage_Core_Model_Store::URL_TYPE_MEDIA),
+            ]);
+
+            return Mage::getModel('ysrtech_emailcampaigns/design_doc')->clean(json_decode($json, true), $storeId);
         }
 
         /** @var YSRTech_EmailCampaigns_Model_Design_Doc $docs */

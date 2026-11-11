@@ -41,6 +41,8 @@ class YSRTech_EmailCampaigns_Model_Design_Doc
             'link'      => $b['link_color'],
             'btn'       => $b['button_color'],
             'btnText'   => $b['button_text_color'],
+            // Headings may be set in a face of their own; empty is "the same"
+            'headingFont' => $b['heading_font'] !== $b['font'] ? $b['heading_font'] : '',
             'radius'    => 6,
         ];
     }
@@ -74,15 +76,15 @@ class YSRTech_EmailCampaigns_Model_Design_Doc
             case 'heading':  return ['html' => $h->__('A clear, short headline'), 'size' => 28, 'align' => 'left', 'weight' => 700, 'color' => '', 'pad' => [8, 28, 8, 28]];
             case 'text':     return ['html' => $h->__('Write something worth reading. Keep paragraphs short; most people read email on a phone.'), 'size' => 16, 'lh' => 1.6, 'align' => 'left', 'color' => '', 'pad' => [8, 28, 8, 28]];
             case 'image':    return ['src' => '', 'alt' => '', 'href' => '', 'width' => 100, 'align' => 'center', 'radius' => 0, 'pad' => [8, 28, 8, 28]];
-            case 'button':   return ['label' => $h->__('Shop now'), 'href' => '', 'bg' => '', 'color' => '', 'radius' => null, 'full' => false, 'align' => 'center', 'size' => 16, 'pad' => [12, 28, 12, 28]];
-            case 'divider':  return ['color' => '#E4E4E7', 'thick' => 1, 'width' => 100, 'pad' => [12, 28, 12, 28]];
+            case 'button':   return ['label' => $h->__('Shop now'), 'href' => '', 'bg' => '', 'color' => '', 'radius' => null, 'full' => false, 'upper' => false, 'align' => 'center', 'size' => 16, 'pad' => [12, 28, 12, 28]];
+            case 'divider':  return ['color' => '#E4E4E7', 'thick' => 1, 'width' => 100, 'align' => 'center', 'pad' => [12, 28, 12, 28]];
             case 'spacer':   return ['h' => 32];
             case 'social':   return ['nets' => ['facebook', 'instagram'], 'urls' => [], 'align' => 'center', 'size' => 32, 'pad' => [12, 28, 12, 28]];
             case 'coupon':   return ['code' => 'WELCOME10', 'note' => $h->__('One use per customer.'), 'pad' => [12, 28, 12, 28]];
             case 'quote':    return ['html' => $h->__('A few words from a happy customer.'), 'who' => $h->__('Name, city'), 'pad' => [16, 28, 16, 28]];
-            case 'menu':     return ['items' => '', 'align' => 'center', 'pad' => [8, 28, 8, 28]];
+            case 'menu':     return ['items' => '', 'align' => 'center', 'color' => '', 'size' => 14, 'upper' => false, 'pad' => [8, 28, 8, 28]];
             case 'html':     return ['code' => '<p style="margin:0">Custom HTML goes here.</p>', 'pad' => [8, 28, 8, 28]];
-            case 'footer':   return ['company' => '', 'address' => '', 'note' => '', 'unsubscribe' => $h->__('Unsubscribe'), 'pad' => [16, 28, 24, 28]];
+            case 'footer':   return ['company' => '', 'address' => '', 'note' => '', 'unsubscribe' => $h->__('Unsubscribe'), 'color' => '', 'linkColor' => '', 'pad' => [16, 28, 24, 28]];
             case 'products': return ['options' => array_diff_key(YSRTech_EmailCampaigns_Model_Widget_Products::defaults('grid'), ['layout' => 1]) + ['layout' => 'grid']];
         }
 
@@ -333,6 +335,7 @@ class YSRTech_EmailCampaigns_Model_Design_Doc
             'width'  => self::_int($in['width'] ?? 600, 480, 700),
             'font'   => self::_css($in['font'] ?? '') ?: $base['font'],
             'radius' => self::_int($in['radius'] ?? 6, 0, 30),
+            'headingFont' => self::_css($in['headingFont'] ?? ''),
         ];
 
         foreach (['bodyBg', 'contentBg', 'text', 'heading', 'link', 'btn', 'btnText'] as $key) {
@@ -412,11 +415,11 @@ class YSRTech_EmailCampaigns_Model_Design_Doc
             case 'button':
                 $props = ['label' => $text($p['label'] ?? '', 120), 'href' => self::_url($p['href'] ?? ''), 'bg' => self::_colour($p['bg'] ?? ''),
                     'color' => self::_colour($p['color'] ?? ''), 'radius' => isset($p['radius']) && $p['radius'] !== '' ? self::_int($p['radius'], 0, 40) : null,
-                    'full' => !empty($p['full']), 'align' => $align($p['align'] ?? '', 'center'), 'size' => self::_int($p['size'] ?? 16, 11, 26)];
+                    'full' => !empty($p['full']), 'upper' => !empty($p['upper']), 'align' => $align($p['align'] ?? '', 'center'), 'size' => self::_int($p['size'] ?? 16, 11, 26)];
                 break;
 
             case 'divider':
-                $props = ['color' => self::_colour($p['color'] ?? '') ?: '#E4E4E7', 'thick' => self::_int($p['thick'] ?? 1, 1, 10), 'width' => self::_int($p['width'] ?? 100, 5, 100)];
+                $props = ['color' => self::_colour($p['color'] ?? '') ?: '#E4E4E7', 'thick' => self::_int($p['thick'] ?? 1, 1, 10), 'width' => self::_int($p['width'] ?? 100, 5, 100), 'align' => $align($p['align'] ?? '', 'center')];
                 break;
 
             case 'spacer':
@@ -443,7 +446,8 @@ class YSRTech_EmailCampaigns_Model_Design_Doc
                 break;
 
             case 'menu':
-                $props = ['items' => $text($p['items'] ?? '', 1500), 'align' => $align($p['align'] ?? '', 'center')];
+                $props = ['items' => $text($p['items'] ?? '', 1500), 'align' => $align($p['align'] ?? '', 'center'), 'color' => self::_colour($p['color'] ?? ''),
+                    'size' => self::_int($p['size'] ?? 14, 10, 22), 'upper' => !empty($p['upper'])];
                 break;
 
             case 'html':
@@ -453,7 +457,8 @@ class YSRTech_EmailCampaigns_Model_Design_Doc
 
             case 'footer':
                 $props = ['company' => $text($p['company'] ?? '', 200), 'address' => $text($p['address'] ?? '', 400), 'note' => $text($p['note'] ?? '', 400),
-                    'unsubscribe' => $text($p['unsubscribe'] ?? '', 60) ?: $d['unsubscribe']];
+                    'unsubscribe' => $text($p['unsubscribe'] ?? '', 60) ?: $d['unsubscribe'],
+                    'color' => self::_colour($p['color'] ?? ''), 'linkColor' => self::_colour($p['linkColor'] ?? '')];
                 break;
 
             case 'products':

@@ -134,7 +134,8 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Designer extends Mage_Admi
             'mergeTags'  => $this->getMergeTags(),
             'social'     => YSRTech_EmailCampaigns_Model_Design_Html::SOCIAL,
             'defaults'   => $defaults,
-            'fonts'      => $D::FONTS,
+            // The store's own faces first, then the email-safe ones
+            'fonts'      => array_values(array_unique(array_merge([$b['font'], $b['heading_font']], $D::FONTS))),
         ];
     }
 
