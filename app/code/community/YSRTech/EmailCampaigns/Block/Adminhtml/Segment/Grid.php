@@ -29,8 +29,14 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Segment_Grid extends Mage_Adminhtml
         $this->addColumn('name', [
             'header' => $h->__('Name'), 'index' => 'name',
         ]);
+        $this->addColumn('rules', [
+            'header'   => $h->__('Rules'),
+            'renderer' => 'ysrtech_emailcampaigns/adminhtml_segment_grid_renderer_rules',
+            'filter'   => false,
+            'sortable' => false,
+        ]);
         $this->addColumn('customer_count', [
-            'header' => $h->__('Subscribers'), 'index' => 'customer_count', 'width' => '100px',
+            'header' => $h->__('Subscribers Now'), 'index' => 'customer_count', 'width' => '110px', 'type' => 'number',
         ]);
         $this->addColumn('campaign_names', [
             'header'   => $h->__('Used By'),
@@ -42,7 +48,7 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Segment_Grid extends Mage_Adminhtml
             'sortable' => false,
         ]);
         $this->addColumn('last_reindexed_at', [
-            'header' => $h->__('Last Reindexed'), 'index' => 'last_reindexed_at',
+            'header' => $h->__('Last Recalculated'), 'index' => 'last_reindexed_at',
             'type'   => 'datetime', 'width' => '160px',
         ]);
         $this->addColumn('is_active', [
@@ -52,12 +58,24 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Segment_Grid extends Mage_Adminhtml
             'width'   => '80px',
         ]);
 
+        $this->addColumn('edit_rules', [
+            'header'   => $h->__('Action'),
+            'renderer' => 'ysrtech_emailcampaigns/adminhtml_segment_grid_renderer_edit',
+            'filter'   => false,
+            'sortable' => false,
+            'width'    => '90px',
+        ]);
+
         return parent::_prepareColumns();
     }
 
+    /**
+     * Opening a segment shows who is in it; its rules are a button there and
+     * the link in the last column here.
+     */
     public function getRowUrl($row)
     {
-        return $this->getUrl('*/*/edit', ['id' => $row->getId()]);
+        return $this->getUrl('*/*/view', ['id' => $row->getId()]);
     }
 
     public function getGridUrl()

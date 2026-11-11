@@ -68,3 +68,11 @@ td.ysrtech-ec-flag { color: #df280a; font-weight: bold; }
 .ysrtech-ec-checks li.warn:before { background: #e8a100; }
 .ysrtech-ec-checks li.bad:before { background: #df280a; }
 .ysrtech-ec-checks strong { margin-right: 6px; }
+
+/* Segments */
+.ysrtech-ec-rules { list-style: none; margin: 6px 0 0; padding: 0; }
+.ysrtech-ec-rules li { padding: 2px 0; }
+.ysrtech-ec-now { margin-top: 10px; padding: 12px 14px; background: #fff; border: 1px solid #d6d6d6; max-width: 640px; }
+.ysrtech-ec-now .count { font-size: 24px; line-height: 1.3; }
+.ysrtech-ec-now .sample { margin: 8px 0 0; padding: 0; list-style: none; color: #666; }
+.ysrtech-ec-now .sample li { padding: 1px 0; }

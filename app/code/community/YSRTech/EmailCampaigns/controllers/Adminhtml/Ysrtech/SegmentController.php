@@ -22,6 +22,95 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SegmentController
         $this->renderLayout();
     }
 
+    /**
+     * A segment, opened: the subscribers in it.
+     */
+    public function viewAction()
+    {
+        $model = $this->_initSegment();
+
+        if (!$model) {
+            return;
+        }
+
+        $this->_title($this->__('Email Campaigns'))->_title($this->__('Segments'))->_title($model->getName());
+        $this->loadLayout();
+        $this->_setActiveMenu('ysrtech_emailcampaigns/segment');
+        $this->_addContent($this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_segment_view'));
+        $this->renderLayout();
+    }
+
+    public function membersGridAction()
+    {
+        if (!$this->_initSegment()) {
+            return;
+        }
+
+        $this->loadLayout();
+        $this->getResponse()->setBody(
+            $this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_segment_view_grid')->toHtml()
+        );
+    }
+
+    public function exportMembersCsvAction()
+    {
+        $model = $this->_initSegment();
+
+        if (!$model) {
+            return;
+        }
+
+        $this->_prepareDownloadResponse(
+            'segment-' . (int) $model->getId() . '-subscribers.csv',
+            $this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_segment_view_grid')->getCsvFile()
+        );
+    }
+
+    /**
+     * What the rules in the editor would match right now, before saving.
+     */
+    public function previewAction()
+    {
+        $result = ['ok' => false];
+
+        try {
+            $data = $this->getRequest()->getPost();
+
+            /** @var YSRTech_EmailCampaigns_Model_Segment $model */
+            $model = Mage::getModel('ysrtech_emailcampaigns/segment');
+            $model->loadPost(['conditions' => $data['rule']['conditions'] ?? []]);
+
+            $result = ['ok' => true] + $model->preview();
+        } catch (Exception $e) {
+            Mage::logException($e);
+            $result['message'] = $this->__('Could not work out who matches these rules.');
+        }
+
+        $this->getResponse()
+            ->setHeader('Content-Type', 'application/json', true)
+            ->setBody(Mage::helper('core')->jsonEncode($result));
+    }
+
+    /**
+     * @return YSRTech_EmailCampaigns_Model_Segment|null
+     */
+    protected function _initSegment()
+    {
+        /** @var YSRTech_EmailCampaigns_Model_Segment $model */
+        $model = Mage::getModel('ysrtech_emailcampaigns/segment')->load((int) $this->getRequest()->getParam('id'));
+
+        if (!$model->getId()) {
+            $this->_getSession()->addError($this->__('Segment no longer exists.'));
+            $this->_redirect('*/*/index');
+
+            return null;
+        }
+
+        Mage::register('ysrtech_emailcampaigns_segment', $model);
+
+        return $model;
+    }
+
     public function newAction()
     {
         $this->_forward('edit');
@@ -119,7 +208,13 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SegmentController
             $this->_getSession()->addError($e->getMessage());
             Mage::logException($e);
         }
-        $this->_redirect('*/*/index');
+
+        // Back to the segment itself, so what was just saved can be seen
+        if ($model->getId()) {
+            $this->_redirect('*/*/view', ['id' => $model->getId()]);
+        } else {
+            $this->_redirect('*/*/index');
+        }
     }
 
     public function reindexAction()
@@ -127,11 +222,16 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SegmentController
         $id = (int) $this->getRequest()->getParam('id');
         try {
             $count = Mage::getModel('ysrtech_emailcampaigns/segment')->load($id)->reindex();
-            $this->_getSession()->addSuccess($this->__('Reindexed: %d subscribers matched.', $count));
+            $this->_getSession()->addSuccess($this->__('Recalculated: %d subscribers matched.', $count));
         } catch (Exception $e) {
             $this->_getSession()->addError($e->getMessage());
         }
-        $this->_redirect('*/*/index');
+
+        if ($this->getRequest()->getParam('back') === 'view') {
+            $this->_redirect('*/*/view', ['id' => $id]);
+        } else {
+            $this->_redirect('*/*/index');
+        }
     }
 
     public function deleteAction()

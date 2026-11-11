@@ -1,0 +1,42 @@
+<?php
+/** @var YSRTech_EmailCampaigns_Block_Adminhtml_Segment_View $this */
+$segment = $this->getSegment();
+$lines   = $this->getRuleLines();
+$usedBy  = $this->getUsedBy();
+?>
+<div class="content-header">
+    <table cellspacing="0">
+        <tr>
+            <td style="<?php echo $this->getHeaderWidth() ?>"><?php echo $this->getHeaderHtml() ?></td>
+            <td class="form-buttons"><?php echo $this->getButtonsHtml() ?></td>
+        </tr>
+    </table>
+</div>
+<div class="ysrtech-ec-tiles">
+    <div class="ysrtech-ec-tile">
+        <div class="label"><?php echo $this->escapeHtml($this->__('Subscribers now')) ?></div>
+        <div class="value"><?php echo number_format($this->getMemberCount()) ?></div>
+        <div class="foot"><span class="note"><?php echo $segment->getLastReindexedAt()
+            ? $this->escapeHtml($this->__('As of %s', $this->formatDate($segment->getLastReindexedAt(), 'medium', true)))
+            : $this->escapeHtml($this->__('Not calculated yet')) ?></span></div>
+    </div>
+    <div class="ysrtech-ec-tile">
+        <div class="label"><?php echo $this->escapeHtml($this->__('A campaign would reach')) ?></div>
+        <div class="value"><?php echo number_format($this->getReachableCount()) ?></div>
+        <div class="foot"><span class="note"><?php echo $this->escapeHtml($this->__('Still subscribed and not suppressed')) ?></span></div>
+    </div>
+    <div class="ysrtech-ec-tile" style="flex:3 1 420px">
+        <div class="label"><?php echo $this->escapeHtml($this->__('Rules')) ?></div>
+        <?php if ($lines): ?>
+            <ul class="ysrtech-ec-rules">
+                <?php foreach ($lines as $line): ?><li><?php echo $this->escapeHtml($line) ?></li><?php endforeach ?>
+            </ul>
+        <?php else: ?>
+            <div class="foot"><span class="note"><?php echo $this->escapeHtml($this->__('No conditions: every subscribed address is in this segment.')) ?></span></div>
+        <?php endif ?>
+        <?php if ($usedBy): ?>
+            <div class="foot"><span class="note"><?php echo $this->escapeHtml($this->__('Used by: %s', implode(', ', $usedBy))) ?></span></div>
+        <?php endif ?>
+    </div>
+</div>
+<?php echo $this->getGridHtml() ?>

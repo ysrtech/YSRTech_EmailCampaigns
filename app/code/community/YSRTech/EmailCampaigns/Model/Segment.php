@@ -125,6 +125,36 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
     }
 
     /**
+     * What the rules as they stand would match, without saving anything: the
+     * count and the first few subscribers. This is what the rule editor shows
+     * while the rules are being changed.
+     *
+     * @return array{count:int, sample:array<int, array{email:string, name:string}>}
+     */
+    public function preview(int $sampleSize = 8): array
+    {
+        $count  = 0;
+        $sample = [];
+
+        foreach ($this->_streamCandidates() as $row) {
+            if (!$this->_matches($row)) {
+                continue;
+            }
+
+            $count++;
+
+            if (count($sample) < $sampleSize) {
+                $sample[] = [
+                    'email' => (string) $row['email'],
+                    'name'  => trim($row['firstname'] . ' ' . $row['lastname']),
+                ];
+            }
+        }
+
+        return ['count' => $count, 'sample' => $sample];
+    }
+
+    /**
      * Walk every subscribed address with its order history attached.
      *
      * One query, read a row at a time. The previous version loaded every

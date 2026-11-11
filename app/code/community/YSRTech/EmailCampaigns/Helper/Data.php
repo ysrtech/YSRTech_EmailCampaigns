@@ -96,4 +96,32 @@ class YSRTech_EmailCampaigns_Helper_Data extends Mage_Core_Helper_Abstract
             $text
         );
     }
+
+    /**
+     * A segment's rules in words, one top-level condition a line. Empty for a
+     * segment with no conditions, which matches every subscriber.
+     *
+     * @return string[]
+     */
+    public function segmentRuleLines(YSRTech_EmailCampaigns_Model_Segment $segment): array
+    {
+        $root = $segment->getConditions();
+
+        if (!$root instanceof Mage_Rule_Model_Condition_Combine) {
+            return [];
+        }
+
+        $lines = [];
+
+        foreach ((array) $root->getConditions() as $condition) {
+            $text = $condition instanceof Mage_Rule_Model_Condition_Combine
+                ? $condition->asStringRecursive()
+                : $condition->asString();
+
+            // Nested groups come back indented over several lines
+            $lines[] = trim(preg_replace('/\s+/', ' ', strip_tags((string) $text)));
+        }
+
+        return array_values(array_filter($lines, 'strlen'));
+    }
 }

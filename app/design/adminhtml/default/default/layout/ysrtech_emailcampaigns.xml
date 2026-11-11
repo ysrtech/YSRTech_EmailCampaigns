@@ -17,12 +17,16 @@
     <adminhtml_ysrtech_segment_new>
         <reference name="head">
             <action method="setCanLoadRulesJs"><flag>1</flag></action>
+            <action method="addItem"><type>skin_js</type><name>ysrtech/emailcampaigns/segment-preview.js</name></action>
+            <action method="addItem"><type>skin_css</type><name>ysrtech/emailcampaigns/admin.css</name></action>
         </reference>
     </adminhtml_ysrtech_segment_new>
 
     <adminhtml_ysrtech_segment_edit>
         <reference name="head">
             <action method="setCanLoadRulesJs"><flag>1</flag></action>
+            <action method="addItem"><type>skin_js</type><name>ysrtech/emailcampaigns/segment-preview.js</name></action>
+            <action method="addItem"><type>skin_css</type><name>ysrtech/emailcampaigns/admin.css</name></action>
         </reference>
     </adminhtml_ysrtech_segment_edit>
 
@@ -40,6 +44,10 @@
     <adminhtml_ysrtech_dashboard_index>
         <update handle="ysrtech_emailcampaigns_admin_css"/>
     </adminhtml_ysrtech_dashboard_index>
+
+    <adminhtml_ysrtech_segment_view>
+        <update handle="ysrtech_emailcampaigns_admin_css"/>
+    </adminhtml_ysrtech_segment_view>
 
     <adminhtml_ysrtech_suppression_index>
         <update handle="ysrtech_emailcampaigns_admin_css"/>

@@ -68,6 +68,21 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Segment_Edit_Form extends Mage_Admi
             $element->setRule($model)->setRenderer(Mage::getBlockSingleton('rule/conditions'));
         }
 
+        /*
+         * "Right now": who the rules as they stand would match, refreshed as
+         * they change, so a rule can be checked before it is saved.
+         */
+        $now = $form->addFieldset('now', ['legend' => $h->__('Right Now')]);
+        $now->addField('now_panel', 'note', [
+            'text' => '<div class="ysrtech-ec-now" id="ysrtech-ec-now" data-url="'
+                . $this->escapeHtml($this->getUrl('*/*/preview')) . '">'
+                . '<div class="count" data-role="count">&hellip;</div>'
+                . '<div data-role="label">' . $this->escapeHtml($h->__('subscribers match these rules')) . '</div>'
+                . '<ul class="sample" data-role="sample"></ul>'
+                . '<p class="note">' . $this->escapeHtml($h->__('Unsubscribed and suppressed addresses are never emailed, even if they match.')) . '</p>'
+                . '</div>',
+        ]);
+
         $this->setForm($form);
         return parent::_prepareForm();
     }
