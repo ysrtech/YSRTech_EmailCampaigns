@@ -98,14 +98,16 @@ $models = [
     ['id' => 'openai/gpt-5-image-mini', 'created' => 400, 'architecture' => ['output_modalities' => ['image', 'text']], 'pricing' => ['prompt' => '0.000002', 'completion' => '0.000002']],
     ['id' => 'openai/gpt-5.4-mini', 'created' => 200, 'architecture' => $text, 'pricing' => ['prompt' => '0.00000075', 'completion' => '0.0000045']],
     ['id' => 'some/free-model:free', 'created' => 500, 'architecture' => $text, 'pricing' => ['prompt' => '0', 'completion' => '0']],
+    ['id' => 'some/router', 'created' => 1, 'architecture' => $text, 'pricing' => ['prompt' => '-1', 'completion' => '-1']],
     ['id' => '<script>alert(1)</script>', 'created' => 600, 'architecture' => $text],
     'not a model',
 ];
 $list = $C::arrangeModels($models, 'openrouter');
 $ok('recommends the newest of each family, never a variant', array_column($list['recommended'], 'id') === ['anthropic/claude-sonnet-5.5', 'anthropic/claude-haiku-5.5', 'openai/gpt-5.4-mini']);
 $ok('labels carry the note and the price per million', $list['recommended'][0]['label'] === 'anthropic/claude-sonnet-5.5  (best writing; $2 in / $10 out per million tokens)');
-$ok('all: text models only, by name, junk ids dropped', array_column($list['all'], 'id') === ['anthropic/claude-haiku-5.5', 'anthropic/claude-sonnet-5.0', 'anthropic/claude-sonnet-5.5', 'anthropic/claude-sonnet-5.5:batch', 'openai/gpt-5.4-mini', 'some/free-model:free']);
-$ok('a free model says so', in_array('some/free-model:free  (free)', array_column($list['all'], 'label'), true));
+$ok('all: text models only, by name, junk ids dropped', array_column($list['all'], 'id') === ['anthropic/claude-haiku-5.5', 'anthropic/claude-sonnet-5.0', 'anthropic/claude-sonnet-5.5', 'anthropic/claude-sonnet-5.5:batch', 'openai/gpt-5.4-mini', 'some/free-model:free', 'some/router']);
+$ok('a free model says so; a router with no price of its own is not called free', in_array('some/free-model:free  (free)', array_column($list['all'], 'label'), true)
+    && in_array('some/router  (price varies)', array_column($list['all'], 'label'), true));
 
 $list = $C::arrangeModels([
     ['id' => 'gpt-5-mini', 'created' => 10], ['id' => 'gpt-5.4-mini', 'created' => 30], ['id' => 'gpt-5.4-mini-2026-03-01', 'created' => 31],

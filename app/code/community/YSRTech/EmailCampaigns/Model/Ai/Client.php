@@ -301,7 +301,11 @@ class YSRTech_EmailCampaigns_Model_Ai_Client
 
             if (is_numeric($in) && is_numeric($out)) {
                 $money = static fn ($perToken) => '$' . rtrim(rtrim(number_format((float) $perToken * 1000000, 2, '.', ''), '0'), '.');
-                $price = (float) $in + (float) $out > 0 ? $money($in) . ' in / ' . $money($out) . ' out per million tokens' : 'free';
+                // A router that picks a model per request has no price of its
+                // own, and reports none; only what says it is free is called so
+                $price = (float) $in + (float) $out > 0
+                    ? $money($in) . ' in / ' . $money($out) . ' out per million tokens'
+                    : (preg_match('#(:free|/free)$#', $id) ? 'free' : 'price varies');
             }
 
             $usable[] = [
