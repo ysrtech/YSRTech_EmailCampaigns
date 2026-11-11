@@ -109,6 +109,9 @@ $call = function (array $event, bool $sign = true) use ($url, $key): int {
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
+    // The request only keeps the notice; cron applies it. Here, now.
+    Mage::getSingleton('ysrtech_emailcampaigns/webhook_inbox')->process();
+
     return $code;
 };
 $token = 'synctesttokensent000000000000002';

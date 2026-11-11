@@ -98,6 +98,39 @@ class YSRTech_EmailCampaigns_Helper_Data extends Mage_Core_Helper_Abstract
     }
 
     /**
+     * A name as somebody would write it, when it was typed in capitals or
+     * without any: "CHAYA" and "chaya" are both "Chaya", "mary-jane o'neil"
+     * is "Mary-Jane O'Neil".
+     *
+     * Only a name in a single case is touched. One with both in it -
+     * "McDonald", "DeShawn", "van der Berg" - was typed by somebody who
+     * knew how it is spelled. Scripts without case come through as they are.
+     */
+    public function tidyName(string $name): string
+    {
+        $name = trim((string) preg_replace('/\s+/u', ' ', $name));
+
+        if ($name === '') {
+            return '';
+        }
+
+        $upper = mb_strtoupper($name, 'UTF-8');
+        $lower = mb_strtolower($name, 'UTF-8');
+
+        // No letters with case in it at all, or a mix of both: leave it
+        if ($upper === $lower || ($name !== $upper && $name !== $lower)) {
+            return $name;
+        }
+
+        // A capital after the start, a space, a hyphen or an apostrophe
+        return (string) preg_replace_callback(
+            "/(^|[\\s\\-'\x{2019}])(\\p{Ll})/u",
+            static fn (array $m) => $m[1] . mb_strtoupper($m[2], 'UTF-8'),
+            $lower
+        );
+    }
+
+    /**
      * A segment's rules in words, one top-level condition a line. Empty for a
      * segment with no conditions, which matches every subscriber.
      *

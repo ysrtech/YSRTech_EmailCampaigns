@@ -187,3 +187,26 @@
 .ecc .ai-option.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
 .ecc .ai-suggest .help { margin-top: 10px; }
 .ecc .ai-suggest .help.bad { color: var(--bad); }
+
+/* Plain-text letter */
+.ecc textarea.letter { width: 100%; min-height: 280px; padding: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text); font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; resize: vertical; box-sizing: border-box; }
+.ecc .letter-out { margin: 0 0 14px; }
+.ecc .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--text-2); }
+
+/* Report */
+.ecc .report { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px; }
+.ecc .report .head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; font-weight: 600; }
+.ecc .report .rts { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.ecc .report .rt { padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.ecc .report .rt span { display: block; font-size: 12px; color: var(--text-2); }
+.ecc .report .rt b { font-size: 20px; font-weight: 600; }
+.ecc .report .rt small { margin-left: 4px; font-size: 12px; color: var(--text-3); }
+.ecc .report .rt.warn b { color: var(--warn); }
+.ecc .report .rt.bad b { color: var(--bad); }
+.ecc .report details { margin-top: 14px; font-size: 13.5px; }
+.ecc .report summary { cursor: pointer; font-weight: 500; }
+.ecc .report .waiting ul { margin: 8px 0 0; padding: 0; list-style: none; columns: 2; column-gap: 24px; font-size: 13px; }
+.ecc .report .waiting li { padding: 2px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecc .report pre { margin: 10px 0 0; padding: 12px; border-radius: var(--radius-sm); background: var(--surface-2); white-space: pre-wrap; word-wrap: break-word;
+  font: 13.5px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }

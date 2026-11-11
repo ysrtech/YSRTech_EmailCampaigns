@@ -109,6 +109,10 @@ class YSRTech_EmailCampaigns_Model_Transport_Mailgun
      */
     private function _postChunk(array $chunk, string $subject, string $html, ?int $timestamp)
     {
+        if ($this->_letter !== null) {
+            return $this->_postLetterChunk($chunk, $subject, $html, $timestamp);
+        }
+
         $this->_assertUnsubscribeTrackingActive();
 
         $addresses = [];
@@ -155,6 +159,77 @@ class YSRTech_EmailCampaigns_Model_Transport_Mailgun
          * of sending it is a few bytes.
          */
         $params['v:tracking_token'] = '%recipient.tracking_token%';
+
+        if (!empty($this->_envelope['reply_to'])) {
+            $params['h:Reply-To'] = $this->_envelope['reply_to'];
+        }
+
+        if ($timestamp !== null) {
+            $params['o:deliverytime'] = gmdate('D, d M Y H:i:s', $timestamp) . ' +0000';
+        }
+
+        return $this->_post($params);
+    }
+
+    /** @var array{text:string, track:bool}|null Set for one send, then cleared */
+    private $_letter = null;
+
+    /**
+     * Send what follows as a plain-text letter, until cleared with null.
+     *
+     * @param array{text:?string, track:bool}|null $letter
+     */
+    public function setLetter(?array $letter): void
+    {
+        $this->_letter = $letter;
+    }
+
+    /**
+     * A letter: the text, and nothing that marks it as a mailing.
+     *
+     * No %unsubscribe_url%, so nothing here depends on the domain's
+     * unsubscribe tracking: the way out is the store's own link, written
+     * into the words. No v: variable, which would ride along in an
+     * X-Mailgun-Variables header for anybody to read. No tag. Without
+     * tracking there is no HTML part at all; with it, the plain-looking copy
+     * the caller made, since opens and clicks can only be counted in HTML.
+     */
+    private function _postLetterChunk(array $chunk, string $subject, string $html, ?int $timestamp)
+    {
+        $addresses = [];
+        $variables = [];
+
+        foreach ($chunk as $recipient) {
+            $email             = (string) $recipient['email'];
+            $addresses[]       = $email;
+            $variables[$email] = array_diff_key($this->_flatten($recipient), ['tracking_token' => 1]);
+        }
+
+        if (count($variables) !== count($addresses)) {
+            Mage::throwException('Refusing to send: every recipient must carry variables, or Mailgun exposes the list.');
+        }
+
+        $text  = (string) ($this->_letter['text'] ?? '');
+        $track = !empty($this->_letter['track']) && $html !== '';
+
+        if ($text === '') {
+            Mage::throwException('Refusing to send a letter with no text.');
+        }
+
+        $params = [
+            'from'    => $this->_getFrom(),
+            'to'      => implode(',', $addresses),
+            'subject' => $subject,
+            'text'    => $text,
+            'recipient-variables' => Mage::helper('core')->jsonEncode($variables),
+            'o:tracking'        => $track ? 'yes' : 'no',
+            'o:tracking-opens'  => $track ? 'yes' : 'no',
+            'o:tracking-clicks' => $track ? 'htmlonly' : 'no',
+        ];
+
+        if ($track) {
+            $params['html'] = $html;
+        }
 
         if (!empty($this->_envelope['reply_to'])) {
             $params['h:Reply-To'] = $this->_envelope['reply_to'];
@@ -337,7 +412,7 @@ class YSRTech_EmailCampaigns_Model_Transport_Mailgun
      * @return mixed Decoded response
      * @throws Mage_Core_Exception
      */
-    private function _post(array $params)
+    protected function _post(array $params)
     {
         $url = Mage::helper('ysrtech_emailcampaigns')->getMailgunApiBase() . $this->getDomain() . '/messages';
         $ch  = curl_init($url);

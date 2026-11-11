@@ -2,7 +2,7 @@
 <config>
     <modules>
         <YSRTech_EmailCampaigns>
-            <version>0.16.0</version>
+            <version>0.17.0</version>
         </YSRTech_EmailCampaigns>
     </modules>
 
@@ -53,6 +53,9 @@
                     <ai_usage>
                         <table>ysrtech_emailcampaigns_ai_usage</table>
                     </ai_usage>
+                    <webhook_event>
+                        <table>ysrtech_emailcampaigns_webhook_event</table>
+                    </webhook_event>
                     <import>
                         <table>ysrtech_emailcampaigns_import</table>
                     </import>
@@ -365,6 +368,11 @@
                 <schedule><cron_expr>* * * * *</cron_expr></schedule>
                 <run><model>ysrtech_emailcampaigns/observer::processQueue</model></run>
             </ysrtech_emailcampaigns_process_queue>
+            <!-- Apply the webhooks kept since the last run -->
+            <ysrtech_emailcampaigns_process_webhooks>
+                <schedule><cron_expr>* * * * *</cron_expr></schedule>
+                <run><model>ysrtech_emailcampaigns/observer::processWebhooks</model></run>
+            </ysrtech_emailcampaigns_process_webhooks>
             <ysrtech_emailcampaigns_send_scheduled>
                 <schedule><cron_expr>* * * * *</cron_expr></schedule>
                 <run><model>ysrtech_emailcampaigns/observer::launchScheduledCampaigns</model></run>

@@ -52,6 +52,21 @@ class YSRTech_EmailCampaigns_Model_Transport_Smtp
         $mail->setFrom($fromEmail, $fromName);
         $mail->addTo($to, isset($vars['customer']['firstname']) ? (string) $vars['customer']['firstname'] : '');
         $mail->setSubject($subject);
+
+        if ($this->_letter !== null) {
+            // A letter: the text, an HTML copy only when one was made for
+            // tracking, and no list headers
+            $mail->setBodyText((string) ($this->_letter['text'] ?? ''));
+
+            if ($html !== '') {
+                $mail->setBodyHtml($html);
+            }
+
+            $mail->send();
+
+            return null;
+        }
+
         $mail->setBodyHtml($html);
 
         if (!empty($vars['unsubscribe_url'])) {
@@ -62,6 +77,17 @@ class YSRTech_EmailCampaigns_Model_Transport_Smtp
         $mail->send();
 
         return null;
+    }
+
+    /** @var array{text:?string, track:bool}|null Set for one send, then cleared */
+    private $_letter = null;
+
+    /**
+     * Send what follows as a plain-text letter, until cleared with null.
+     */
+    public function setLetter(?array $letter): void
+    {
+        $this->_letter = $letter;
     }
 
     /**
@@ -78,7 +104,14 @@ class YSRTech_EmailCampaigns_Model_Transport_Smtp
         ?int $timestamp = null,
         ?callable $onChunkSent = null
     ) {
+        $letter = $this->_letter;
+
         foreach ($recipients as $recipient) {
+            if ($letter !== null) {
+                // Each reader's own copy of the words
+                $this->_letter = ['text' => (string) ($recipient['text'] ?? '')] + $letter;
+            }
+
             $this->send(
                 (string) $recipient['email'],
                 $subject,

@@ -69,6 +69,19 @@
             .replace(/\{\{[^}]+\}\}/g, '');
     }
 
+    /*
+     * How long a subject is to the person reading it. A placeholder is
+     * counted as what replaces it: "{{ customer.firstname|there }}" is
+     * thirty characters to type and five in the inbox.
+     */
+    function seen(text) {
+        return Array.from(sample(text).trim()).length;
+    }
+
+    function words(text) {
+        return (String(text || '').trim().match(/\S+/g) || []).length;
+    }
+
     function firstUnfinished() {
         var s = cfg.state;
         if (!s.editable) { return null; }
@@ -232,6 +245,8 @@
             renderLater = true;
             paintSaved();
             paintLive();
+            // A letter is typed here, so its preview follows the typing
+            if (state.content.letter.is) { paintFrames(); }
         } else {
             renderLater = false;
             render();
@@ -268,6 +283,7 @@
         var ro = state.editable ? '' : ' disabled';
         var content = state.content;
         var notOk = content.checks.filter(function (c) { return c.level !== 'ok'; }).length;
+        var letter = content.letter;
 
         return [
             {
@@ -302,11 +318,11 @@
             },
             {
                 k: 'subj', title: t.subject, summary: state.subject ? state.subject + (state.preheader ? ' — ' + state.preheader : '') : '',
-                done: !p.subj, warn: state.subject.length > 60, problem: null,
+                done: !p.subj, warn: seen(state.subject) > 60, problem: null,
                 body: function () {
                     return '<div class="field"><label for="ecc-sj">' + esc(t.subjectLine) + '</label>'
                         + '<input type="text" id="ecc-sj" maxlength="255" value="' + esc(state.subject) + '" placeholder="' + esc(t.subjectHint) + '"' + ro + '>'
-                        + '<div class="counter' + (state.subject.length > 60 ? ' over' : '') + '" id="ecc-sjc">' + esc(tr('recommended', state.subject.length)) + '</div></div>'
+                        + '<div class="counter' + (seen(state.subject) > 60 ? ' over' : '') + '" id="ecc-sjc">' + esc(tr('recommended', seen(state.subject))) + '</div></div>'
                         + '<div class="field"><label for="ecc-pr">' + esc(t.previewText) + '</label>'
                         + '<input type="text" id="ecc-pr" maxlength="255" value="' + esc(state.preheader) + '" placeholder="' + esc(t.previewHint) + '"' + ro + '></div>'
                         + (cfg.ai && !ro ? '<div class="ai-suggest"><button type="button" class="btn btn-sm" id="ecc-ai">' + esc(aiOffer ? t.suggestAgain : t.suggest) + '</button><div id="ecc-ai-out">' + aiList() + '</div></div>' : '');
@@ -314,9 +330,23 @@
             },
             {
                 k: 'content', title: t.content,
-                summary: content.has ? t.yourDesign + ' · ' + content.size_kb + ' KB' + (notOk ? ' · ' + notOk + ' !' : '') : '',
+                summary: letter.is ? (letter.text.trim() ? t.letter + ' · ' + tr('letterWords', words(letter.text)) : '')
+                    : (content.has ? t.yourDesign + ' · ' + content.size_kb + ' KB' + (notOk ? ' · ' + notOk + ' !' : '') : ''),
                 done: content.has && !p.content, problem: content.has ? p.content : null,
                 body: function () {
+                    if (letter.is) {
+                        // A letter: the words, and how it is sent
+                        return '<div class="field"><label for="ecc-lt">' + esc(t.letterLabel) + '</label>'
+                            + '<textarea id="ecc-lt" class="letter" rows="14" maxlength="60000"' + ro + '>' + esc(letter.text) + '</textarea>'
+                            + '<div class="help">' + esc(t.letterHelp) + '</div></div>'
+                            + '<p class="help letter-out">' + (letter.own_optout ? esc(t.letterOwnOptout)
+                                : esc(t.letterOptout) + '<br><span class="mono">' + esc(sample(letter.optout).replace(/\s*$/, '')) + ' …</span>') + '</p>'
+                            + '<label class="brand-sw"><input type="checkbox" id="ecc-ltk"' + (letter.track ? ' checked' : '') + ro + '> <span><b>' + esc(t.letterTrack) + '</b><br>'
+                            + '<span class="help">' + esc(t.letterTrackNote) + '</span></span></label>'
+                            + '<p class="help" style="margin-top:12px">' + esc(t.letterNote) + '</p>'
+                            + (state.editable ? '<div class="ct-acts"><button type="button" class="btn btn-sm" id="ecc-unletter">' + esc(t.letterSwitch) + '</button></div>' : '');
+                    }
+
                     if (content.has) {
                         return '<div class="ct-design"><div class="ct-thumb" id="ecc-thumb"><iframe id="ecc-thumbf" sandbox="" tabindex="-1" title="' + esc(t.preview) + '"></iframe>'
                             + (state.editable ? '<span class="ct-hover">' + esc(t.editDesign) + '</span>' : '') + '</div>'
@@ -335,7 +365,8 @@
                             + '</div></div>';
                     }
 
-                    return '<div class="ct-start"><button type="button" class="ct-opt" data-starter="plain"' + ro + '><b>' + esc(t.fromScratch) + '</b><small>' + esc(t.fromScratchNote) + '</small></button></div>'
+                    return '<div class="ct-start"><button type="button" class="ct-opt" data-starter="plain"' + ro + '><b>' + esc(t.fromScratch) + '</b><small>' + esc(t.fromScratchNote) + '</small></button>'
+                        + '<button type="button" class="ct-opt" id="ecc-letter"' + ro + '><b>' + esc(t.letterStart) + '</b><small>' + esc(t.letterStartNote) + '</small></button></div>'
                         + '<div class="ins-label">' + esc(t.fromStarter) + '</div><div class="ct-start">'
                         + cfg.starters.filter(function (s) { return s.code !== 'plain'; }).map(function (s) {
                             return '<button type="button" class="ct-opt" data-starter="' + esc(s.code) + '"' + ro + '><b>' + esc(s.name) + '</b><small>' + esc(s.description) + '</small></button>';
@@ -405,6 +436,54 @@
         return html;
     }
 
+    /*
+     * What became of a campaign that has started: the counts, the addresses
+     * the provider has said nothing about yet, and, for a letter, the words
+     * that went out.
+     */
+    function report() {
+        var r = state.report;
+        if (!r) { return ''; }
+
+        var pct = function (n, of) { return of ? ' <small>' + (Math.round(n / of * 1000) / 10) + '%</small>' : ''; };
+        var tile = function (label, value, extra, cls) {
+            return '<div class="rt ' + (cls || '') + '"><span>' + esc(label) + '</span><b>' + value + '</b>' + (extra || '') + '</div>';
+        };
+        var untracked = '<small>' + esc(t.rNotTracked) + '</small>';
+
+        var html = '<div class="report"><div class="head"><span>' + esc(t.report) + '</span>'
+            + (r.last_sent_at ? '<span class="faint">' + esc(tr('rLast', r.last_sent_at)) + '</span>' : '') + '</div><div class="rts">'
+            + tile(t.rSent, fmt(r.sent))
+            + (r.pending ? tile(t.rPending, fmt(r.pending)) : '')
+            + (r.purged ? '' : tile(t.rDelivered, fmt(r.delivered), pct(r.delivered, r.sent))
+                + (r.tracks_opens ? tile(t.rOpened, fmt(r.opened), pct(r.opened, r.sent)) + tile(t.rClicked, fmt(r.clicked), pct(r.clicked, r.sent))
+                    : tile(t.rOpened, '–', untracked) + tile(t.rClicked, '–', untracked))
+                + tile(t.rBounced, fmt(r.bounced), pct(r.bounced, r.sent), r.bounced ? 'warn' : '')
+                + tile(t.rComplained, fmt(r.complained), '', r.complained ? 'bad' : '')
+                + tile(t.rWaiting, fmt(r.waiting), pct(r.waiting, r.sent)))
+            + (r.failed ? tile(t.rFailed, fmt(r.failed), '', 'bad') : '')
+            + (r.cancelled ? tile(t.rCancelled, fmt(r.cancelled)) : '')
+            + '</div>';
+
+        if (r.purged) {
+            html += '<p class="help">' + esc(t.rPurged) + '</p>';
+        }
+
+        if (r.waiting_emails.length) {
+            html += '<details class="waiting"><summary>' + esc(t.rWaitingTitle) + ' (' + fmt(r.waiting) + ')</summary><p class="help">' + esc(t.rWaitingNote) + '</p><ul>'
+                + r.waiting_emails.map(function (email) { return '<li>' + esc(email) + '</li>'; }).join('')
+                + (r.waiting > r.waiting_emails.length ? '<li class="faint">' + esc(tr('rWaitingMore', fmt(r.waiting - r.waiting_emails.length))) + '</li>' : '')
+                + '</ul></details>';
+        }
+
+        if (state.content.letter.is && state.content.letter.text) {
+            html += '<details class="words" open><summary>' + esc(t.rWords) + '</summary><pre>' + esc(state.content.letter.text)
+                + (state.content.letter.own_optout ? '' : '\n\n' + esc(state.content.letter.optout.replace(/\{\{[^}]*\}\}/, '…'))) + '</pre></details>';
+        }
+
+        return html + '</div>';
+    }
+
     function render() {
         var list = sections();
         var doneCount = list.filter(function (s) { return s.done && !s.problem; }).length;
@@ -415,6 +494,7 @@
             + '<span class="saved" id="ecc-saved"></span><span class="spacer"></span>' + topButtons() + '</div>'
             + (state.editable ? '' : '<div class="banner">' + esc(t.readOnly) + ' <a href="' + esc(cfg.urls.dashboard) + '">' + esc(t.viewResults) + '</a></div>')
             + '<div class="builder"><div>'
+            + report()
             + '<div class="ready"><b>' + esc(isReady() ? t.ready : tr('ofReady', doneCount, list.length)) + '</b><div class="bars">'
             + list.map(function (s) { return '<span class="' + (s.done && !s.problem ? 'on' : '') + '"></span>'; }).join('') + '</div></div>'
             + list.map(function (s) {
@@ -568,8 +648,8 @@
         if (sj) {
             sj.oninput = function () {
                 var counter = $('#ecc-sjc');
-                counter.textContent = tr('recommended', sj.value.length);
-                counter.className = 'counter' + (sj.value.length > 60 ? ' over' : '');
+                counter.textContent = tr('recommended', seen(sj.value));
+                counter.className = 'counter' + (seen(sj.value) > 60 ? ' over' : '');
                 paintLive();
                 save({subject: sj.value});
             };
@@ -608,6 +688,12 @@
         });
 
         var designer = function () { window.location.href = cfg.urls.designer; };
+        var startLetter = $('#ecc-letter'), lt = $('#ecc-lt'), ltk = $('#ecc-ltk'), unletter = $('#ecc-unletter');
+        if (startLetter) { startLetter.onclick = function () { startLetter.disabled = true; content({source: 'letter'}); }; }
+        if (lt) { lt.oninput = function () { save({letter_text: lt.value}); }; }
+        if (ltk) { ltk.onchange = function () { save({letter_track: ltk.checked ? 1 : 0}, true); }; }
+        if (unletter) { unletter.onclick = function () { content({source: 'clear'}); }; }
+
         var thumb = $('#ecc-thumb'), edit = $('#ecc-edit'), over = $('#ecc-over');
         if (thumb) { thumb.onclick = designer; }
         if (edit) { edit.onclick = designer; }

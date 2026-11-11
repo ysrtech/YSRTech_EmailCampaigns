@@ -83,6 +83,15 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
     }
 
     /**
+     * Whether this campaign is a plain-text letter rather than a designed
+     * email.
+     */
+    public function isLetter(): bool
+    {
+        return (string) $this->getFormat() === YSRTech_EmailCampaigns_Model_Letter::FORMAT;
+    }
+
+    /**
      * Whether the campaign has its own copy of the email.
      */
     public function hasOwnContent(): bool
@@ -101,6 +110,24 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
      */
     public function getContentTemplate()
     {
+        if ($this->isLetter()) {
+            if (trim((string) $this->getLetterText()) === '') {
+                return null;
+            }
+
+            /*
+             * A stand-in, so that the preview, the checks and the subject
+             * suggestions see a letter the way they see any email. Sending
+             * does not go through this: Sender builds a letter's text itself.
+             */
+            return Mage::getModel('ysrtech_emailcampaigns/template')->setData([
+                'name'      => (string) $this->getName(),
+                'subject'   => (string) $this->getSubject(),
+                'html'      => (string) $this->getLetterText(),
+                'is_letter' => true,
+            ]);
+        }
+
         if ($this->hasOwnContent()) {
             // Never saved: a stand-in so that one renderer serves both
             return Mage::getModel('ysrtech_emailcampaigns/template')->setData([

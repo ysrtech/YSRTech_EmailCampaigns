@@ -311,6 +311,12 @@ class YSRTech_EmailCampaigns_Model_Sender
         // As for a campaign, so an open on a triggered message finds its row.
         $vars['tracking_token'] = (string) $item->getTrackingToken();
 
+        foreach (['firstname', 'lastname'] as $part) {
+            if (isset($vars['customer'][$part])) {
+                $vars['customer'][$part] = Mage::helper('ysrtech_emailcampaigns')->tidyName((string) $vars['customer'][$part]);
+            }
+        }
+
         $html = Mage::getSingleton('ysrtech_emailcampaigns/renderer')->setStoreId($storeId)->render($template, $vars);
 
         $transport = Mage::getSingleton('ysrtech_emailcampaigns/transport_factory')->get();
@@ -416,12 +422,24 @@ class YSRTech_EmailCampaigns_Model_Sender
         $renderer  = Mage::getSingleton('ysrtech_emailcampaigns/renderer')->setStoreId($campaign->getStoreId());
         $transport = Mage::getSingleton('ysrtech_emailcampaigns/transport_factory')->get();
         $now       = Varien_Date::now();
+        $isLetter  = $campaign->isLetter();
+
+        if ($isLetter) {
+            $this->_assertLetters($transport);
+        }
 
         $this->_applyEnvelope($transport, $campaign);
 
         $names     = $this->_loadRecipientNames($items);
         $storeName = $this->storeName($campaign->getStoreId());
         $delegates = $transport->supportsRecipientVariables();
+
+        /** @var YSRTech_EmailCampaigns_Model_Letter $letter */
+        $letter     = Mage::getSingleton('ysrtech_emailcampaigns/letter');
+        $tracked    = $isLetter && (bool) $campaign->getLetterTrack();
+        $sharedText = $isLetter && $delegates
+            ? $letter->text((string) $campaign->getLetterText(), $this->_placeholderVars($storeName, true))
+            : null;
 
         /*
          * When the provider expands variables itself, the template is rendered
@@ -430,9 +448,13 @@ class YSRTech_EmailCampaigns_Model_Sender
          * couple of dozen requests. When it does not, each person's copy is
          * rendered here instead.
          */
-        $sharedHtml = $delegates
-            ? $renderer->render($template, $this->_placeholderVars($storeName))
-            : null;
+        if ($isLetter) {
+            $sharedHtml = $delegates && $tracked ? $letter->html($sharedText) : ($delegates ? '' : null);
+        } else {
+            $sharedHtml = $delegates
+                ? $renderer->render($template, $this->_placeholderVars($storeName))
+                : null;
+        }
 
         $recipients = [];
 
@@ -447,7 +469,10 @@ class YSRTech_EmailCampaigns_Model_Sender
                     'email'     => $item->getEmail(),
                 ],
                 'store'           => ['name' => $storeName],
-                'unsubscribe_url' => $this->_unsubscribeUrl($campaign, $item, $delegates),
+                // A letter's way out is the store's own page, written into
+                // the words: the provider's link would bring its bulk
+                // headers with it
+                'unsubscribe_url' => $this->_unsubscribeUrl($campaign, $item, $delegates && !$isLetter),
                 /*
                  * Carried so an open or a click coming back from the provider
                  * can be matched to this exact row rather than guessed at from
@@ -457,13 +482,30 @@ class YSRTech_EmailCampaigns_Model_Sender
                 'tracking_token'  => (string) $item->getTrackingToken(),
             ];
 
+            if ($isLetter) {
+                // The provider reads recipient variables one level deep
+                $vars['optout_url'] = $vars['unsubscribe_url'];
+                unset($vars['tracking_token']);
+
+                $text = $delegates ? $sharedText : $letter->text((string) $campaign->getLetterText(), $vars);
+                $html = $delegates ? $sharedHtml : ($tracked ? $letter->html($text) : '');
+            } else {
+                $text = null;
+                $html = $delegates ? $sharedHtml : $renderer->render($template, $vars);
+            }
+
             $recipients[] = [
                 'email' => $item->getEmail(),
                 'name'  => trim($name['firstname'] . ' ' . $name['lastname']),
                 'vars'  => $vars,
-                'html'  => $delegates ? $sharedHtml : $renderer->render($template, $vars),
+                'html'  => $html,
+                'text'  => $text,
                 '_item' => $item,
             ];
+        }
+
+        if ($isLetter) {
+            $transport->setLetter(['text' => $delegates ? $sharedText : null, 'track' => $tracked]);
         }
 
         /*
@@ -500,18 +542,26 @@ class YSRTech_EmailCampaigns_Model_Sender
             }
         };
 
-        $transport->sendBatch(
-            array_map(static fn ($r) => [
-                'email' => $r['email'],
-                'name'  => $r['name'],
-                'vars'  => $r['vars'],
-                'html'  => $r['html'],
-            ], $recipients),
-            (string) $campaign->getSubject(),
-            $delegates ? $sharedHtml : $recipients[0]['html'],
-            null,
-            $markSent
-        );
+        try {
+            $transport->sendBatch(
+                array_map(static fn ($r) => [
+                    'email' => $r['email'],
+                    'name'  => $r['name'],
+                    'vars'  => $r['vars'],
+                    'html'  => $r['html'],
+                    'text'  => $r['text'],
+                ], $recipients),
+                (string) $campaign->getSubject(),
+                $delegates ? (string) $sharedHtml : $recipients[0]['html'],
+                null,
+                $markSent
+            );
+        } finally {
+            // Whatever happened, the next send must not go out as a letter
+            if ($isLetter) {
+                $transport->setLetter(null);
+            }
+        }
 
         /*
          * A transport that reports no chunks at all - an older one, or one
@@ -717,22 +767,43 @@ class YSRTech_EmailCampaigns_Model_Sender
             'unsubscribe_url' => $delegates ? '%unsubscribe_url%' : '#test-send',
         ];
 
-        $html = $delegates
-            ? $renderer->render($template, $this->_placeholderVars($storeName))
-            : $renderer->render($template, $vars);
-
         $subject = Mage::helper('ysrtech_emailcampaigns')->__('[TEST] %s', (string) $campaign->getSubject());
+        $text    = null;
+
+        if ($campaign->isLetter()) {
+            $this->_assertLetters($transport);
+
+            /** @var YSRTech_EmailCampaigns_Model_Letter $letter */
+            $letter  = Mage::getSingleton('ysrtech_emailcampaigns/letter');
+            $tracked = (bool) $campaign->getLetterTrack();
+
+            // Nobody is unsubscribed by a test: the link leads nowhere
+            $vars['unsubscribe_url'] = $vars['optout_url'] = Mage::app()->getStore($campaign->getStoreId())->getBaseUrl(Mage_Core_Model_Store::URL_TYPE_LINK) . '#test-send';
+
+            $text = $letter->text((string) $campaign->getLetterText(), $delegates ? $this->_placeholderVars($storeName, true) : $vars);
+            $html = $tracked ? $letter->html($text) : '';
+
+            $transport->setLetter(['text' => $delegates ? $text : null, 'track' => $tracked]);
+        } else {
+            $html = $delegates
+                ? $renderer->render($template, $this->_placeholderVars($storeName))
+                : $renderer->render($template, $vars);
+        }
 
         $this->_applyEnvelope($transport, $campaign);
 
         try {
-            $this->_sendTestBatch($transport, $email, $vars, $html, $subject);
+            $this->_sendTestBatch($transport, $email, $vars, $html, $subject, $text);
         } finally {
             $this->_applyEnvelope($transport, null);
+
+            if ($campaign->isLetter()) {
+                $transport->setLetter(null);
+            }
         }
     }
 
-    private function _sendTestBatch($transport, string $email, array $vars, string $html, string $subject): void
+    private function _sendTestBatch($transport, string $email, array $vars, string $html, string $subject, ?string $text = null): void
     {
         $transport->sendBatch(
             [[
@@ -740,6 +811,7 @@ class YSRTech_EmailCampaigns_Model_Sender
                 'name'  => trim($vars['customer']['firstname'] . ' ' . $vars['customer']['lastname']),
                 'vars'  => $vars,
                 'html'  => $html,
+                'text'  => $text,
             ]],
             $subject,
             $html
@@ -756,7 +828,7 @@ class YSRTech_EmailCampaigns_Model_Sender
      * @param  string $storeName
      * @return array
      */
-    protected function _placeholderVars(string $storeName): array
+    protected function _placeholderVars(string $storeName, bool $letter = false): array
     {
         return [
             'customer' => [
@@ -765,8 +837,29 @@ class YSRTech_EmailCampaigns_Model_Sender
                 'email'     => '%recipient.email%',
             ],
             'store'           => ['name' => $storeName],
-            'unsubscribe_url' => '%unsubscribe_url%',
+            // A letter links to the store's own page, one address a reader
+            'unsubscribe_url' => $letter ? '%recipient.optout_url%' : '%unsubscribe_url%',
         ];
+    }
+
+    /**
+     * A letter needs a transport that can send text without the trappings
+     * of a bulk mailing.
+     */
+    protected function _assertLetters($transport): void
+    {
+        if (!method_exists($transport, 'setLetter')) {
+            Mage::throwException(Mage::helper('ysrtech_emailcampaigns')->__('Plain-text letters can be sent through Mailgun or SMTP, not through the transport that is configured.'));
+        }
+    }
+
+    /**
+     * A subject or preview line as a reader sees it: placeholders filled in
+     * with the preview's stand-in reader, and fallbacks applied.
+     */
+    public function asSeen(string $text, $storeId = null): string
+    {
+        return trim(Mage::helper('ysrtech_emailcampaigns')->renderMergeVars($text, $this->previewVars($storeId)));
     }
 
     /**
@@ -835,13 +928,16 @@ class YSRTech_EmailCampaigns_Model_Sender
 
         $names       = [];
         $customerIds = [];
+        // "CHAYA" and "chaya" are greeted as Chaya: the name is tidied for
+        // the email, and left as it was typed where it is stored
+        $helper      = Mage::helper('ysrtech_emailcampaigns');
 
         foreach ($adapter->fetchAll($select) as $row) {
             $subscriberId = (int) $row['subscriber_id'];
 
             $names[$subscriberId] = [
-                'firstname' => (string) $row['subscriber_firstname'],
-                'lastname'  => (string) $row['subscriber_lastname'],
+                'firstname' => $helper->tidyName((string) $row['subscriber_firstname']),
+                'lastname'  => $helper->tidyName((string) $row['subscriber_lastname']),
             ];
 
             /*
@@ -867,8 +963,8 @@ class YSRTech_EmailCampaigns_Model_Sender
 
                 if ($subscriberId !== null) {
                     $names[$subscriberId] = [
-                        'firstname' => (string) $customer->getFirstname(),
-                        'lastname'  => (string) $customer->getLastname(),
+                        'firstname' => $helper->tidyName((string) $customer->getFirstname()),
+                        'lastname'  => $helper->tidyName((string) $customer->getLastname()),
                     ];
                 }
             }

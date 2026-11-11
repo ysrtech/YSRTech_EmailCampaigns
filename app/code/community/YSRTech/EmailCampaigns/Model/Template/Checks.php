@@ -43,11 +43,14 @@ class YSRTech_EmailCampaigns_Model_Template_Checks
         };
 
         // Subject
+        // Counted as a reader sees it: "{{ customer.firstname|there }}"
+        // is thirty characters to type and five to read
         $subject = trim($subject ?? (string) $template->getSubject());
-        $add('subject', $h->__('Subject'), $subject === '' ? self::BAD : (mb_strlen($subject) > 70 ? self::WARN : self::OK),
+        $shown   = mb_strlen(Mage::getSingleton('ysrtech_emailcampaigns/sender')->asSeen($subject, $storeId));
+        $add('subject', $h->__('Subject'), $subject === '' ? self::BAD : ($shown > 70 ? self::WARN : self::OK),
             $subject === '' ? $h->__('There is no subject line.')
-                : (mb_strlen($subject) > 70 ? $h->__('%d characters: most inboxes cut it off after about 60.', mb_strlen($subject))
-                    : $h->__('%d characters.', mb_strlen($subject))));
+                : ($shown > 70 ? $h->__('%d characters: most inboxes cut it off after about 60.', $shown)
+                    : $h->__('%d characters.', $shown)));
 
         // Size
         $kb = strlen($html) / 1024;

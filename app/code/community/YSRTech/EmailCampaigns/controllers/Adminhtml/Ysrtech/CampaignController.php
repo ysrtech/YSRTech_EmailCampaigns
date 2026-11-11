@@ -142,6 +142,14 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
                 $campaign->setReplyTo($reply ?: null);
             }
 
+            if (array_key_exists('letter_text', $post)) {
+                $campaign->setLetterText(mb_substr(str_replace(["\r\n", "\r"], "\n", (string) $post['letter_text']), 0, 60000));
+            }
+
+            if (array_key_exists('letter_track', $post)) {
+                $campaign->setLetterTrack((int) (bool) $post['letter_track']);
+            }
+
             if (array_key_exists('store_id', $post)) {
                 $campaign->setStoreId((int) $post['store_id']);
             }
@@ -184,7 +192,14 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
             $starter = Mage::getSingleton('ysrtech_emailcampaigns/template_starter');
 
             if ($source === 'clear') {
-                $campaign->addData(['html' => null, 'template_id' => null]);
+                // The letter's words are kept: switching back finds them
+                $campaign->addData(['html' => null, 'template_id' => null, 'format' => 'design']);
+            } elseif ($source === 'letter') {
+                $campaign->addData(['html' => null, 'template_id' => null, 'format' => YSRTech_EmailCampaigns_Model_Letter::FORMAT]);
+
+                if (trim((string) $campaign->getLetterText()) === '') {
+                    $campaign->setLetterText($h->__("Hi %s,\n\n\n\n%s", '{{ customer.firstname|there }}', $campaign->getFromNameOrDefault()));
+                }
             } elseif ($source === 'template') {
                 $template = Mage::getModel('ysrtech_emailcampaigns/template')->load((int) $request->getPost('template_id'));
 
@@ -400,6 +415,9 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
             'reply_to'    => $campaign->getReplyTo(),
             'template_id' => $campaign->getTemplateId(),
             'html'        => $campaign->getData('html'),
+            'format'      => $campaign->getFormat() ?: 'design',
+            'letter_text' => $campaign->getLetterText(),
+            'letter_track' => (int) $campaign->getLetterTrack(),
             'store_id'    => $campaign->getStoreId(),
             'use_brand'   => (int) $campaign->getUseBrand(),
             'included_segment_ids' => $campaign->getIncludedSegmentIds(),

@@ -11,6 +11,20 @@ class YSRTech_EmailCampaigns_Model_Renderer
      */
     public function render(YSRTech_EmailCampaigns_Model_Template $template, array $vars): string
     {
+        if ($template->getIsLetter()) {
+            // A letter has no design to render: this is how it is shown
+            // where an email's HTML is expected, its words and nothing else
+            $letter = Mage::getSingleton('ysrtech_emailcampaigns/letter');
+
+            // In a preview there is nobody to unsubscribe: show where the
+            // link will be, with an address that reads as what it is
+            if (empty($vars['unsubscribe_url']) || strpos((string) $vars['unsubscribe_url'], 'http') !== 0) {
+                $vars['unsubscribe_url'] = Mage::app()->getStore($this->_storeId)->getBaseUrl(Mage_Core_Model_Store::URL_TYPE_LINK) . 'unsubscribe';
+            }
+
+            return $letter->html($letter->text((string) $template->getHtml(), $vars));
+        }
+
         $html = (string) $template->getHtml();
         if ($html === '' && $template->getDesignJson()) {
             $html = $this->renderDesign(json_decode((string) $template->getDesignJson(), true) ?: []);

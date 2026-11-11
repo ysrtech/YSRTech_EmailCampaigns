@@ -69,11 +69,16 @@ class YSRTech_EmailCampaigns_Model_Campaign_Editor
         $html    = '';
         $sizeKb  = 0;
 
+        /** @var YSRTech_EmailCampaigns_Model_Letter $letter */
+        $letter   = Mage::getSingleton('ysrtech_emailcampaigns/letter');
+        $isLetter = $campaign->isLetter();
+
         if ($template === null) {
-            $problems['content'] = $h->__('Design the email.');
+            $problems['content'] = $isLetter ? $h->__('Write the letter.') : $h->__('Design the email.');
         } else {
-            $checks = Mage::getSingleton('ysrtech_emailcampaigns/template_checks')
-                ->run($template, $subject, $campaign->getStoreId());
+            $checks = $isLetter
+                ? $letter->checks((string) $campaign->getLetterText(), $subject, (bool) $campaign->getLetterTrack())
+                : Mage::getSingleton('ysrtech_emailcampaigns/template_checks')->run($template, $subject, $campaign->getStoreId());
 
             foreach ($checks as $check) {
                 if ($check['level'] === YSRTech_EmailCampaigns_Model_Template_Checks::BAD && $check['code'] !== 'subject') {
@@ -128,7 +133,16 @@ class YSRTech_EmailCampaigns_Model_Campaign_Editor
                 'size_kb' => $sizeKb,
                 'checks'  => $checks,
                 'html'    => $html,
+                'letter'  => [
+                    'is'         => $isLetter,
+                    'text'       => $isLetter ? (string) $campaign->getLetterText() : '',
+                    'track'      => (bool) $campaign->getLetterTrack(),
+                    'own_optout' => $isLetter && $letter->hasOwnOptOut((string) $campaign->getLetterText()),
+                    'optout'     => $letter->optOutLine(),
+                ],
             ],
+            // Once it has started, what became of it
+            'report'    => $editable ? null : Mage::getSingleton('ysrtech_emailcampaigns/campaign_report')->compute($campaign),
             'when'      => [
                 'scheduled_at' => $this->_local($campaign->getScheduledAt()),
                 'timezone'     => (string) Mage::app()->getStore()->getConfig(Mage_Core_Model_Locale::XML_PATH_DEFAULT_TIMEZONE),

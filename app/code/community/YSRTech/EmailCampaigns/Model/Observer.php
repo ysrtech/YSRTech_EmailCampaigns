@@ -14,6 +14,14 @@ class YSRTech_EmailCampaigns_Model_Observer
     }
 
     /**
+     * Cron: apply the provider webhooks kept since the last run.
+     */
+    public function processWebhooks()
+    {
+        Mage::getSingleton('ysrtech_emailcampaigns/webhook_inbox')->process();
+    }
+
+    /**
      * Cron: bring Mailgun's unsubscribes, bounces and complaints back into the
      * store, so the queue stops enqueueing people who have opted out and the
      * subscriber grid shows what is actually true.
