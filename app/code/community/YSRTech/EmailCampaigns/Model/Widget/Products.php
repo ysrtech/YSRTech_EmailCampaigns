@@ -379,6 +379,11 @@ class YSRTech_EmailCampaigns_Model_Widget_Products
     /**
      * Products in rows of N. The grid's cells stack on a phone; a deals row
      * stays side by side, three covers across being the point of it.
+     *
+     * A deals row lines its items up along the top: the covers start level,
+     * and a title that runs to two lines pushes only its own price down. The
+     * grid lines up along the bottom, so that names sit on one line under
+     * covers of different heights.
      */
     protected function _rows(array $products, array $o, array $b, string $layout): string
     {
@@ -409,8 +414,8 @@ class YSRTech_EmailCampaigns_Model_Widget_Products
                     ? '<p style="margin:10px 0 0;font-size:12px;line-height:16px;letter-spacing:1px;text-transform:uppercase;color:' . $b['muted_color'] . ';">' . $e($p['brand']) . '</p>'
                     : '';
 
-                $html .= '<td class="' . ($deals ? 'ecw-deal' : 'ecw-col') . '" width="' . $percent . '%" valign="bottom" align="center" style="width:' . $percent
-                    . '%;padding:0 ' . ($deals ? '6px' : '8px') . ';font-family:' . $b['font'] . ';">'
+                $html .= '<td class="' . ($deals ? 'ecw-deal' : 'ecw-col') . '" width="' . $percent . '%" valign="' . ($deals ? 'top' : 'bottom') . '" align="center" style="width:' . $percent
+                    . '%;vertical-align:' . ($deals ? 'top' : 'bottom') . ';padding:0 ' . ($deals ? '6px' : '8px') . ';font-family:' . $b['font'] . ';">'
                     . '<a href="' . $e($p['url']) . '" target="_blank" style="display:block;"><img class="' . ($deals ? 'ecw-deal-cover' : 'ecw-cover') . '" src="' . $e($p['image'])
                     . '" width="' . $width . '" alt="' . $e($p['name']) . '" style="display:block;border:0;width:' . $width . 'px;max-width:100%;height:auto;margin:0 auto;" /></a>'
                     . $brand
