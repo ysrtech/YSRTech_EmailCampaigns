@@ -503,8 +503,12 @@
                     + '<span class="sec-st">' + (s.problem || s.warn ? '!' : (s.done ? '✓' : '')) + '</span><div class="mid"><div class="t">' + esc(s.title) + '</div>'
                     + '<div class="s ' + (s.summary ? '' : 'unset') + '" data-sum="' + s.k + '">' + esc(s.summary || t.notSet) + '</div>'
                     + (s.problem ? '<div class="s problem">' + esc(s.problem) + '</div>' : '') + '</div>'
-                    + '<button type="button" class="btn btn-sm">' + esc(open === s.k ? t.done : (s.done ? t.edit : t.add)) + '</button></div>'
-                    + '<div class="sec-body">' + (open === s.k ? s.body() : '') + '</div></div>';
+                    // Closed, a step offers to be opened. Open, the way on is at the bottom, where the eye is
+                    // after filling it in: Next to the step below, Done on the last
+                    + (open === s.k ? '' : '<button type="button" class="btn btn-sm">' + esc(s.done ? t.edit : t.add) + '</button>') + '</div>'
+                    + '<div class="sec-body">' + (open === s.k ? s.body()
+                        + '<div class="sec-next"><button type="button" class="btn btn-primary btn-sm" data-next="' + s.k + '">'
+                        + esc(list[list.length - 1].k === s.k || !state.editable ? t.done : t.next) + '</button></div>' : '') + '</div></div>';
             }).join('')
             + (state.content.checks.length ? '<div class="precheck"><div class="head"><span>' + esc(t.checks) + '</span><span class="badge">'
                 + esc(tr('passing', state.content.checks.filter(function (c) { return c.level === 'ok'; }).length, state.content.checks.length)) + '</span></div>'
@@ -587,6 +591,17 @@
                 var k = head.parentNode.getAttribute('data-k');
                 open = open === k ? null : k;
                 render();
+            };
+        });
+
+        $$('[data-next]').forEach(function (button) {
+            button.onclick = function () {
+                var keys = sections().map(function (s) { return s.k; });
+                var at = keys.indexOf(button.getAttribute('data-next'));
+                open = state.editable && at < keys.length - 1 ? keys[at + 1] : null;
+                render();
+                var el = open && $('.sec[data-k="' + open + '"]');
+                if (el && el.scrollIntoView) { el.scrollIntoView({behavior: 'smooth', block: 'nearest'}); }
             };
         });
 

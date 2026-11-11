@@ -186,6 +186,11 @@ class YSRTech_EmailCampaigns_Model_Brand
         ] as $kind => [$table, $idField, $status]) {
             $select = $adapter->select()->from($table, [$idField, 'html', 'use_brand']);
 
+            // Only emails that take a frame from outside. One that is a
+            // complete design of its own, or made in the builder, carries
+            // its header and footer in the design itself.
+            $select->where('use_brand < ?', YSRTech_EmailCampaigns_Model_Renderer::FRAME_NONE);
+
             if ($status !== null) {
                 $select->where('status = ?', $status);
             }

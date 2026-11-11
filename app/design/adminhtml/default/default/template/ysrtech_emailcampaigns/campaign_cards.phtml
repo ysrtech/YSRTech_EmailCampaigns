@@ -1,0 +1,97 @@
+<?php
+/** @var YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Cards $this */
+$collection = $this->getCollection();
+$pages      = (int) $collection->getLastPageNumber();
+$page       = (int) $collection->getCurPage();
+$counts     = $this->getCounts();
+$stats      = $this->getStats();
+$pct        = static fn (int $part, int $whole) => $whole ? round($part / $whole * 100, 1) . '%' : "\u{2013}";
+?>
+<div class="ecg">
+    <div class="eg-head">
+        <h1><?php echo $this->escapeHtml($this->__('Campaigns')) ?></h1>
+        <span class="spacer"></span>
+        <a class="eg-btn primary" href="<?php echo $this->getUrl('*/*/new') ?>"><?php echo $this->escapeHtml($this->__('New Campaign')) ?></a>
+    </div>
+
+    <div class="tg-tools">
+        <div class="tg-cats">
+            <?php foreach ($this->getFilters() as $code => $label): ?>
+                <a href="<?php echo $this->getPageUrl(1, $code) ?>" class="<?php echo $code === $this->getFilter() ? 'on' : '' ?>"><?php echo $this->escapeHtml($label) ?> <span><?php echo (int) $counts[$code] ?></span></a>
+            <?php endforeach ?>
+        </div>
+        <form class="tg-search" method="get" action="<?php echo $this->getUrl('*/*/index', array_filter(['status' => $this->getFilter()])) ?>">
+            <input type="search" name="q" value="<?php echo $this->escapeHtml($this->getSearch()) ?>" placeholder="<?php echo $this->escapeHtml($this->__('Search campaigns')) ?>" aria-label="<?php echo $this->escapeHtml($this->__('Search campaigns')) ?>"/>
+        </form>
+    </div>
+
+    <div class="tg-grid">
+        <?php if (!$collection->getSize()): ?>
+            <div class="tg-empty">
+                <?php if ($this->getSearch() !== '' || $this->getFilter() !== ''): ?>
+                    <?php echo $this->escapeHtml($this->__('No campaign matches.')) ?><br/>
+                    <a class="eg-btn sm" href="<?php echo $this->getUrl('*/*/index') ?>"><?php echo $this->escapeHtml($this->__('Show all')) ?></a>
+                <?php else: ?>
+                    <?php echo $this->escapeHtml($this->__('No campaigns yet.')) ?><br/>
+                    <a class="eg-btn primary" href="<?php echo $this->getUrl('*/*/new') ?>"><?php echo $this->escapeHtml($this->__('Create the first one')) ?></a>
+                <?php endif ?>
+            </div>
+        <?php endif ?>
+        <?php foreach ($collection as $campaign): ?>
+            <?php
+            $open   = $this->getUrl('*/*/edit', ['id' => $campaign->getId()]);
+            $html   = $this->getPreviewHtml($campaign);
+            $status = (string) $campaign->getStatus();
+            $s      = $stats[(int) $campaign->getId()] ?? ['sent' => (int) $campaign->getData('stat_sent'), 'opened' => 0, 'clicked' => 0];
+            $when   = $status === 'scheduled' && $campaign->getScheduledAt()
+                ? $this->__('Goes out %s', $this->formatDate($campaign->getScheduledAt(), 'medium', true))
+                : ($campaign->getSentAt()
+                    ? $this->__('Sent %s', $this->formatDate($campaign->getSentAt(), 'medium', true))
+                    : $this->__('Edited %s', $this->formatDate($campaign->getUpdatedAt() ?: $campaign->getCreatedAt(), 'medium')));
+            ?>
+            <a class="tg-card" href="<?php echo $open ?>">
+                <span class="tg-status"><span class="eg-chip <?php echo $this->escapeHtml($status) ?>"><?php echo $this->escapeHtml($this->getStatusLabel($status)) ?></span></span>
+                <span class="tg-thumb<?php echo $html === '' ? ' empty' : '' ?>">
+                    <?php if ($html !== ''): ?>
+                        <iframe sandbox="" scrolling="no" tabindex="-1" loading="lazy" title="<?php echo $this->escapeHtml($campaign->getName()) ?>" srcdoc="<?php echo $this->escapeHtml($html) ?>"></iframe>
+                    <?php else: ?>
+                        <?php echo $this->escapeHtml($this->__('No email yet')) ?>
+                    <?php endif ?>
+                </span>
+                <span class="tg-info">
+                    <b title="<?php echo $this->escapeHtml($campaign->getName()) ?>"><?php echo $this->escapeHtml($campaign->getName()) ?></b>
+                    <small class="line"><?php echo $this->escapeHtml($campaign->getSubject() ?: $this->__('No subject yet')) ?></small>
+                    <small><?php echo $this->escapeHtml($when) ?></small>
+                    <?php if ($s['sent'] > 0): ?>
+                        <span class="tg-stats">
+                            <span><b><?php echo number_format($s['sent']) ?></b> <?php echo $this->escapeHtml($this->__('sent')) ?></span>
+                            <span><b><?php echo $pct($s['opened'], $s['sent']) ?></b> <?php echo $this->escapeHtml($this->__('opened')) ?></span>
+                            <span><b><?php echo $pct($s['clicked'], $s['sent']) ?></b> <?php echo $this->escapeHtml($this->__('clicked')) ?></span>
+                        </span>
+                    <?php endif ?>
+                </span>
+            </a>
+        <?php endforeach ?>
+    </div>
+
+    <?php if ($pages > 1): ?>
+        <div class="eg-pages">
+            <?php if ($page > 1): ?><a class="eg-btn sm" href="<?php echo $this->getPageUrl($page - 1) ?>">&larr; <?php echo $this->escapeHtml($this->__('Newer')) ?></a><?php endif ?>
+            <span><?php echo $this->escapeHtml($this->__('Page %d of %d', $page, $pages)) ?></span>
+            <?php if ($page < $pages): ?><a class="eg-btn sm" href="<?php echo $this->getPageUrl($page + 1) ?>"><?php echo $this->escapeHtml($this->__('Older')) ?> &rarr;</a><?php endif ?>
+        </div>
+    <?php endif ?>
+</div>
+<script type="text/javascript">
+//<![CDATA[
+(function () {
+    var fit = function () {
+        Array.prototype.forEach.call(document.querySelectorAll('.ecg .tg-thumb iframe'), function (frame) {
+            frame.style.transform = 'scale(' + (frame.parentNode.clientWidth / 680) + ')';
+        });
+    };
+    fit();
+    window.addEventListener('resize', fit);
+})();
+//]]>
+</script>

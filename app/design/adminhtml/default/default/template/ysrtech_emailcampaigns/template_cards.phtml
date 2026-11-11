@@ -1,0 +1,88 @@
+<?php
+/** @var YSRTech_EmailCampaigns_Block_Adminhtml_Template_Cards $this */
+$collection = $this->getCollection();
+$pages      = (int) $collection->getLastPageNumber();
+$page       = (int) $collection->getCurPage();
+$formKey    = Mage::getSingleton('core/session')->getFormKey();
+?>
+<div class="ecg">
+    <div class="eg-head">
+        <h1><?php echo $this->escapeHtml($this->__('Templates')) ?></h1>
+        <span class="spacer"></span>
+        <a class="eg-btn primary" href="<?php echo $this->getUrl('*/*/new') ?>"><?php echo $this->escapeHtml($this->__('New Template')) ?></a>
+    </div>
+    <p class="eg-lede"><?php echo $this->escapeHtml($this->__('Designs to start a campaign from, or to send from an automation. Open one to edit it in the builder.')) ?></p>
+
+    <div class="tg-tools">
+        <span><?php echo $this->escapeHtml($this->__('%d template(s)', $collection->getSize())) ?></span>
+        <form class="tg-search" method="get" action="<?php echo $this->getUrl('*/*/index') ?>">
+            <input type="search" name="q" value="<?php echo $this->escapeHtml($this->getSearch()) ?>" placeholder="<?php echo $this->escapeHtml($this->__('Search templates')) ?>" aria-label="<?php echo $this->escapeHtml($this->__('Search templates')) ?>"/>
+        </form>
+    </div>
+
+    <div class="tg-grid">
+        <?php if (!$collection->getSize()): ?>
+            <div class="tg-empty">
+                <?php if ($this->getSearch() !== ''): ?>
+                    <?php echo $this->escapeHtml($this->__('No template matches "%s".', $this->getSearch())) ?><br/>
+                    <a class="eg-btn sm" href="<?php echo $this->getUrl('*/*/index') ?>"><?php echo $this->escapeHtml($this->__('Show all')) ?></a>
+                <?php else: ?>
+                    <?php echo $this->escapeHtml($this->__('No templates yet.')) ?><br/>
+                    <a class="eg-btn primary" href="<?php echo $this->getUrl('*/*/new') ?>"><?php echo $this->escapeHtml($this->__('Create the first one')) ?></a>
+                <?php endif ?>
+            </div>
+        <?php endif ?>
+        <?php foreach ($collection as $template): ?>
+            <?php $edit = $this->getUrl('*/*/designer', ['id' => $template->getId()]); $html = $this->getPreviewHtml($template); ?>
+            <div class="tg-card">
+                <a class="tg-thumb<?php echo $html === '' ? ' empty' : '' ?>" href="<?php echo $edit ?>" title="<?php echo $this->escapeHtml($this->__('Edit "%s"', $template->getName())) ?>">
+                    <?php if ($html !== ''): ?>
+                        <?php /* Sandboxed and inert: a picture of the email, not a page in the admin */ ?>
+                        <iframe sandbox="" scrolling="no" tabindex="-1" loading="lazy" title="<?php echo $this->escapeHtml($template->getName()) ?>" srcdoc="<?php echo $this->escapeHtml($html) ?>"></iframe>
+                    <?php else: ?>
+                        <?php echo $this->escapeHtml($this->__('Nothing in it yet')) ?>
+                    <?php endif ?>
+                </a>
+                <div class="tg-info">
+                    <b title="<?php echo $this->escapeHtml($template->getName()) ?>"><?php echo $this->escapeHtml($template->getName()) ?></b>
+                    <small class="line"><?php echo $this->escapeHtml($template->getSubject() ?: $this->__('No subject')) ?></small>
+                    <small><?php echo $this->escapeHtml($this->__('Edited %s', $this->formatDate($template->getUpdatedAt() ?: $template->getCreatedAt(), 'medium'))) ?></small>
+                    <div class="tg-acts">
+                        <a class="eg-btn sm" href="<?php echo $edit ?>"><?php echo $this->escapeHtml($this->__('Edit')) ?></a>
+                        <a class="eg-btn sm" href="<?php echo $this->getUrl('*/*/preview', ['id' => $template->getId()]) ?>" target="_blank" rel="noopener"><?php echo $this->escapeHtml($this->__('Preview')) ?></a>
+                        <form method="post" action="<?php echo $this->getUrl('*/*/duplicate', ['id' => $template->getId()]) ?>">
+                            <input type="hidden" name="form_key" value="<?php echo $formKey ?>"/>
+                            <button type="submit" class="eg-btn sm"><?php echo $this->escapeHtml($this->__('Duplicate')) ?></button>
+                        </form>
+                        <form method="post" action="<?php echo $this->getUrl('*/*/delete', ['id' => $template->getId()]) ?>" onsubmit="return confirm('<?php echo $this->jsQuoteEscape($this->escapeHtml($this->__('Delete this template? Campaigns already made from it keep their own copy.'))) ?>')">
+                            <input type="hidden" name="form_key" value="<?php echo $formKey ?>"/>
+                            <button type="submit" class="eg-btn sm danger"><?php echo $this->escapeHtml($this->__('Delete')) ?></button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        <?php endforeach ?>
+    </div>
+
+    <?php if ($pages > 1): ?>
+        <div class="eg-pages">
+            <?php if ($page > 1): ?><a class="eg-btn sm" href="<?php echo $this->getPageUrl($page - 1) ?>">&larr; <?php echo $this->escapeHtml($this->__('Newer')) ?></a><?php endif ?>
+            <span><?php echo $this->escapeHtml($this->__('Page %d of %d', $page, $pages)) ?></span>
+            <?php if ($page < $pages): ?><a class="eg-btn sm" href="<?php echo $this->getPageUrl($page + 1) ?>"><?php echo $this->escapeHtml($this->__('Older')) ?> &rarr;</a><?php endif ?>
+        </div>
+    <?php endif ?>
+</div>
+<script type="text/javascript">
+//<![CDATA[
+// Each picture is the email at its real width, scaled down to the card
+(function () {
+    var fit = function () {
+        Array.prototype.forEach.call(document.querySelectorAll('.ecg .tg-thumb iframe'), function (frame) {
+            frame.style.transform = 'scale(' + (frame.parentNode.clientWidth / 680) + ')';
+        });
+    };
+    fit();
+    window.addEventListener('resize', fit);
+})();
+//]]>
+</script>

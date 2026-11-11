@@ -18,7 +18,7 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
         $this->_title($this->__('Email Campaigns'))->_title($this->__('Campaigns'));
         $this->loadLayout();
         $this->_setActiveMenu('ysrtech_emailcampaigns/campaign');
-        $this->_addContent($this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_campaign'));
+        $this->_addContent($this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_campaign_cards'));
         $this->renderLayout();
     }
 
@@ -154,7 +154,8 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
                 $campaign->setStoreId((int) $post['store_id']);
             }
 
-            if (array_key_exists('use_brand', $post)) {
+            // A design from the builder carries its own header and footer
+            if (array_key_exists('use_brand', $post) && (int) $campaign->getUseBrand() !== YSRTech_EmailCampaigns_Model_Renderer::FRAME_DOC) {
                 $campaign->setUseBrand(max(0, min(2, (int) $post['use_brand'])));
             }
 
@@ -193,9 +194,9 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
 
             if ($source === 'clear') {
                 // The letter's words are kept: switching back finds them
-                $campaign->addData(['html' => null, 'template_id' => null, 'format' => 'design']);
+                $campaign->addData(['html' => null, 'design_json' => null, 'template_id' => null, 'format' => 'design']);
             } elseif ($source === 'letter') {
-                $campaign->addData(['html' => null, 'template_id' => null, 'format' => YSRTech_EmailCampaigns_Model_Letter::FORMAT]);
+                $campaign->addData(['html' => null, 'design_json' => null, 'template_id' => null, 'format' => YSRTech_EmailCampaigns_Model_Letter::FORMAT]);
 
                 if (trim((string) $campaign->getLetterText()) === '') {
                     $campaign->setLetterText($h->__("Hi %s,\n\n\n\n%s", '{{ customer.firstname|there }}', $campaign->getFromNameOrDefault()));
@@ -209,6 +210,8 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
 
                 $campaign->addData([
                     'html'        => (string) $template->getHtml(),
+                    'design_json' => $template->getDesignJson() ?: null,
+                    'format'      => 'design',
                     'template_id' => (int) $template->getId(),
                     // As the template was designed: with or without the
                     // store's header and footer around it
@@ -223,10 +226,14 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
                     Mage::throwException($h->__('Choose a starting point.'));
                 }
 
+                $made = $starter->template($code, $campaign->getStoreId() ?: null);
+
                 $campaign->addData([
-                    'html'        => $starter->build($code, $campaign->getStoreId() ?: null),
+                    'html'        => (string) $made->getHtml(),
+                    'design_json' => $made->getDesignJson() ?: null,
+                    'format'      => 'design',
                     'template_id' => null,
-                    'use_brand'   => $starter->getFrame($code),
+                    'use_brand'   => (int) $made->getUseBrand(),
                 ]);
                 $this->_fillFrom($campaign, $starters[$code]['subject'], $starters[$code]['preheader']);
             } else {
@@ -267,61 +274,76 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
         }
 
         // A campaign still pointing at a template gets its copy now: the
-        // designer must never be editing the shared one from here.
-        if (!$campaign->hasOwnContent()) {
+        // builder must never be editing the shared one from here.
+        if (!$campaign->hasOwnContent() && !$campaign->isLetter()) {
             $template = $campaign->getContentTemplate();
 
-            $campaign->setData('html', $template ? (string) $template->getHtml()
-                : Mage::getSingleton('ysrtech_emailcampaigns/template_starter')->build('plain'))->save();
+            if ($template) {
+                $campaign->addData([
+                    'html'        => (string) $template->getHtml(),
+                    'design_json' => $template->getDesignJson() ?: null,
+                    'use_brand'   => (int) $template->getUseBrand(),
+                ])->save();
+            }
         }
 
         Mage::register('ysrtech_emailcampaigns_campaign', $campaign);
-        Mage::register('ysrtech_emailcampaigns_template', $campaign->getContentTemplate());
+        Mage::register(
+            'ysrtech_emailcampaigns_template',
+            $campaign->getContentTemplate() ?: Mage::getModel('ysrtech_emailcampaigns/template')->setPreheader((string) $campaign->getPreheader())
+        );
 
-        $this->_title($this->__('Email Campaigns'))->_title($this->__('Designer'))->_title($campaign->getName());
-        $this->loadLayout();
-        $this->_setActiveMenu('ysrtech_emailcampaigns/campaign');
-        $this->_addContent($this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_campaign_designer'));
-        $this->renderLayout();
+        // A page of its own: the builder is not drawn inside the admin's frame
+        $this->getResponse()->setBody(
+            $this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_campaign_designer')->toHtml()
+        );
     }
 
     /**
-     * What the designer posts when Save Content is pressed.
+     * What the builder posts: the design, and the preview text edited
+     * beside it. Answers with the pre-send checks.
      */
     public function saveDesignAction()
     {
-        $campaign = $this->_campaign();
-
-        if (!$campaign || !$this->getRequest()->isPost() || !$this->_editable($campaign)) {
-            $this->_redirect('*/*/index');
-
-            return;
-        }
+        $response = ['ok' => false];
 
         try {
-            $html = (string) $this->getRequest()->getPost('html');
-
-            if (trim($html) === '') {
-                Mage::throwException($this->__('There is nothing in the design to save.'));
+            if (!$this->getRequest()->isPost() || !$this->_validateFormKey()) {
+                Mage::throwException($this->__('This page has been open a while. Reload it and try again.'));
             }
 
-            $campaign->setData('html', $html);
+            $campaign = $this->_campaign();
+
+            if (!$campaign || !$this->_editable($campaign)) {
+                Mage::throwException($this->__('This campaign can no longer be edited.'));
+            }
+
+            $campaign->setPreheader(mb_substr(trim((string) $this->getRequest()->getPost('preheader')), 0, 255) ?: null);
+            $campaign->setDoc((array) json_decode((string) $this->getRequest()->getPost('doc'), true));
 
             // What it sends has changed, so sending it is a decision to
             // make again
             if ($campaign->getStatus() === YSRTech_EmailCampaigns_Model_Campaign::STATUS_SCHEDULED) {
                 $campaign->setStatus(YSRTech_EmailCampaigns_Model_Campaign::STATUS_DRAFT)->setScheduledAt(null);
-                $this->_getSession()->addNotice($this->__('The campaign was scheduled; it is a draft again until you schedule it.'));
             }
 
             $campaign->save();
-            $this->_getSession()->addSuccess($this->__('Design saved.'));
-        } catch (Exception $e) {
+
+            $response = [
+                'ok'     => true,
+                'checks' => Mage::getSingleton('ysrtech_emailcampaigns/template_checks')
+                    ->run($campaign->getContentTemplate(), (string) $campaign->getSubject(), $campaign->getStoreId()),
+            ];
+        } catch (Mage_Core_Exception $e) {
+            $response['message'] = $e->getMessage();
+        } catch (Throwable $e) {
             Mage::logException($e);
-            $this->_getSession()->addError($e->getMessage());
+            $response['message'] = $this->__('The design could not be saved.');
         }
 
-        $this->_redirect('*/*/designer', ['id' => $campaign->getId()]);
+        $this->getResponse()
+            ->setHeader('Content-Type', 'application/json', true)
+            ->setBody(Mage::helper('core')->jsonEncode($response));
     }
 
     /**
@@ -415,6 +437,7 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
             'reply_to'    => $campaign->getReplyTo(),
             'template_id' => $campaign->getTemplateId(),
             'html'        => $campaign->getData('html'),
+            'design_json' => $campaign->getData('design_json'),
             'format'      => $campaign->getFormat() ?: 'design',
             'letter_text' => $campaign->getLetterText(),
             'letter_track' => (int) $campaign->getLetterTrack(),
@@ -595,13 +618,5 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
             $this->_getSession()->addError($e->getMessage());
         }
         $this->_redirect('*/*/index');
-    }
-
-    public function gridAction()
-    {
-        $this->loadLayout();
-        $this->getResponse()->setBody(
-            $this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_campaign_grid')->toHtml()
-        );
     }
 }

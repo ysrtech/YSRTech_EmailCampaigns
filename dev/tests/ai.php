@@ -205,11 +205,13 @@ $body     = (string) $template->getHtml();
 $ok('a bad first reply is retried once', count($sent) === 2 && count($sent[1]['body']['messages']) === 4);
 $ok('only the brief, the tone and the store name go out', strpos(json_encode($sent[0]['body']['messages']), 'festive') !== false && !preg_match('/@[a-z0-9.-]+\.[a-z]{2,}/i', json_encode($sent[0]['body']['messages'])));
 $ok('template saved with subject and preheader', $template->getId() && $template->getSubject() === '20% off children\'s books this week' && strpos($template->getPreheader(), 'LIGHTS20') !== false);
-$ok('wears the store\'s header and footer', (int) $template->getUseBrand() === YSRTech_EmailCampaigns_Model_Renderer::FRAME_BRAND);
+$ok('it is a builder design, with the store\'s header and footer as blocks', (int) $template->getUseBrand() === YSRTech_EmailCampaigns_Model_Renderer::FRAME_DOC
+    && $template->getDoc() !== null && strpos($body, YSRTech_EmailCampaigns_Model_Design_Html::STORE_FOOTER) !== false);
 $ok('no script reaches the html', stripos($body, '<script') === false && strpos($body, 'alert(1)') !== false);
 $ok('ampersand escaped, placeholder left whole', strpos($body, 'Sunday &amp; runs') !== false && strpos($body, '{{ customer.firstname|there }}') !== false);
 $ok('the button goes where the sender said', strpos($body, 'href="' . rtrim($home, '/') . '/sale.html"') !== false && strpos($body, 'evil.example') === false);
-$ok('products are a real product block', (bool) preg_match('#<div data-ec-widget="products" data-layout="grid" data-source="sale" data-heading="On &quot;sale&quot; now" data-limit="4"[^>]*></div>#', $body));
+$ok('products are a real product block', (bool) preg_match('#<div data-ec-widget="products"[^>]*></div>#', $body, $w)
+    && strpos($w[0], 'data-source="sale"') !== false && strpos($w[0], 'data-heading="On &quot;sale&quot; now"') !== false && strpos($w[0], 'data-limit="4"') !== false);
 
 $rendered = Mage::getSingleton('ysrtech_emailcampaigns/sender')->renderPreview($template);
 $ok('renders: block replaced, coupon and heading there', strpos($rendered, 'data-ec-widget') === false && strpos($rendered, 'LIGHTS20B') !== false && strpos($rendered, 'of stories') !== false);

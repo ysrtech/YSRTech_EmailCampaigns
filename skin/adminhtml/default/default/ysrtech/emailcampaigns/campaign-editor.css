@@ -210,3 +210,6 @@
 .ecc .report .waiting li { padding: 2px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ecc .report pre { margin: 10px 0 0; padding: 12px; border-radius: var(--radius-sm); background: var(--surface-2); white-space: pre-wrap; word-wrap: break-word;
   font: 13.5px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+/* The way on from an open step */
+.ecc .sec-next { display: flex; justify-content: flex-end; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }

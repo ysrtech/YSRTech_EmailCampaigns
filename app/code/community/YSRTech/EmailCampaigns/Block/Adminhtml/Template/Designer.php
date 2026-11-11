@@ -1,17 +1,11 @@
 <?php
 /**
- * The visual editor for a template's content.
+ * The email builder, on a template.
  *
- * GrapesJS with its newsletter preset: table-based blocks that survive the
- * email clients, and an inliner that moves css into style attributes on the
- * way out. Both are served from this store rather than a CDN, so the admin
- * works without outbound internet and no third party is told which templates
- * are being edited.
- *
- * The designer is an alternative to the HTML field on the edit form, not a
- * replacement for it. Whatever it saves is the same html column, so a
- * template can be roughed out here and finished by hand, or the other way
- * round.
+ * A page of its own rather than one inside the admin's frame: the builder
+ * fills the screen, and brings its own styles, which the admin theme's
+ * would otherwise fight. Everything it needs to start is handed to it as
+ * one object; after that it talks to the controller.
  */
 class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Designer extends Mage_Adminhtml_Block_Template
 {
@@ -29,108 +23,119 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Designer extends Mage_Admi
         return Mage::registry('ysrtech_emailcampaigns_template');
     }
 
-    /**
-     * @return string
-     */
-    public function getAssetUrl(string $file): string
-    {
-        return $this->getSkinUrl('ysrtech/emailcampaigns/grapesjs/' . $file);
-    }
-
-    /**
-     * @return string
-     */
-    public function getSaveUrl(): string
-    {
-        return $this->getUrl('*/*/save', ['id' => $this->getEmailTemplate()->getId(), 'back' => 'designer']);
-    }
-
-    /**
-     * @return string
-     */
-    public function getBackUrl(): string
-    {
-        return $this->getUrl('*/*/edit', ['id' => $this->getEmailTemplate()->getId()]);
-    }
-
-    /**
-     * @return string
-     */
-    public function getPreviewUrl(): string
-    {
-        return $this->getUrl('*/*/preview', ['id' => $this->getEmailTemplate()->getId()]);
-    }
-
-    /**
-     * The content the editor opens with, as a json string safe to embed.
-     *
-     * @return string
-     */
-    public function getContentJson(): string
-    {
-        $html = (string) $this->getEmailTemplate()->getHtml();
-
-        if (trim($html) === '') {
-            // An empty canvas invites a bare paragraph, which arrives
-            // full-width and unstyled; start from a whole email instead
-            $html = Mage::getSingleton('ysrtech_emailcampaigns/template_starter')->getHtml();
-        }
-
-        return Mage::helper('core')->jsonEncode($html);
-    }
-
-    /**
-     * Where the editor lists and uploads images.
-     *
-     * @return string
-     */
-    public function getAssetsUrl(): string
-    {
-        return $this->getUrl('*/*/assets');
-    }
-
-    /**
-     * @return string
-     */
-    /**
-     * Styles for the designer's canvas only, never saved or sent.
-     *
-     * An email that wears the store's header and footer is designed as the
-     * part in between, with no frame of its own. Left like that the canvas
-     * shows it stretched across the whole screen, which is nothing like the
-     * 600px column it is sent in - so the canvas is given that column, on
-     * the brand's page colour.
-     */
-    public function getCanvasCss(): string
-    {
-        /** @var YSRTech_EmailCampaigns_Model_Brand $brand */
-        $brand   = Mage::getSingleton('ysrtech_emailcampaigns/brand');
-        $storeId = $this->getStoreIdForBrand();
-
-        if ((int) $this->getEmailTemplate()->getUseBrand() !== 1 || !$brand->isEnabled($storeId)) {
-            return '';
-        }
-
-        $b = $brand->get($storeId);
-
-        return 'html{background-color:' . $b['page_bg'] . ' !important;}'
-            . 'body{max-width:' . YSRTech_EmailCampaigns_Model_Brand::WIDTH . 'px;margin:24px auto !important;background-color:'
-            . $b['content_bg'] . ' !important;min-height:300px;}';
-    }
-
-    /**
-     * Whether the email being designed is wrapped in the store's header and
-     * footer, for the note under the canvas.
-     */
-    public function isBranded(): bool
-    {
-        return $this->getCanvasCss() !== '';
-    }
-
-    /** The store view whose brand applies; a template has none of its own */
+    /** The store view whose brand and catalog apply; a template has none of its own */
     public function getStoreIdForBrand()
     {
         return null;
+    }
+
+    public function getSkinFile(string $file): string
+    {
+        $path = Mage::getBaseDir('skin') . '/adminhtml/default/default/ysrtech/emailcampaigns/designer/' . $file;
+
+        // The file's own time as a version, so a deploy is seen at once
+        return $this->getSkinUrl('ysrtech/emailcampaigns/designer/' . $file) . '?v=' . (is_file($path) ? filemtime($path) : 0);
+    }
+
+    public function getKind(): string
+    {
+        return 'template';
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function getUrls(): array
+    {
+        $id = ['id' => $this->getEmailTemplate()->getId()];
+
+        return [
+            'save'     => $this->getUrl('*/ysrtech_template/saveDesign', $id),
+            'back'     => $this->getUrl('*/ysrtech_template/index'),
+            'render'   => $this->getUrl('*/ysrtech_template/renderDoc'),
+            'widget'   => $this->getUrl('*/ysrtech_template/widget'),
+            'assets'   => $this->getUrl('*/ysrtech_template/assets'),
+            'sections' => $this->getUrl('*/ysrtech_template/sections'),
+            'brand'    => $this->getUrl('*/system_config/edit', ['section' => 'ysrtech_emailcampaigns']),
+            'test'     => '',
+        ];
+    }
+
+    /**
+     * Everything the builder starts with.
+     */
+    public function getConfig(): array
+    {
+        $template = $this->getEmailTemplate();
+        $storeId  = $this->getStoreIdForBrand();
+        $h        = Mage::helper('ysrtech_emailcampaigns');
+
+        /** @var YSRTech_EmailCampaigns_Model_Brand $brand */
+        $brand = Mage::getSingleton('ysrtech_emailcampaigns/brand');
+        $b     = $brand->get($storeId);
+
+        /** @var YSRTech_EmailCampaigns_Model_Design_Doc $docs */
+        $docs  = Mage::getModel('ysrtech_emailcampaigns/design_doc');
+        $D     = YSRTech_EmailCampaigns_Model_Design_Doc::class;
+        $table = static fn (string $rows) => '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:'
+            . $b['font'] . ';color:' . $b['text_color'] . ';">' . $rows . '</table>';
+
+        $defaults = [];
+
+        foreach (['heading', 'text', 'image', 'button', 'divider', 'spacer', 'social', 'coupon', 'quote', 'menu', 'html', 'footer', 'products'] as $type) {
+            $defaults[$type] = $D::defaults($type);
+        }
+
+        $defaults['footer']['company'] = $b['store_name'];
+        $defaults['footer']['address'] = trim((string) preg_replace('/\s*\n\s*/', ', ', $b['address']));
+        $defaults['button']['href']    = $b['store_url'];
+        $defaults['products']['options'] = array_map('strval', $defaults['products']['options']);
+        $defaults['storeheader'] = $defaults['storefooter'] = new stdClass();
+
+        $user = Mage::getSingleton('admin/session')->getUser();
+
+        try {
+            $checks = trim((string) $template->getHtml()) !== ''
+                ? Mage::getSingleton('ysrtech_emailcampaigns/template_checks')->run($template, (string) $template->getSubject(), $storeId)
+                : [];
+        } catch (Throwable $e) {
+            $checks = [];
+        }
+
+        return [
+            'kind'       => $this->getKind(),
+            'name'       => (string) $template->getName(),
+            'subject'    => (string) $template->getSubject(),
+            'preheader'  => (string) $template->getPreheader(),
+            'doc'        => $template->getDocForBuilder($storeId),
+            'unsaved'    => false,
+            'checks'     => $checks,
+            'storeId'    => (int) $storeId,
+            'formKey'    => Mage::getSingleton('core/session')->getFormKey(),
+            'adminEmail' => $user ? (string) $user->getEmail() : '',
+            'urls'       => $this->getUrls(),
+            'from'       => [
+                'name'  => (string) ($h->getConfig('sending/from_name') ?: $b['store_name']),
+                'email' => (string) $h->getConfig('sending/from_email'),
+            ],
+            'brand'      => [
+                'enabled'   => $brand->isEnabled($storeId),
+                'settings'  => $docs->settings($storeId),
+                'header'    => $table($brand->header($storeId)),
+                'footer'    => $table($brand->footer($storeId, '#')),
+                'fontImport' => (string) $b['font_import'],
+                'logo'      => (string) $b['logo_url'],
+                'storeName' => (string) $b['store_name'],
+                'storeUrl'  => (string) $b['store_url'],
+                'address'   => $defaults['footer']['address'],
+                'menu'      => implode(', ', array_map(static fn ($link) => $link[0] . ' | ' . $link[1], $b['header_links'])),
+            ],
+            'widget'     => $this->getWidgetConfig(),
+            'mergeTags'  => $this->getMergeTags(),
+            'social'     => YSRTech_EmailCampaigns_Model_Design_Html::SOCIAL,
+            'defaults'   => $defaults,
+            'fonts'      => $D::FONTS,
+        ];
     }
 
     /**
@@ -243,16 +248,6 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Designer extends Mage_Admi
         return $key;
     }
 
-    public function getSectionsUrl(): string
-    {
-        return $this->getUrl('*/*/sections');
-    }
-
-    public function getChecksUrl(): string
-    {
-        return $this->getUrl('*/*/checks', ['id' => $this->getEmailTemplate()->getId()]);
-    }
-
     /**
      * The placeholders the designer offers, with whether a fallback makes
      * sense for each.
@@ -278,18 +273,4 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Designer extends Mage_Admi
         ];
     }
 
-    /**
-     * Ready-made sections for the block panel, in this store's name.
-     *
-     * @return array<int, array{id:string, label:string, html:string}>
-     */
-    public function getSectionBlocks(): array
-    {
-        return Mage::getSingleton('ysrtech_emailcampaigns/template_starter')->getSections();
-    }
-
-    public function getFormKey(): string
-    {
-        return Mage::getSingleton('core/session')->getFormKey();
-    }
 }

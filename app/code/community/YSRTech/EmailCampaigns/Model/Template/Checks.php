@@ -103,7 +103,15 @@ class YSRTech_EmailCampaigns_Model_Template_Checks
         $firstLine  = trim((string) strtok($address, "\n"));
         $text       = html_entity_decode((string) $dom->textContent, ENT_QUOTES, 'UTF-8');
 
-        if ($address === '') {
+        // An email from the builder is sent as it stands: nothing adds a
+        // footer to it, so the way out has to be in the design
+        $isDoc      = (int) $template->getUseBrand() === YSRTech_EmailCampaigns_Model_Renderer::FRAME_DOC;
+        $hasFooter  = $hasOwnLink || strpos($raw, YSRTech_EmailCampaigns_Model_Design_Html::STORE_FOOTER) !== false;
+
+        if ($isDoc && !$hasFooter) {
+            $add('footer', $h->__('Unsubscribe link and address'), self::BAD,
+                $h->__('There is no unsubscribe link. Add a Footer block (or the Store footer) to the design: it is required by law and by Gmail and Yahoo.'));
+        } elseif ($address === '') {
             $add('footer', $h->__('Unsubscribe link and address'), self::BAD,
                 $h->__('The store has no postal address (System > Configuration > General > Store Information). Marketing email has to carry one by law.'));
         } elseif ($firstLine !== '' && mb_stripos($text, $firstLine) === false) {
@@ -113,7 +121,7 @@ class YSRTech_EmailCampaigns_Model_Template_Checks
             $add('footer', $h->__('Unsubscribe link and address'), self::OK,
                 (int) $template->getUseBrand() === 1 && Mage::getSingleton('ysrtech_emailcampaigns/brand')->isEnabled($storeId)
                     ? $h->__('Both are in the store\'s footer.')
-                    : ($hasOwnLink ? $h->__('Has both.') : $h->__('Has the address; the unsubscribe footer is added at the end automatically.')));
+                    : ($hasOwnLink || $isDoc ? $h->__('Has both.') : $h->__('Has the address; the unsubscribe footer is added at the end automatically.')));
         }
 
         // Links

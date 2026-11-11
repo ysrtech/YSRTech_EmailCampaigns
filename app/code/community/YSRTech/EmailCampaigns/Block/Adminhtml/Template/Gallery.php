@@ -42,13 +42,8 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Template_Gallery extends Mage_Admin
         $groups  = [];
 
         foreach ($starter->getStarters() as $code => $definition) {
-            // As it will be sent: inside the store's header and footer when
-            // those are on, in its colours either way
-            $preview = Mage::getModel('ysrtech_emailcampaigns/template')->setData([
-                'html'      => $starter->build($code),
-                'subject'   => $definition['subject'],
-                'use_brand' => $starter->getFrame($code),
-            ]);
+            // As it will be sent, to a sample reader
+            $preview = $starter->template($code);
 
             $groups[$definition['category']][$code] = $definition + [
                 'html' => Mage::getSingleton('ysrtech_emailcampaigns/sender')->renderPreview($preview),

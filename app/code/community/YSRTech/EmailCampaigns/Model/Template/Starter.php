@@ -179,7 +179,46 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
     {
         $starters = $this->_fromConfig();
 
-        return isset($starters[$code]) ? (int) $starters[$code]['frame'] : YSRTech_EmailCampaigns_Model_Renderer::FRAME_BRAND;
+        return isset($starters[$code]) ? (int) $starters[$code]['frame'] : YSRTech_EmailCampaigns_Model_Renderer::FRAME_DOC;
+    }
+
+    /**
+     * One starter as a builder document, or null for a starter another
+     * module brings as a finished HTML file.
+     */
+    public function doc(string $code, $storeId = null): ?array
+    {
+        if (isset($this->_fromConfig()[$code])) {
+            return null;
+        }
+
+        /** @var YSRTech_EmailCampaigns_Model_Design_Doc $docs */
+        $docs     = Mage::getModel('ysrtech_emailcampaigns/design_doc');
+        $sections = $docs->starterSections($code);
+
+        return $sections === null ? null : $docs->fromSections($sections, html_entity_decode($this->_storeUrl($storeId), ENT_QUOTES, 'UTF-8'), $storeId);
+    }
+
+    /**
+     * A new template from a starter, not yet saved.
+     *
+     * @return YSRTech_EmailCampaigns_Model_Template
+     */
+    public function template(string $code, $storeId = null)
+    {
+        $starters = $this->getStarters();
+        $template = Mage::getModel('ysrtech_emailcampaigns/template')->setData([
+            'name'      => $starters[$code]['name'],
+            'subject'   => $starters[$code]['subject'],
+            'preheader' => $starters[$code]['preheader'] ?: null,
+            'is_active' => 1,
+        ]);
+
+        $doc = $this->doc($code, $storeId);
+
+        return $doc !== null
+            ? $template->setDoc($doc, $storeId)
+            : $template->addData(['html' => $this->build($code, $storeId), 'use_brand' => $this->getFrame($code)]);
     }
 
     /**
@@ -187,6 +226,12 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
      */
     public function build(string $code, $storeId = null): string
     {
+        $doc = $this->doc($code, $storeId);
+
+        if ($doc !== null) {
+            return Mage::getSingleton('ysrtech_emailcampaigns/design_html')->render($doc);
+        }
+
         $this->_palette($storeId);
 
         $files = $this->_fromConfig();
@@ -284,74 +329,6 @@ class YSRTech_EmailCampaigns_Model_Template_Starter
 
         // With the store's header and footer on, they are put around this
         // when it is sent; a footer here as well would be a second one.
-        return $this->_frame($rows . ($this->_branded ? '' : $this->_footer($storeId)));
-    }
-
-    /**
-     * An email from a list of sections, each a type and its words: what
-     * "Design with AI" produces. The words arrive as plain text and are
-     * escaped here; the only markup is this class's own.
-     *
-     * @param array<int, array<string, mixed>> $sections See Ai_Designer::parse()
-     * @param string                           $link     Where every button goes
-     */
-    public function buildFromSpec(array $sections, string $link, $storeId = null): string
-    {
-        $this->_palette($storeId);
-
-        $e    = static fn (string $v) => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
-        // {{ customer.firstname|there }} has to survive escaping as it is
-        $t    = static fn (string $v) => preg_replace_callback('/\{\{.*?\}\}/s', static fn ($m) => html_entity_decode($m[0], ENT_QUOTES, 'UTF-8'), $e($v));
-        $link = $e($link);
-        $rows = '';
-
-        foreach ($sections as $s) {
-            switch ($s['type'] ?? '') {
-                case 'hero':
-                    $rows .= $this->_hero($t((string) $s['heading']), $t((string) ($s['text'] ?? '')));
-                    break;
-
-                case 'text':
-                    $paragraphs = preg_split('/\n\s*\n/', trim((string) $s['text'])) ?: [];
-                    $html       = ($s['heading'] ?? '') !== ''
-                        ? '<h2 style="margin:0 0 12px;font-size:19px;line-height:1.3;font-weight:normal;color:' . $this->_c['heading_color'] . ';">' . $t((string) $s['heading']) . '</h2>'
-                        : '';
-
-                    foreach ($paragraphs as $i => $paragraph) {
-                        $html .= '<p style="margin:0' . ($i < count($paragraphs) - 1 ? ' 0 16px' : '') . ';">' . nl2br($t(trim($paragraph))) . '</p>';
-                    }
-
-                    $rows .= $this->_text($html);
-                    break;
-
-                case 'button':
-                    $rows .= $this->_button($t((string) $s['label']), $link);
-                    break;
-
-                case 'coupon':
-                    $rows .= $this->_coupon((string) $s['code']);
-
-                    if (($s['note'] ?? '') !== '') {
-                        $rows .= $this->_text('<p style="margin:0;font-size:12px;color:' . $this->_c['muted_color'] . ';">' . $t((string) $s['note']) . '</p>', 'center');
-                    }
-                    break;
-
-                case 'products':
-                    // A product block: the store's real products, chosen when
-                    // the email is sent, and editable in the designer
-                    $count = (int) ($s['count'] ?? 4);
-                    $rows .= '<tr><td style="padding:8px 0;"><div data-ec-widget="products" data-layout="grid" data-source="'
-                        . (($s['show'] ?? '') === 'sale' ? 'sale' : 'new') . '" data-heading="' . $e((string) ($s['heading'] ?? ''))
-                        . '" data-limit="' . $count . '" data-columns="' . ($count === 3 || $count === 6 ? 3 : 2)
-                        . '" data-show-price="1" data-show-view-all="0"></div></td></tr>';
-                    break;
-
-                case 'divider':
-                    $rows .= '<tr><td style="padding:12px 32px;"><div style="border-top:1px solid #e5e5e5;font-size:0;line-height:0;">&nbsp;</div></td></tr>';
-                    break;
-            }
-        }
-
         return $this->_frame($rows . ($this->_branded ? '' : $this->_footer($storeId)));
     }
 

@@ -185,17 +185,17 @@ class YSRTech_EmailCampaigns_Model_Ai_Designer
      */
     public function create(array $spec, string $link, $storeId = null)
     {
-        /** @var YSRTech_EmailCampaigns_Model_Template_Starter $starter */
-        $starter = Mage::getSingleton('ysrtech_emailcampaigns/template_starter');
+        /** @var YSRTech_EmailCampaigns_Model_Design_Doc $docs */
+        $docs = Mage::getModel('ysrtech_emailcampaigns/design_doc');
 
         return Mage::getModel('ysrtech_emailcampaigns/template')
             ->setData([
-                'name'      => $spec['name'] . ' ' . Mage::app()->getLocale()->date()->toString('yyyy-MM-dd HH:mm'),
+                'name'      => $spec['name'],
                 'subject'   => $spec['subject'],
                 'preheader' => $spec['preheader'] !== '' ? $spec['preheader'] : null,
-                'html'      => $starter->buildFromSpec($spec['sections'], $link, $storeId),
-                'use_brand' => YSRTech_EmailCampaigns_Model_Renderer::FRAME_BRAND,
+                'is_active' => 1,
             ])
+            ->setDoc($docs->fromSections($spec['sections'], $link, $storeId), $storeId)
             ->save();
     }
 

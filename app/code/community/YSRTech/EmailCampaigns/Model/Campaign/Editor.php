@@ -124,7 +124,9 @@ class YSRTech_EmailCampaigns_Model_Campaign_Editor
             'brand'     => [
                 'use'     => (int) $campaign->getUseBrand() === 1,
                 // 2: a complete design of its own, which nothing goes around
-                'own'     => (int) $campaign->getUseBrand() === 2,
+                // 2 and 3: a complete design of its own, which nothing goes around
+                'own'     => (int) $campaign->getUseBrand() >= 2,
+                'doc'     => (int) $campaign->getUseBrand() === YSRTech_EmailCampaigns_Model_Renderer::FRAME_DOC,
                 'enabled' => Mage::getSingleton('ysrtech_emailcampaigns/brand')->isEnabled($campaign->getStoreId()),
             ],
             'content'   => [

@@ -92,6 +92,33 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
     }
 
     /**
+     * The builder document behind this campaign's own email, if it has one.
+     */
+    public function getDoc(): ?array
+    {
+        $doc = json_decode((string) $this->getDesignJson(), true);
+
+        return is_array($doc) && isset($doc['rows'], $doc['settings']) ? $doc : null;
+    }
+
+    /**
+     * Take a builder document as this campaign's own email.
+     *
+     * @return $this
+     */
+    public function setDoc(array $doc)
+    {
+        $doc = Mage::getModel('ysrtech_emailcampaigns/design_doc')->clean($doc, $this->getStoreId() ?: null);
+
+        return $this->addData([
+            'design_json' => json_encode($doc, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            'html'        => Mage::getSingleton('ysrtech_emailcampaigns/design_html')->render($doc, (string) $this->getSubject()),
+            'use_brand'   => YSRTech_EmailCampaigns_Model_Renderer::FRAME_DOC,
+            'format'      => 'design',
+        ]);
+    }
+
+    /**
      * Whether the campaign has its own copy of the email.
      */
     public function hasOwnContent(): bool
@@ -134,8 +161,9 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
                 'name'      => (string) $this->getName(),
                 'subject'   => (string) $this->getSubject(),
                 'preheader' => (string) $this->getPreheader(),
-                'html'      => (string) $this->getData('html'),
-                'use_brand' => (int) $this->getUseBrand(),
+                'html'        => (string) $this->getData('html'),
+                'design_json' => (string) $this->getData('design_json'),
+                'use_brand'   => (int) $this->getUseBrand(),
             ]);
         }
 

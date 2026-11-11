@@ -1,59 +1,55 @@
 <?php
 /**
- * The template designer, pointed at a campaign's own copy of its email.
+ * The email builder, pointed at a campaign's own copy of its email.
  *
- * Same editor, same blocks and sections; only where it loads from, saves to
- * and goes back to differ.
+ * Same builder, same blocks and sections; only where it saves to and goes
+ * back to differ, and it can send a test, which a template cannot.
  */
 class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Designer
     extends YSRTech_EmailCampaigns_Block_Adminhtml_Template_Designer
 {
-    protected function _campaignId(): int
+    /**
+     * @return YSRTech_EmailCampaigns_Model_Campaign
+     */
+    public function getCampaign()
     {
-        return (int) Mage::registry('ysrtech_emailcampaigns_campaign')->getId();
+        return Mage::registry('ysrtech_emailcampaigns_campaign');
     }
 
     #[Override]
     public function getStoreIdForBrand()
     {
-        return (int) Mage::registry('ysrtech_emailcampaigns_campaign')->getStoreId() ?: null;
+        return (int) $this->getCampaign()->getStoreId() ?: null;
     }
 
     #[Override]
-    public function getSaveUrl(): string
+    public function getKind(): string
     {
-        return $this->getUrl('*/*/saveDesign', ['id' => $this->_campaignId()]);
+        return 'campaign';
     }
 
     #[Override]
-    public function getBackUrl(): string
+    public function getUrls(): array
     {
-        return $this->getUrl('*/*/edit', ['id' => $this->_campaignId()]);
+        $id = ['id' => $this->getCampaign()->getId()];
+
+        return [
+            'save' => $this->getUrl('*/ysrtech_campaign/saveDesign', $id),
+            'back' => $this->getUrl('*/ysrtech_campaign/edit', $id),
+            'test' => $this->getUrl('*/ysrtech_campaign/sendTest', $id),
+        ] + parent::getUrls();
     }
 
     #[Override]
-    public function getPreviewUrl(): string
+    public function getConfig(): array
     {
-        return $this->getUrl('*/*/preview', ['id' => $this->_campaignId()]);
-    }
+        $campaign = $this->getCampaign();
+        $config   = parent::getConfig();
 
-    #[Override]
-    public function getChecksUrl(): string
-    {
-        return $this->getUrl('*/*/checks', ['id' => $this->_campaignId()]);
-    }
+        $config['name']    = (string) $campaign->getName();
+        $config['subject'] = (string) $campaign->getSubject();
+        $config['from']    = ['name' => $campaign->getFromNameOrDefault(), 'email' => $campaign->getFromEmail()];
 
-    // The template controller owns image uploads and saved sections, and the
-    // campaign designer uses the same ones.
-    #[Override]
-    public function getAssetsUrl(): string
-    {
-        return $this->getUrl('*/ysrtech_template/assets');
-    }
-
-    #[Override]
-    public function getSectionsUrl(): string
-    {
-        return $this->getUrl('*/ysrtech_template/sections');
+        return $config;
     }
 }

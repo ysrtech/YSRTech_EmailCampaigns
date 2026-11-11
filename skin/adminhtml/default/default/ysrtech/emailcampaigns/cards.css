@@ -1,0 +1,79 @@
+/* Card lists: templates, the starter gallery and campaigns. The look is TzizamHub's template gallery,
+   scoped to .ecg so that none of it touches the admin theme around it. */
+.ecg {
+  --bg: #fafafa; --surface: #fff; --surface-2: #f4f4f5; --border: #e4e4e7; --border-strong: #d4d4d8;
+  --text: #18181b; --text-2: #52525b; --text-3: #8a8a93;
+  --accent: #5b5bf7; --accent-hover: #4a4ae8; --accent-soft: #eeeefe; --accent-text: #4343d6;
+  --ok: #16a34a; --ok-soft: #dcfce7; --warn: #b45309; --warn-soft: #fef3c7; --bad: #dc2626; --bad-soft: #fee2e2; --info: #0891b2; --info-soft: #e7f6fa;
+  color: var(--text); font: 14px/1.5 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; padding: 4px 0 40px;
+}
+.ecg *, .ecg *::before, .ecg *::after { box-sizing: border-box; }
+.ecg a { color: inherit; text-decoration: none; }
+.ecg h1 { margin: 0; font-size: 22px; font-weight: 650; letter-spacing: -.01em; color: var(--text); }
+.ecg .eg-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 6px; }
+.ecg .eg-head .spacer { flex: 1; }
+.ecg .eg-lede { margin: 0 0 18px; color: var(--text-2); max-width: 760px; }
+.ecg .eg-btn { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 9px; font: inherit; font-weight: 600; font-size: 13px;
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); cursor: pointer; white-space: nowrap; }
+.ecg .eg-btn:hover { background: var(--surface-2); }
+.ecg .eg-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ecg .eg-btn.primary:hover { background: var(--accent-hover); }
+.ecg .eg-btn.sm { height: 30px; padding: 0 10px; font-size: 12.5px; border-radius: 7px; }
+.ecg .eg-btn.danger { color: var(--bad); }
+.ecg .eg-btn[disabled] { opacity: .55; cursor: default; }
+
+.ecg .tg-tools { display: flex; align-items: center; gap: 12px; margin: 14px 0 16px; flex-wrap: wrap; }
+.ecg .tg-search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 9px; padding: 0 10px; background: var(--surface); width: 280px; max-width: 100%; margin-left: auto; }
+.ecg .tg-search input { border: 0; background: none; height: 36px; flex: 1; font: inherit; font-size: 13.5px; color: var(--text); outline: none; box-shadow: none; padding: 0; }
+.ecg .tg-cats { display: flex; gap: 6px; flex-wrap: wrap; }
+.ecg .tg-cats a, .ecg .tg-cats button { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--border); background: var(--surface); border-radius: 99px; padding: 6px 12px;
+  font: inherit; font-size: 13px; font-weight: 550; color: var(--text-2); cursor: pointer; }
+.ecg .tg-cats span { font-size: 11px; color: var(--text-3); font-weight: 600; }
+.ecg .tg-cats a:hover, .ecg .tg-cats button:hover { border-color: var(--border-strong); color: var(--text); }
+.ecg .tg-cats .on { background: var(--text); border-color: var(--text); color: var(--surface); }
+.ecg .tg-cats .on span { color: rgba(255, 255, 255, .7); }
+
+.ecg .tg-section { margin: 26px 0 12px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); }
+.ecg .tg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
+.ecg .tg-card { position: relative; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+  transition: transform .15s, box-shadow .15s, border-color .15s; }
+.ecg .tg-card:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(24, 24, 27, .1); border-color: var(--border-strong); }
+.ecg .tg-thumb { position: relative; display: block; height: 330px; overflow: hidden; background: #f4f4f5; border-bottom: 1px solid var(--border); cursor: pointer; }
+.ecg .tg-thumb iframe { position: absolute; left: 0; top: 0; width: 680px; height: 1400px; border: 0; transform-origin: 0 0; pointer-events: none; background: #fff; }
+.ecg .tg-thumb::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 60px; background: linear-gradient(transparent, rgba(244, 244, 245, .9)); pointer-events: none; }
+.ecg .tg-thumb.empty { display: grid; place-items: center; color: var(--text-3); font-size: 13px; }
+.ecg .tg-thumb.empty::after { display: none; }
+.ecg .tg-over { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 8px; background: rgba(24, 24, 27, .45); opacity: 0; transition: opacity .15s; }
+.ecg .tg-card:hover .tg-over { opacity: 1; }
+.ecg .tg-info { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.ecg .tg-info b { font-size: 14px; display: block; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecg .tg-info small { font-size: 12px; color: var(--text-3); display: block; }
+.ecg .tg-info p { margin: 2px 0 0; font-size: 12.5px; color: var(--text-2); line-height: 1.45; }
+.ecg .tg-info .line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecg .tg-acts { display: flex; gap: 6px; margin-top: auto; padding-top: 10px; flex-wrap: wrap; }
+.ecg .tg-acts form { display: inline; margin: 0; }
+.ecg .tg-empty { grid-column: 1 / -1; text-align: center; padding: 56px 12px; color: var(--text-2); line-height: 1.8; background: var(--surface); border: 1px dashed var(--border-strong); border-radius: 14px; }
+.ecg .tg-stats { display: flex; gap: 14px; margin-top: 6px; font-size: 12px; color: var(--text-2); }
+.ecg .tg-stats b { display: inline; font-size: 12px; }
+.ecg .eg-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 600; background: var(--surface-2); color: var(--text-2); }
+.ecg .eg-chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.ecg .eg-chip.sent { background: var(--ok-soft); color: var(--ok); }
+.ecg .eg-chip.scheduled, .ecg .eg-chip.sending { background: var(--info-soft); color: var(--info); }
+.ecg .eg-chip.paused { background: var(--warn-soft); color: var(--warn); }
+.ecg .eg-chip.failed, .ecg .eg-chip.cancelled { background: var(--bad-soft); color: var(--bad); }
+.ecg .tg-status { position: absolute; left: 10px; top: 10px; z-index: 3; }
+.ecg .eg-pages { display: flex; justify-content: center; gap: 8px; margin-top: 22px; align-items: center; color: var(--text-2); font-size: 13px; }
+
+/* Design with AI */
+.ecg .ai-bar { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; padding: 16px; border-radius: 14px; margin: 0 0 8px; border: 1px solid #cfcffb; background: linear-gradient(120deg, #f5f5ff, #fff); }
+.ecg .ai-ic { width: 36px; height: 36px; border-radius: 10px; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; }
+.ecg .ai-bar b { display: block; font-size: 14px; }
+.ecg .ai-bar small { display: block; color: var(--text-2); font-size: 12.5px; margin-bottom: 10px; }
+.ecg .ai-bar textarea, .ecg .ai-bar input[type=text], .ecg .ai-bar select { width: 100%; border: 1px solid var(--border-strong); border-radius: 9px; padding: 9px 12px; font: inherit; font-size: 14px; background: var(--surface); color: var(--text); box-shadow: none; }
+.ecg .ai-bar textarea { min-height: 74px; resize: vertical; }
+.ecg .ai-bar select, .ecg .ai-bar input[type=text] { height: 38px; padding-top: 0; padding-bottom: 0; }
+.ecg .ai-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+.ecg .ai-row > * { flex: 0 0 auto; }
+.ecg .ai-row .grow { flex: 1 1 260px; }
+.ecg .ai-row select { width: 170px; }
+.ecg .ai-note { margin: 10px 0 0; font-size: 12px; color: var(--text-3); }

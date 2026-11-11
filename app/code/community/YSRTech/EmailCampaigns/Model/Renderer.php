@@ -25,6 +25,10 @@ class YSRTech_EmailCampaigns_Model_Renderer
             return $letter->html($letter->text((string) $template->getHtml(), $vars));
         }
 
+        if ((int) $template->getUseBrand() === self::FRAME_DOC) {
+            return $this->_renderDocument($template, $vars);
+        }
+
         $html = (string) $template->getHtml();
         if ($html === '' && $template->getDesignJson()) {
             $html = $this->renderDesign(json_decode((string) $template->getDesignJson(), true) ?: []);
@@ -74,6 +78,100 @@ class YSRTech_EmailCampaigns_Model_Renderer
         );
     }
 
+    /**
+     * An email from the builder. It is already a whole document with its
+     * own frame, so nothing is put around it; what is still to do is fill
+     * it in: the store's header and footer where their blocks stand, the
+     * product blocks from the catalog, each reader's values, and the
+     * preview text at the top.
+     */
+    protected function _renderDocument(YSRTech_EmailCampaigns_Model_Template $template, array $vars): string
+    {
+        $html = (string) $template->getHtml();
+
+        if ($html === '') {
+            Mage::throwException('Template has no content to render.');
+        }
+
+        $H = YSRTech_EmailCampaigns_Model_Design_Html::class;
+
+        /** @var YSRTech_EmailCampaigns_Model_Brand $brand */
+        $brand = Mage::getSingleton('ysrtech_emailcampaigns/brand');
+        $b     = $brand->get($this->_storeId);
+        $table = static fn (string $rows) => '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-family:'
+            . $b['font'] . ';color:' . $b['text_color'] . ';">' . $rows . '</table>';
+
+        if (strpos($html, $H::STORE_HEADER) !== false) {
+            $html = str_replace($H::STORE_HEADER, $table($brand->header($this->_storeId)), $html);
+        }
+
+        if (strpos($html, $H::STORE_FOOTER) !== false) {
+            $html = str_replace($H::STORE_FOOTER, $table($brand->footer($this->_storeId, '{{ unsubscribe_url }}')), $html);
+        }
+
+        /** @var YSRTech_EmailCampaigns_Model_Widget_Products $widgets */
+        $widgets          = Mage::getSingleton('ysrtech_emailcampaigns/widget_products');
+        $this->_hasBlocks = strpos($html, 'data-ec-widget') !== false;
+        $html             = $widgets->process($html, $this->_storeId);
+
+        $vars += [
+            'date'     => $this->_dates(),
+            'products' => ['names' => $widgets->getFirstNames()],
+        ];
+
+        $html = Mage::helper('ysrtech_emailcampaigns')->renderMergeVars($html, $vars);
+
+        // The older footer token, where an email brought in from before
+        // the builder still carries it
+        if (strpos($html, '{{unsubscribe}}') !== false) {
+            $html = $this->_injectUnsubscribe($html, $vars);
+        }
+
+        $css = $b['font_import'] . ($this->_hasBlocks ? YSRTech_EmailCampaigns_Model_Widget_Products::css() : '');
+
+        if ($css !== '' && stripos($html, '</head>') !== false) {
+            $html = (string) preg_replace('#</head>#i', '<style>' . $css . '</style></head>', $html, 1);
+        }
+
+        $preheader = $this->_preheader($template, $vars);
+
+        if ($preheader !== '') {
+            $html = (string) preg_replace('#(<body\b[^>]*>)#i', '$1' . str_replace(['\\', '$'], ['\\\\', '\\$'], $preheader), $html, 1);
+        }
+
+        return $html;
+    }
+
+    /**
+     * What is inside a document's body, for HTML that is to be put inside
+     * another email.
+     */
+    public function bodyOf(string $html): string
+    {
+        return $this->_unwrapDocument($html);
+    }
+
+    /**
+     * An email from before the builder as the whole document it is sent
+     * as, with every placeholder and product block left in: what the
+     * builder holds it as when it is opened there.
+     */
+    public function legacyDocument(YSRTech_EmailCampaigns_Model_Template $template): string
+    {
+        $html = $this->_unwrapDocument((string) $template->getHtml());
+        $keep = ['unsubscribe_url' => '{{ unsubscribe_url }}', 'store' => ['name' => '{{ store.name }}']];
+
+        $this->_hasBlocks = false;
+
+        if ((int) $template->getUseBrand() === self::FRAME_NONE) {
+            $document = $this->_wrapBare($template->setPreheader(''), $html, $keep);
+        } else {
+            $document = $this->_wrapDocument($this->_injectUnsubscribe($html, $keep), ['store' => ['name' => '']]);
+        }
+
+        return $document;
+    }
+
     /** @var bool Whether the email being rendered has product blocks in it */
     protected $_hasBlocks = false;
 
@@ -111,6 +209,8 @@ class YSRTech_EmailCampaigns_Model_Renderer
     public const FRAME_PLAIN = 0;
     public const FRAME_BRAND = 1;
     public const FRAME_NONE  = 2;
+    /** A whole document from the builder, sent as it stands */
+    public const FRAME_DOC   = 3;
 
     /**
      * An email that is a complete design in itself: its own header, its own

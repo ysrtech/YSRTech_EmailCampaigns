@@ -1,64 +1,96 @@
-<?php /** @var YSRTech_EmailCampaigns_Block_Adminhtml_Template_Gallery $this */ ?>
-<div class="content-header">
-    <table cellspacing="0">
-        <tr>
-            <td><h3 class="icon-head"><?php echo $this->escapeHtml($this->__('New Template')) ?></h3></td>
-            <td class="form-buttons">
-                <button type="button" class="scalable back" onclick="setLocation('<?php echo $this->getUrl('*/*/index') ?>')"><span><span><span><?php echo $this->escapeHtml($this->__('Back')) ?></span></span></span></button>
-                <button type="button" class="scalable" onclick="setLocation('<?php echo $this->getUrl('*/*/new', ['blank' => 1]) ?>')"><span><span><span><?php echo $this->escapeHtml($this->__('Start From My Own HTML')) ?></span></span></span></button>
-            </td>
-        </tr>
-    </table>
-</div>
-<p class="ysrtech-ec-lede"><?php echo $this->escapeHtml($this->__('Choose a starting point. It opens in the designer with this store\'s name, address and links already in place; every word and picture in it can be changed.')) ?></p>
-<form id="ysrtech-ec-starter" method="post" action="<?php echo $this->getUrl('*/*/create') ?>">
-    <?php echo $this->getBlockHtml('formkey') ?>
-    <input type="hidden" name="starter" id="ysrtech-ec-starter-code" value=""/>
-</form>
-<?php $ai = $this->getAiState(); ?>
-<div class="entry-edit">
-    <div class="entry-edit-head"><h4><?php echo $this->escapeHtml($this->__('Design With AI')) ?></h4></div>
-    <div class="ysrtech-ec-aiform">
-    <?php if ($ai['unavailable']): ?>
-        <p class="note"><?php echo $this->escapeHtml($this->__('Describe an email and get a first draft, built from the same sections as the designs below and in this store\'s colours.')) ?> <?php echo $this->escapeHtml($ai['unavailable']) ?></p>
-    <?php else: ?>
-        <form method="post" action="<?php echo $this->getUrl('*/*/aiDesign') ?>" id="ysrtech-ec-aidesign" onsubmit="var b=this.down('button');b.disabled=true;b.down('span span span').update('<?php echo $this->jsQuoteEscape($this->escapeHtml($this->__('Designing, about 20 seconds…'))) ?>')">
-            <?php echo $this->getBlockHtml('formkey') ?>
-            <label for="ysrtech-ec-brief"><?php echo $this->escapeHtml($this->__('What is this email about, and what should the reader do?')) ?></label>
-            <textarea id="ysrtech-ec-brief" name="brief" rows="3" maxlength="1500" required="required" placeholder="<?php echo $this->escapeHtml($this->__('For example: Our Chanukah sale starts Sunday. 20% off all children\'s books with the code LIGHTS20, until the end of the week. Show what is on sale.')) ?>"><?php echo $this->escapeHtml($ai['brief']) ?></textarea>
-            <div class="row">
-                <div>
-                    <label for="ysrtech-ec-ailink"><?php echo $this->escapeHtml($this->__('Where the button goes')) ?></label>
-                    <input type="text" class="input-text" id="ysrtech-ec-ailink" name="link" maxlength="500" value="<?php echo $this->escapeHtml($ai['link']) ?>" placeholder="<?php echo $this->escapeHtml($ai['home']) ?>"/>
-                </div>
-                <div>
-                    <label for="ysrtech-ec-aitone"><?php echo $this->escapeHtml($this->__('Tone')) ?></label>
-                    <select id="ysrtech-ec-aitone" name="tone">
-                        <?php foreach ($ai['tones'] as $code => $label): ?>
-                            <option value="<?php echo $code ?>"<?php if ($code === $ai['tone']): ?> selected="selected"<?php endif ?>><?php echo $this->escapeHtml($label) ?></option>
-                        <?php endforeach ?>
-                    </select>
-                </div>
-                <button type="submit" class="scalable add"><span><span><span><?php echo $this->escapeHtml($this->__('Design It')) ?></span></span></span></button>
-            </div>
-            <p class="note"><?php echo $this->escapeHtml($this->__('Only this description and the store\'s name are sent to the AI provider. The draft opens in the designer: it uses only the facts you give, and marks anything missing in [square brackets] for you to fill in.')) ?></p>
-        </form>
-    <?php endif ?>
+<?php
+/** @var YSRTech_EmailCampaigns_Block_Adminhtml_Template_Gallery $this */
+$ai = $this->getAiState();
+?>
+<div class="ecg">
+    <div class="eg-head">
+        <h1><?php echo $this->escapeHtml($this->__('New Template')) ?></h1>
+        <span class="spacer"></span>
+        <a class="eg-btn" href="<?php echo $this->getUrl('*/*/index') ?>">&larr; <?php echo $this->escapeHtml($this->__('Templates')) ?></a>
+        <a class="eg-btn" href="<?php echo $this->getUrl('*/*/new', ['blank' => 'html']) ?>"><?php echo $this->escapeHtml($this->__('Start From My Own HTML')) ?></a>
+        <a class="eg-btn primary" href="<?php echo $this->getUrl('*/*/new', ['blank' => 1]) ?>"><?php echo $this->escapeHtml($this->__('Start Blank')) ?></a>
     </div>
-</div>
-<?php foreach ($this->getStartersByCategory() as $category => $starters): ?>
-    <div class="entry-edit">
-        <div class="entry-edit-head"><h4><?php echo $this->escapeHtml($category) ?></h4></div>
-        <div class="ysrtech-ec-gallery">
+    <p class="eg-lede"><?php echo $this->escapeHtml($this->__('Choose a starting point. It opens in the builder in this store\'s colours, with its name, address and links already in place; every word and picture in it can be changed.')) ?></p>
+
+    <div class="ai-bar">
+        <span class="ai-ic">AI</span>
+        <div>
+            <b><?php echo $this->escapeHtml($this->__('Design With AI')) ?></b>
+            <?php if ($ai['unavailable']): ?>
+                <small><?php echo $this->escapeHtml($this->__('Describe an email and get a first draft in the builder.')) ?> <?php echo $this->escapeHtml($ai['unavailable']) ?></small>
+            <?php else: ?>
+                <small><?php echo $this->escapeHtml($this->__('Describe the email and get a first draft, built from the same blocks as the designs below.')) ?></small>
+                <form method="post" action="<?php echo $this->getUrl('*/*/aiDesign') ?>" id="ysrtech-ec-aidesign">
+                    <?php echo $this->getBlockHtml('formkey') ?>
+                    <textarea id="ysrtech-ec-brief" name="brief" maxlength="1500" required="required" aria-label="<?php echo $this->escapeHtml($this->__('What is this email about, and what should the reader do?')) ?>" placeholder="<?php echo $this->escapeHtml($this->__('What is this email about, and what should the reader do? For example: Our Chanukah sale starts Sunday. 20% off all children\'s books with the code LIGHTS20, until the end of the week. Show what is on sale.')) ?>"><?php echo $this->escapeHtml($ai['brief']) ?></textarea>
+                    <div class="ai-row">
+                        <input type="text" class="grow" id="ysrtech-ec-ailink" name="link" maxlength="500" value="<?php echo $this->escapeHtml($ai['link']) ?>" aria-label="<?php echo $this->escapeHtml($this->__('Where the button goes')) ?>" placeholder="<?php echo $this->escapeHtml($this->__('Where the button goes: %s', $ai['home'])) ?>"/>
+                        <select id="ysrtech-ec-aitone" name="tone" aria-label="<?php echo $this->escapeHtml($this->__('Tone')) ?>">
+                            <?php foreach ($ai['tones'] as $code => $label): ?>
+                                <option value="<?php echo $code ?>"<?php if ($code === $ai['tone']): ?> selected="selected"<?php endif ?>><?php echo $this->escapeHtml($label) ?></option>
+                            <?php endforeach ?>
+                        </select>
+                        <button type="submit" class="eg-btn primary" id="ysrtech-ec-aigo"><?php echo $this->escapeHtml($this->__('Design It')) ?></button>
+                    </div>
+                    <p class="ai-note"><?php echo $this->escapeHtml($this->__('Only this description and the store\'s name are sent to the AI provider. The draft uses only the facts you give, and marks anything missing in [square brackets] for you to fill in.')) ?></p>
+                </form>
+            <?php endif ?>
+        </div>
+    </div>
+
+    <form id="ysrtech-ec-starter" method="post" action="<?php echo $this->getUrl('*/*/create') ?>">
+        <?php echo $this->getBlockHtml('formkey') ?>
+        <input type="hidden" name="starter" id="ysrtech-ec-starter-code" value=""/>
+    </form>
+
+    <?php foreach ($this->getStartersByCategory() as $category => $starters): ?>
+        <div class="tg-section"><?php echo $this->escapeHtml($category) ?></div>
+        <div class="tg-grid">
             <?php foreach ($starters as $code => $starter): ?>
-                <div class="ysrtech-ec-card">
-                    <?php /* Sandboxed and inert: a picture of the email, not a page in the admin */ ?>
-                    <div class="thumb"><iframe sandbox="" scrolling="no" tabindex="-1" title="<?php echo $this->escapeHtml($starter['name']) ?>" srcdoc="<?php echo $this->escapeHtml($starter['html']) ?>"></iframe></div>
-                    <h5><?php echo $this->escapeHtml($starter['name']) ?></h5>
-                    <p><?php echo $this->escapeHtml($starter['description']) ?></p>
-                    <button type="button" class="scalable add" onclick="$('ysrtech-ec-starter-code').value='<?php echo $code ?>';$('ysrtech-ec-starter').submit()"><span><span><span><?php echo $this->escapeHtml($this->__('Use This')) ?></span></span></span></button>
+                <div class="tg-card">
+                    <a class="tg-thumb" href="#" data-starter="<?php echo $this->escapeHtml($code) ?>" title="<?php echo $this->escapeHtml($this->__('Use "%s"', $starter['name'])) ?>">
+                        <?php /* Sandboxed and inert: a picture of the email, not a page in the admin */ ?>
+                        <iframe sandbox="" scrolling="no" tabindex="-1" loading="lazy" title="<?php echo $this->escapeHtml($starter['name']) ?>" srcdoc="<?php echo $this->escapeHtml($starter['html']) ?>"></iframe>
+                    </a>
+                    <div class="tg-info">
+                        <b><?php echo $this->escapeHtml($starter['name']) ?></b>
+                        <p><?php echo $this->escapeHtml($starter['description']) ?></p>
+                        <div class="tg-acts">
+                            <button type="button" class="eg-btn sm primary" data-starter="<?php echo $this->escapeHtml($code) ?>"><?php echo $this->escapeHtml($this->__('Use This')) ?></button>
+                        </div>
+                    </div>
                 </div>
             <?php endforeach ?>
         </div>
-    </div>
-<?php endforeach ?>
+    <?php endforeach ?>
+</div>
+<script type="text/javascript">
+//<![CDATA[
+(function () {
+    var fit = function () {
+        Array.prototype.forEach.call(document.querySelectorAll('.ecg .tg-thumb iframe'), function (frame) {
+            frame.style.transform = 'scale(' + (frame.parentNode.clientWidth / 680) + ')';
+        });
+    };
+    fit();
+    window.addEventListener('resize', fit);
+
+    Array.prototype.forEach.call(document.querySelectorAll('.ecg [data-starter]'), function (el) {
+        el.addEventListener('click', function (event) {
+            event.preventDefault();
+            document.getElementById('ysrtech-ec-starter-code').value = el.getAttribute('data-starter');
+            document.getElementById('ysrtech-ec-starter').submit();
+        });
+    });
+
+    var ai = document.getElementById('ysrtech-ec-aidesign');
+    if (ai) {
+        ai.addEventListener('submit', function () {
+            var go = document.getElementById('ysrtech-ec-aigo');
+            go.disabled = true;
+            go.textContent = <?php echo json_encode($this->__('Designing, about 20 seconds…')) ?>;
+        });
+    }
+})();
+//]]>
+</script>

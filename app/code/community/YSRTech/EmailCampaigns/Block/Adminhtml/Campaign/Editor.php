@@ -120,7 +120,7 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Editor extends Mage_Adminh
             'backToDraft' => 'Back to draft', 'duplicate' => 'Duplicate', 'delete' => 'Delete',
             'pause' => 'Pause sending', 'resume' => 'Resume sending', 'cancel' => 'Cancel campaign',
             'ready' => 'Ready to send', 'ofReady' => '%1 of %2 ready', 'notSet' => 'Not set yet',
-            'add' => 'Add', 'edit' => 'Edit', 'done' => 'Done',
+            'add' => 'Add', 'edit' => 'Edit', 'done' => 'Done', 'next' => 'Next',
             'to' => 'To', 'from' => 'From', 'subject' => 'Subject', 'content' => 'Content', 'when' => 'Send time',
             'storeView' => 'Store view',
             'storeViewNote' => 'Whose logo, colours, header, footer, name and links this email uses. Does not change who receives it: that is the segments below.',
