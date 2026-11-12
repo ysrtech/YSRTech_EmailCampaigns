@@ -9,6 +9,7 @@ $status  = YSRTech_EmailCampaigns_Model_Import::FIELD_UNSUBSCRIBED;
 $means   = [
     $csv::MEANS_SUBSCRIBED   => $this->__('Subscribed'),
     $csv::MEANS_UNSUBSCRIBED => $this->__('Unsubscribed'),
+    $csv::MEANS_UNSUBSCRIBED_IF_FOUND => $this->__('Unsubscribe if found, otherwise do not import'),
     $csv::MEANS_SKIP         => $this->__('Do not import these rows'),
 ];
 ?>
@@ -74,7 +75,7 @@ $means   = [
                                         </tr>
                                     <?php $n++; endforeach ?>
                                 </table>
-                                <p class="note"><span><?php echo $this->escapeHtml($this->__('Unsubscribed addresses are recorded so they are never mailed. Check each line: these are first guesses.')) ?></span></p>
+                                <p class="note"><span><?php echo $this->escapeHtml($this->__('Unsubscribed addresses are recorded so they are never mailed, whether or not they are subscribers here. "Unsubscribe if found" does that only for addresses already on your list and leaves the rest out. Check each line: these are first guesses.')) ?></span></p>
                             <?php endif ?>
                         </td>
                     </tr>

@@ -158,7 +158,7 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_ImportController
             $preview = $csv->preview($import->getFile());
             $values  = $preview['values'][$statusColumns[0]] ?? null;
             $chosen  = (array) ($post['status_values'][$statusColumns[0]] ?? []);
-            $means   = [$csv::MEANS_SUBSCRIBED, $csv::MEANS_UNSUBSCRIBED, $csv::MEANS_SKIP];
+            $means   = [$csv::MEANS_SUBSCRIBED, $csv::MEANS_UNSUBSCRIBED, $csv::MEANS_UNSUBSCRIBED_IF_FOUND, $csv::MEANS_SKIP];
 
             if ($values === null) {
                 return $this->_fail(

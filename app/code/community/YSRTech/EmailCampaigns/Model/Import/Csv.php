@@ -138,6 +138,8 @@ class YSRTech_EmailCampaigns_Model_Import_Csv
     public const MEANS_SUBSCRIBED   = 'subscribed';
     public const MEANS_UNSUBSCRIBED = 'unsubscribed';
     public const MEANS_SKIP         = 'skip';
+    /** Unsubscribe the address if it is already on the list; if it is not, leave it out altogether */
+    public const MEANS_UNSUBSCRIBED_IF_FOUND = 'unsubscribed_if_found';
 
     /**
      * A cell of a status column as it is compared: trimmed, lower case, so
@@ -358,6 +360,8 @@ class YSRTech_EmailCampaigns_Model_Import_Csv
 
                 if ($means === self::MEANS_UNSUBSCRIBED) {
                     $person['status'] = 'unsubscribed';
+                } elseif ($means === self::MEANS_UNSUBSCRIBED_IF_FOUND && $person['status'] !== 'unsubscribed') {
+                    $person['status'] = 'unsubscribed_if_found';
                 }
 
                 continue;

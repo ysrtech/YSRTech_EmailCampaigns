@@ -59,6 +59,19 @@ class YSRTech_EmailCampaigns_Model_Import_Contacts
                 array_values($hashes)
             ), ['email_hash']);
 
+            // Who is on the list already: read first, because one of the things a
+            // file can say is "unsubscribe them if they are here, and if not, leave
+            // them out"
+            $existing = [];
+
+            foreach ($adapter->fetchAll(
+                $adapter->select()
+                    ->from($subscribers, ['subscriber_id', 'subscriber_email', 'subscriber_firstname', 'subscriber_lastname', 'customer_id'])
+                    ->where('subscriber_email IN (?)', $emails)
+            ) as $row) {
+                $existing[strtolower((string) $row['subscriber_email'])] = $row;
+            }
+
             /*
              * What the source says about the address goes onto the
              * suppression list first, so that the read of that list below
@@ -68,6 +81,23 @@ class YSRTech_EmailCampaigns_Model_Import_Contacts
 
             foreach ($emails as $email) {
                 $status = (string) ($people[$email]['status'] ?? 'subscribed');
+
+                if ($status === 'unsubscribed_if_found') {
+                    if (isset($existing[$email])) {
+                        // Here already: unsubscribed like any other
+                        $status = 'unsubscribed';
+                    } else {
+                        // Not here: nothing to unsubscribe, and not brought in
+                        $people[$email]['leave_out'] = true;
+
+                        if (!isset($seenBefore[$hashes[$email]])) {
+                            $stats['not_found_skipped'] = ($stats['not_found_skipped'] ?? 0) + 1;
+                        }
+
+                        continue;
+                    }
+                }
+
                 $reason = [
                     'unsubscribed' => YSRTech_EmailCampaigns_Model_Suppression::REASON_UNSUBSCRIBE,
                     'bounced'      => YSRTech_EmailCampaigns_Model_Suppression::REASON_HARD_BOUNCE,
@@ -89,16 +119,6 @@ class YSRTech_EmailCampaigns_Model_Import_Contacts
                     ->where('email IN (?)', $emails)
             ), CASE_LOWER);
 
-            $existing = [];
-
-            foreach ($adapter->fetchAll(
-                $adapter->select()
-                    ->from($subscribers, ['subscriber_id', 'subscriber_email', 'subscriber_firstname', 'subscriber_lastname', 'customer_id'])
-                    ->where('subscriber_email IN (?)', $emails)
-            ) as $row) {
-                $existing[strtolower((string) $row['subscriber_email'])] = $row;
-            }
-
             // An address that is also a customer's gets linked to the account
             $customers = [];
 
@@ -116,6 +136,10 @@ class YSRTech_EmailCampaigns_Model_Import_Contacts
             foreach ($emails as $email) {
                 $person  = $people[$email];
                 $counted = isset($seenBefore[$hashes[$email]]);
+
+                if (!empty($person['leave_out'])) {
+                    continue;
+                }
 
                 if ($counted || !empty($person['dup'])) {
                     $stats['duplicates']++;
