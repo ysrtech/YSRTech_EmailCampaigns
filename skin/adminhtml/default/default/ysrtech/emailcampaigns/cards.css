@@ -77,3 +77,16 @@
 .ecg .ai-row .grow { flex: 1 1 260px; }
 .ecg .ai-row select { width: 170px; }
 .ecg .ai-note { margin: 10px 0 0; font-size: 12px; color: var(--text-3); }
+
+/* Campaigns: small horizontal cards, a 100px picture of the email on the left */
+.ecg .cg-grid { grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 10px; }
+.ecg .cg-card { flex-direction: row; align-items: stretch; border-radius: 10px; min-height: 100px; }
+.ecg .cg-card:hover { transform: none; box-shadow: 0 4px 14px rgba(24, 24, 27, .08); }
+.ecg .cg-card .tg-thumb { flex: 0 0 100px; width: 100px; height: 100px; border-bottom: 0; border-right: 1px solid var(--border); }
+.ecg .cg-card .tg-thumb::after { display: none; }
+.ecg .cg-card .tg-thumb.empty { font-size: 11px; text-align: center; padding: 6px; }
+.ecg .cg-card .tg-info { padding: 10px 12px; min-width: 0; justify-content: center; gap: 1px; }
+.ecg .cg-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ecg .cg-top b { flex: 1 1 auto; min-width: 0; }
+.ecg .cg-top .eg-chip { flex: none; }
+.ecg .cg-card .tg-stats { margin-top: 3px; gap: 12px; }

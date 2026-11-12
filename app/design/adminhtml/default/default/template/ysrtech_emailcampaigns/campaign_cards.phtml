@@ -25,7 +25,7 @@ $pct        = static fn (int $part, int $whole) => $whole ? round($part / $whole
         </form>
     </div>
 
-    <div class="tg-grid">
+    <div class="tg-grid cg-grid">
         <?php if (!$collection->getSize()): ?>
             <div class="tg-empty">
                 <?php if ($this->getSearch() !== '' || $this->getFilter() !== ''): ?>
@@ -49,8 +49,7 @@ $pct        = static fn (int $part, int $whole) => $whole ? round($part / $whole
                     ? $this->__('Sent %s', $this->formatDate($campaign->getSentAt(), 'medium', true))
                     : $this->__('Edited %s', $this->formatDate($campaign->getUpdatedAt() ?: $campaign->getCreatedAt(), 'medium')));
             ?>
-            <a class="tg-card" href="<?php echo $open ?>">
-                <span class="tg-status"><span class="eg-chip <?php echo $this->escapeHtml($status) ?>"><?php echo $this->escapeHtml($this->getStatusLabel($status)) ?></span></span>
+            <a class="tg-card cg-card" href="<?php echo $open ?>">
                 <span class="tg-thumb<?php echo $html === '' ? ' empty' : '' ?>">
                     <?php if ($html !== ''): ?>
                         <iframe sandbox="" scrolling="no" tabindex="-1" loading="lazy" title="<?php echo $this->escapeHtml($campaign->getName()) ?>" srcdoc="<?php echo $this->escapeHtml($html) ?>"></iframe>
@@ -59,7 +58,10 @@ $pct        = static fn (int $part, int $whole) => $whole ? round($part / $whole
                     <?php endif ?>
                 </span>
                 <span class="tg-info">
-                    <b title="<?php echo $this->escapeHtml($campaign->getName()) ?>"><?php echo $this->escapeHtml($campaign->getName()) ?></b>
+                    <span class="cg-top">
+                        <b title="<?php echo $this->escapeHtml($campaign->getName()) ?>"><?php echo $this->escapeHtml($campaign->getName()) ?></b>
+                        <span class="eg-chip <?php echo $this->escapeHtml($status) ?>"><?php echo $this->escapeHtml($this->getStatusLabel($status)) ?></span>
+                    </span>
                     <small class="line"><?php echo $this->escapeHtml($campaign->getSubject() ?: $this->__('No subject yet')) ?></small>
                     <small><?php echo $this->escapeHtml($when) ?></small>
                     <?php if ($s['sent'] > 0): ?>
