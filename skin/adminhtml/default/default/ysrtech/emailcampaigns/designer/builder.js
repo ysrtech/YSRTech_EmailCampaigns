@@ -53,7 +53,12 @@
     body.append('form_key', C.formKey);
     Object.keys(fields || {}).forEach((k) => body.append(k, fields[k]));
     (files || []).forEach((f) => body.append('files[]', f));
-    return fetch(url, { method: 'POST', body, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then((r) => r.json());
+    return fetch(url, { method: 'POST', body, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then((r) => r.text()).then((t) => {
+      // Signed out, or the page's key has gone stale: the admin answers with a page, not with data
+      let j = null; try { j = JSON.parse(t); } catch (e) {}
+      if (!j || j.ajaxExpired) throw new Error('You have been signed out, or this page has been open too long. Reload it and try again.');
+      return j;
+    });
   }
 
   // ─── Rendering blocks on the stage (the server's Design/Html.php, drawn here) ───
@@ -262,6 +267,9 @@
     const stage = $('#stagein');
     stage.onclick = (e) => {
       const t = e.target;
+      // The formatting bar floats over the stage but is not part of the email: a click on Bold or
+      // Personalize must not be read as a click on empty canvas, which would drop the selection
+      if (t.closest('.fmt-bar')) return;
       if (t.closest('a') && !t.closest('.eb-edit')) e.preventDefault();
       const btn = t.closest('button');
       if (btn) {

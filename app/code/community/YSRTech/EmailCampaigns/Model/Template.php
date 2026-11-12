@@ -7,6 +7,38 @@ class YSRTech_EmailCampaigns_Model_Template extends Mage_Core_Model_Abstract
     }
 
     /**
+     * A template a flow sends cannot go: the database refuses it, and its
+     * refusal is not something to show a person. Say which flows instead.
+     */
+    protected function _beforeDelete()
+    {
+        $resource = Mage::getSingleton('core/resource');
+        $db       = $resource->getConnection('core_read');
+
+        $flows = $db->fetchCol(
+            $db->select()
+                ->distinct()
+                ->from(['a' => $resource->getTableName('ysrtech_emailcampaigns/automation')], ['name'])
+                ->join(
+                    ['s' => $resource->getTableName('ysrtech_emailcampaigns/automation_step')],
+                    's.automation_id = a.automation_id',
+                    []
+                )
+                ->where('s.template_id = ?', (int) $this->getId())
+                ->limit(5)
+        );
+
+        if ($flows) {
+            Mage::throwException(Mage::helper('ysrtech_emailcampaigns')->__(
+                'This template is sent by an automation (%s). Give that flow another template first, then delete this one.',
+                implode(', ', $flows)
+            ));
+        }
+
+        return parent::_beforeDelete();
+    }
+
+    /**
      * The builder document this template is made from, or null for one
      * made before the builder and never opened in it.
      */

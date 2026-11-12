@@ -120,7 +120,12 @@
     const body = new FormData();
     body.append('form_key', C.formKey);
     Object.keys(fields).forEach((k) => body.append(k, fields[k]));
-    return fetch(C.urls.save.replace('__ID__', id || 0), { method: 'POST', body, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then((r) => r.json());
+    return fetch(C.urls.save.replace('__ID__', id || 0), { method: 'POST', body, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then((r) => r.text()).then((t) => {
+      // Signed out, or the page's key has gone stale: the admin answers with a page, not with data
+      let j = null; try { j = JSON.parse(t); } catch (e) {}
+      if (!j || j.ajaxExpired) throw new Error('You have been signed out, or this page has been open too long. Reload it and try again.');
+      return j;
+    });
   }
   function send(want) {
     return post({
@@ -159,7 +164,12 @@
       saveState = ''; delete $('#probs').dataset.hidden;
       if (j.demoted) toast(plural(problems.length, 'thing', 'things') + ' to fix before it can go live'); else { sel = null; panel = null; toast('This flow is on.'); }
       renderAll();
-    }).catch((e) => { toast(e.message); saveState = 'Not saved: ' + e.message; renderHead(); });
+    }).catch((e) => {
+      // Refused outright, so the server sent no list of things to fix. What is in the box is from an
+      // earlier try and may already be put right: show the reason for this refusal in its place.
+      dirty = true; problems = [{ node: null, message: e.message }]; delete $('#probs').dataset.hidden;
+      toast(e.message); saveState = 'Not saved: ' + e.message; renderAll();
+    });
   }
   function pause() {
     send('draft').then(() => { toast('Paused. Nothing new starts; messages already queued are still sent.'); renderAll(); }).catch((e) => toast(e.message));
@@ -205,17 +215,25 @@
     svg.innerHTML = h;
     $$('[data-ins]', svg).forEach((b) => b.onclick = (e) => { e.stopPropagation(); insertAt = +b.dataset.ins; openPanel('steps'); });
   }
-  function fit() {
+  function fit(floor) {
     const r = cv.getBoundingClientRect(), n = all().length, w = xOf(n - 1) + NODE_W + 110 - LEFT, padR = sel || panel ? 410 : 40, aw = Math.max(240, r.width - 40 - padR);
-    view.k = Math.max(.45, Math.min(1, aw / w));
+    view.k = Math.max(floor > 0 ? floor : .45, Math.min(1, aw / w));
     view.x = 40 + Math.max(0, (aw - w * view.k) / 2) - LEFT * view.k;
     view.y = Math.max(20, (r.height - 120) / 2 - (TOP + 40) * view.k);
+    apply(); reveal();
+  }
+  // A long flow does not fit at any readable size, and the side panel covers the right of the canvas:
+  // slide along so the step being set up, and the + after it, are in the part that can be seen.
+  function reveal() {
+    const i = all().findIndex((n) => n.id === sel); if (i < 0) return;
+    const r = cv.getBoundingClientRect(), right = r.width - 410, a = view.x + xOf(i) * view.k, b = view.x + (xOf(i) + NODE_W + 80) * view.k;
+    if (b > right) view.x -= b - right; else if (a < 20) view.x += 20 - a;
     apply();
   }
-  const zoomAt = (k, cx, cy) => { k = Math.max(.3, Math.min(1.800, k)); view.x = cx - (cx - view.x) * (k / view.k); view.y = cy - (cy - view.y) * (k / view.k); view.k = k; apply(); };
+  const zoomAt = (k, cx, cy) => { k = Math.max(.15, Math.min(1.800, k)); view.x = cx - (cx - view.x) * (k / view.k); view.y = cy - (cy - view.y) * (k / view.k); view.k = k; apply(); };
   $('#zin').onclick = () => { const r = cv.getBoundingClientRect(); zoomAt(view.k * 1.200, r.width / 2, r.height / 2); };
   $('#zout').onclick = () => { const r = cv.getBoundingClientRect(); zoomAt(view.k / 1.200, r.width / 2, r.height / 2); };
-  $('#zfit').onclick = fit;
+  $('#zfit').onclick = () => fit(.15);   // asked for by name: everything, however small
   cv.addEventListener('wheel', (e) => { e.preventDefault(); if (e.ctrlKey || e.metaKey) { const r = cv.getBoundingClientRect(); zoomAt(view.k * (e.deltaY < 0 ? 1.100 : 1 / 1.100), e.clientX - r.left, e.clientY - r.top); } else { view.x -= e.deltaX; view.y -= e.deltaY; apply(); } }, { passive: false });
   let pan = null;
   cv.addEventListener('mousedown', (e) => { if (e.target.closest('.nd, button, .jx-tools, .jx-probs')) return; pan = { x: e.clientX - view.x, y: e.clientY - view.y, moved: false }; cv.classList.add('panning'); });
@@ -250,7 +268,7 @@
   }
 
   // ─── The panel for the selected step, or for the flow's settings ───
-  function select(nid) { sel = nid; if (nid) panel = null; renderPanel(); renderNodes(); renderInspector(); }
+  function select(nid) { sel = nid; if (nid) panel = null; renderPanel(); renderNodes(); renderInspector(); reveal(); }
   const field = (label, ctrl, help) => `<div class="field"><label>${label}</label>${ctrl}${help ? `<p class="ins-help">${help}</p>` : ''}</div>`;
   function renderInspector() {
     const insp = $('#insp'), n = sel === '#settings' ? null : find(sel), dis = ro() ? 'disabled' : '';
@@ -306,7 +324,7 @@
     on('#stpl', 'onchange', (e) => { c.template_id = +e.target.value; touch(); renderNodes(); renderInspector(); });
     on('#mvl', 'onclick', () => { f.steps.splice(i - 1, 0, f.steps.splice(i, 1)[0]); touch(); renderNodes(); renderInspector(); });
     on('#mvr', 'onclick', () => { f.steps.splice(i + 1, 0, f.steps.splice(i, 1)[0]); touch(); renderNodes(); renderInspector(); });
-    on('#del', 'onclick', () => { f.steps.splice(i, 1); sel = null; touch(); renderAll(); });
+    on('#del', 'onclick', () => { f.steps.splice(i, 1); sel = null; touch(); renderAll(); fit(); });
   }
 
   // ─── What stands between this flow and being on ───
@@ -326,7 +344,7 @@
   document.addEventListener('keydown', (e) => {
     const editing = e.target.closest && e.target.closest('input,textarea,select');
     if (e.key === 'Escape') { if (panel) closePanel(); else select(null); }
-    if ((e.key === 'Delete' || e.key === 'Backspace') && !editing && sel && sel !== '#settings' && !ro()) { const i = f.steps.findIndex((x) => x.id === sel); if (i > -1) { e.preventDefault(); f.steps.splice(i, 1); sel = null; touch(); renderAll(); } }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !editing && sel && sel !== '#settings' && !ro()) { const i = f.steps.findIndex((x) => x.id === sel); if (i > -1) { e.preventDefault(); f.steps.splice(i, 1); sel = null; touch(); renderAll(); fit(); } }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); if (!ro()) { dirty = true; save().then((ok) => ok && toast('Saved')); } }
   });
   window.addEventListener('resize', fit);
