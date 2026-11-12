@@ -2,7 +2,13 @@
 /** @var YSRTech_EmailCampaigns_Block_Unsubscribe $this */
 ?>
 <div class="ysr-unsubscribe">
-<?php if ($this->wasUnsubscribed()): ?>
+<?php if (Mage::registry('ysrtech_emailcampaigns_preferences_test')): ?>
+    <h1><?php echo $this->__('This was a test email') ?></h1>
+    <p><?php echo $this->__('Nobody has been unsubscribed.') ?></p>
+    <p class="ysr-unsubscribe-note"><?php echo $this->__(
+        'In the campaign itself, this link opens this page and unsubscribes the reader straight away.'
+    ) ?></p>
+<?php elseif ($this->wasUnsubscribed()): ?>
     <h1><?php echo $this->__('You have been unsubscribed') ?></h1>
     <p><?php echo $this->__(
         '%s will not receive further campaign emails from us.',

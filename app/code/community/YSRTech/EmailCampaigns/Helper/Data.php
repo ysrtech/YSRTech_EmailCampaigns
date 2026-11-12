@@ -147,11 +147,33 @@ class YSRTech_EmailCampaigns_Helper_Data extends Mage_Core_Helper_Abstract
      */
     public function unsubscribeUrl(string $token, $storeId = null): string
     {
+        return $this->_storeUrl('emailcampaigns/preferences/unsubscribe', ['token' => $token], $storeId);
+    }
+
+    /**
+     * Where the unsubscribe link of a test send leads: the same page, saying
+     * that this was a test and nobody was unsubscribed.
+     */
+    public function unsubscribeTestUrl($storeId = null): string
+    {
+        return $this->_storeUrl('emailcampaigns/preferences/unsubscribe', ['test' => 1], $storeId);
+    }
+
+    /**
+     * A page of the storefront, as a shopper would be given its address.
+     *
+     * A campaign for "all store views" has store 0, which is the admin: its
+     * addresses carry index.php and are not the shop's. The default store
+     * view is what a reader should land on.
+     */
+    protected function _storeUrl(string $route, array $params, $storeId = null): string
+    {
+        $storeId = (int) $storeId ?: (int) Mage::app()->getDefaultStoreView()->getId();
+
         // _nosid: this runs from cron, where reaching for a frontend session
         // dies with "Unable to start session". The token as a plain
         // parameter: keys starting with an underscore are read as url options.
-        return Mage::getUrl('emailcampaigns/preferences/unsubscribe', [
-            'token'   => $token,
+        return Mage::getUrl($route, $params + [
             '_store'  => $storeId,
             '_nosid'  => true,
             // https wherever the store has an https address at all, whatever

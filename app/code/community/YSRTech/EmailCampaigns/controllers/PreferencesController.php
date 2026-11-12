@@ -44,7 +44,11 @@ class YSRTech_EmailCampaigns_PreferencesController extends Mage_Core_Controller_
     public function unsubscribeAction()
     {
         $email = null;
-        $item  = $this->_loadByToken();
+        // The link in a test send: show the page, unsubscribe nobody
+        $test  = (bool) $this->getRequest()->getParam('test');
+        $item  = $test ? null : $this->_loadByToken();
+
+        Mage::register('ysrtech_emailcampaigns_preferences_test', $test);
 
         if ($item) {
             try {

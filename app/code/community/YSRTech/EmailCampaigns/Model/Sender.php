@@ -785,7 +785,9 @@ class YSRTech_EmailCampaigns_Model_Sender
         // A test goes out the way the campaign will: with links going straight
         // to the store, its unsubscribe link is the store's too, not the provider's
         $direct  = Mage::helper('ysrtech_emailcampaigns')->linksGoDirect($campaign->getStoreId());
-        $nowhere = Mage::app()->getStore($campaign->getStoreId())->getBaseUrl(Mage_Core_Model_Store::URL_TYPE_LINK, $direct ? true : null) . '#test-send';
+        // Nobody is unsubscribed by a test: its link opens the unsubscribe
+        // page in a form that says so, rather than a page that looks broken
+        $nowhere = Mage::helper('ysrtech_emailcampaigns')->unsubscribeTestUrl($campaign->getStoreId());
 
         $vars = [
             'customer' => [
@@ -815,7 +817,7 @@ class YSRTech_EmailCampaigns_Model_Sender
             $tracked = (bool) $campaign->getLetterTrack();
 
             // Nobody is unsubscribed by a test: the link leads nowhere
-            $vars['unsubscribe_url'] = $vars['optout_url'] = Mage::app()->getStore($campaign->getStoreId())->getBaseUrl(Mage_Core_Model_Store::URL_TYPE_LINK) . '#test-send';
+            $vars['unsubscribe_url'] = $vars['optout_url'] = $nowhere;
 
             $text = $letter->text((string) $campaign->getLetterText(), $delegates ? $this->_placeholderVars($storeName, true) : $vars);
             $html = $tracked ? $letter->html($text) : '';
