@@ -1,0 +1,63 @@
+<?php
+/** @var YSRTech_EmailCampaigns_Block_Adminhtml_Automation_Cards $this */
+$cards   = $this->getCards();
+$formKey = Mage::getSingleton('core/session')->getFormKey();
+$running = count(array_filter($cards, static fn ($card) => $card['active']));
+?>
+<div class="ecg">
+    <div class="eg-head">
+        <h1><?php echo $this->escapeHtml($this->__('Automations')) ?></h1>
+        <span class="spacer"></span>
+        <a class="eg-btn primary" href="<?php echo $this->getUrl('*/*/new') ?>"><?php echo $this->escapeHtml($this->__('New Flow')) ?></a>
+    </div>
+    <p class="eg-lede"><?php echo $this->escapeHtml($this->__('Emails that send themselves when something happens in the store: an order, a shipment, a cart left behind. %d of %d switched on.', $running, count($cards))) ?></p>
+
+    <div class="tg-tools">
+        <span><?php echo $this->escapeHtml($this->__('%d flow(s)', count($cards))) ?></span>
+        <form class="tg-search" method="get" action="<?php echo $this->getUrl('*/*/index') ?>">
+            <input type="search" name="q" value="<?php echo $this->escapeHtml($this->getSearch()) ?>" placeholder="<?php echo $this->escapeHtml($this->__('Search automations')) ?>" aria-label="<?php echo $this->escapeHtml($this->__('Search automations')) ?>"/>
+        </form>
+    </div>
+
+    <div class="tg-grid ag-grid">
+        <?php if (!$cards): ?>
+            <div class="tg-empty">
+                <?php if ($this->getSearch() !== ''): ?>
+                    <?php echo $this->escapeHtml($this->__('No automation matches "%s".', $this->getSearch())) ?><br/>
+                    <a class="eg-btn sm" href="<?php echo $this->getUrl('*/*/index') ?>"><?php echo $this->escapeHtml($this->__('Show all')) ?></a>
+                <?php else: ?>
+                    <?php echo $this->escapeHtml($this->__('No automations yet.')) ?><br/>
+                    <a class="eg-btn primary" href="<?php echo $this->getUrl('*/*/new') ?>"><?php echo $this->escapeHtml($this->__('Build the first flow')) ?></a>
+                <?php endif ?>
+            </div>
+        <?php endif ?>
+        <?php foreach ($cards as $card): ?>
+            <?php $open = $this->getUrl('*/*/canvas', ['id' => $card['id']]); ?>
+            <div class="tg-card ag-card">
+                <a class="ag-top" href="<?php echo $open ?>">
+                    <span class="ag-name">
+                        <b title="<?php echo $this->escapeHtml($card['name']) ?>"><?php echo $this->escapeHtml($card['name']) ?></b>
+                        <span class="ag-trig"><?php echo $this->escapeHtml($card['trigger']) ?></span>
+                    </span>
+                    <span class="eg-chip <?php echo $card['active'] ? 'sent' : '' ?>"><?php echo $this->escapeHtml($card['active'] ? $this->__('Active') : $this->__('Draft')) ?></span>
+                </a>
+                <a class="ag-map" href="<?php echo $open ?>" title="<?php echo $this->escapeHtml($this->__('Open "%s"', $card['name'])) ?>"><?php echo $this->getMap($card['steps']) ?></a>
+                <div class="ag-stats">
+                    <div><small><?php echo $this->escapeHtml($this->__('Sent · 30 days')) ?></small><b><?php echo number_format($card['sent']) ?></b></div>
+                    <div><small><?php echo $this->escapeHtml($this->__('Waiting now')) ?></small><b><?php echo number_format($card['waiting']) ?></b></div>
+                    <div><small><?php echo $this->escapeHtml($this->__('Emails')) ?></small><b><?php echo (int) $card['messages'] ?></b></div>
+                    <div><small><?php echo $this->escapeHtml($this->__('Kind')) ?></small><b class="ag-kind"><?php echo $this->escapeHtml($card['kind']) ?></b></div>
+                </div>
+                <div class="ag-foot">
+                    <?php if ($card['stops']): ?><span class="ag-note"><?php echo $this->escapeHtml($this->__('Stops if they order')) ?></span><?php endif ?>
+                    <span class="spacer"></span>
+                    <a class="eg-btn sm" href="<?php echo $open ?>"><?php echo $this->escapeHtml($this->__('Open')) ?></a>
+                    <form method="post" action="<?php echo $this->getUrl('*/*/delete', ['id' => $card['id']]) ?>" onsubmit="return confirm('<?php echo $this->jsQuoteEscape($this->escapeHtml($this->__('Delete this automation? Anything it has waiting to send is dropped too.'))) ?>')">
+                        <input type="hidden" name="form_key" value="<?php echo $formKey ?>"/>
+                        <button type="submit" class="eg-btn sm danger"><?php echo $this->escapeHtml($this->__('Delete')) ?></button>
+                    </form>
+                </div>
+            </div>
+        <?php endforeach ?>
+    </div>
+</div>

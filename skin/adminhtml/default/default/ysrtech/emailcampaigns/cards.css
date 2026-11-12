@@ -123,3 +123,24 @@
 
 .ecg .cal-pick { display: inline-flex; gap: 6px; }
 .ecg .cal-pick select { height: 30px; padding: 0 8px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--surface); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: none; }
+
+/* Automations: a card a flow, with a small picture of its steps (TzizamHub's journey cards) */
+.ecg .ag-grid { grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; }
+.ecg .ag-card:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(24, 24, 27, .07); }
+.ecg .ag-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px 18px 12px; }
+.ecg .ag-name { min-width: 0; }
+.ecg .ag-name b { display: block; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecg .ag-trig { display: inline-flex; align-items: center; margin-top: 6px; font-size: 11.5px; font-weight: 550; padding: 2px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-text); }
+.ecg .ag-top .eg-chip { flex: none; }
+.ecg .ag-map { display: grid; place-items: center; height: 84px; padding: 0 12px; overflow: hidden; background-color: var(--surface-2); background-image: radial-gradient(var(--border-strong) 1px, transparent 1px); background-size: 14px 14px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.ecg .ag-map svg { max-width: 100%; }
+.ecg .ag-stats { display: grid; grid-template-columns: repeat(4, 1fr); }
+.ecg .ag-stats > div { padding: 10px 14px 12px; min-width: 0; }
+.ecg .ag-stats > div + div { border-left: 1px solid var(--border); }
+.ecg .ag-stats small { display: block; font-size: 11.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ecg .ag-stats b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.ecg .ag-stats b.ag-kind { font-size: 13px; font-weight: 600; }
+.ecg .ag-foot { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--border); }
+.ecg .ag-foot .spacer { flex: 1; }
+.ecg .ag-foot form { margin: 0; display: inline; }
+.ecg .ag-note { font-size: 12px; color: var(--text-3); }

@@ -312,3 +312,4 @@ body.eb-dragging .eb-empty-cell { border-color: var(--accent); color: var(--acce
 .check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); cursor: pointer; padding: 3px 0; }
 .check input { accent-color: var(--accent); width: 15px; height: 15px; }
 .ebf-c > input:not([type=range]):not([type=checkbox]):not([type=color]), .ebf-c > select { height: 34px; border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; background: var(--surface); font-size: 13px; }
+.toast { pointer-events: none; }

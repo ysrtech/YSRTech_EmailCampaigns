@@ -88,6 +88,10 @@
         <update handle="ysrtech_emailcampaigns_cards_css"/>
     </adminhtml_ysrtech_template_index>
 
+    <adminhtml_ysrtech_automation_index>
+        <update handle="ysrtech_emailcampaigns_cards_css"/>
+    </adminhtml_ysrtech_automation_index>
+
     <adminhtml_ysrtech_campaign_index>
         <update handle="ysrtech_emailcampaigns_cards_css"/>
     </adminhtml_ysrtech_campaign_index>

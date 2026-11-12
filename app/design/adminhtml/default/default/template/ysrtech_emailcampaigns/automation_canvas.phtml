@@ -1,112 +1,26 @@
 <?php
-/** @var YSRTech_EmailCampaigns_Block_Adminhtml_Automation_Canvas $this */
-$automation = $this->getAutomation();
-$skin       = $this->getSkinUrl('ysrtech/emailcampaigns/flowbuilder/');
-?>
-<div class="content-header">
-    <h3 class="icon-head"><?php echo $this->escapeHtml(
-        $automation->getId()
-            ? $this->__('Flow: %s', $automation->getName())
-            : $this->__('New Flow')
-    ) ?></h3>
-</div>
-
-<?php /* Outside content-header, which floats its heading - inside it, this
-         ran on from the title as one sentence. */ ?>
-<p class="ysr-canvas-note"><?php echo $this->__(
-    'The trigger, the waits and the messages are drawn here. What cancels the chain, whether it counts as marketing, and its dates stay on the %s.',
-    '<a href="' . $this->escapeHtml($this->getBackUrl()) . '">' . $this->__('settings form') . '</a>'
-) ?></p>
-
-<?php
-/*
- * One global, read once on mount by the bundle built from
- * frontend/src/flowBuilder (main.jsx documents the shape). Everything goes
- * through data attributes and escapeHtml rather than being printed into the
- * script: a template or automation name is admin-typed text, and inside a
- * <script> a name containing "</script>" would end it.
+/**
+ * The flow canvas: a page of its own, outside the admin's frame.
+ *
+ * @var YSRTech_EmailCampaigns_Block_Adminhtml_Automation_Canvas $this
  */
-$json = [
-    'graph'         => $this->getGraphJson(),
-    'templates'     => $this->getTemplatesJson(),
-    'storeOptions'  => $this->getStoreOptionsJson(),
-    'events'        => $this->getEventsJson(),
-    'orderStatuses' => $this->getOrderStatusesJson(),
-    'counts'        => $this->getCountsJson(),
-    'limits'        => $this->getLimitsJson(),
-    'i18n'          => $this->getTranslationsJson(),
-];
+$config = $this->getConfig();
 ?>
-<div id="ysr-flow-editor-root"
-     data-save-url="<?php echo $this->escapeHtml($this->getSaveUrl()) ?>"
-     data-canvas-url="<?php echo $this->escapeHtml($this->getCanvasUrlTemplate()) ?>"
-     data-form-key="<?php echo $this->escapeHtml(Mage::getSingleton('core/session')->getFormKey()) ?>"
-     data-flow-id="<?php echo (int) $automation->getId() ?>"
-     data-flow-name="<?php echo $this->escapeHtml((string) $automation->getName()) ?>"
-     data-flow-status="<?php echo $this->escapeHtml($this->getStatus()) ?>"
-     data-flow-version="<?php echo max(1, (int) $automation->getVersion()) ?>"
-     data-flow-published="<?php echo $this->escapeHtml($this->getPublishedLabel()) ?>"
-     data-flow-store-id="<?php echo (int) $automation->getStoreId() ?>"
-<?php foreach ($json as $key => $value): ?>
-     data-json-<?php echo strtolower(preg_replace('/[A-Z]/', '-$0', $key)) ?>="<?php echo $this->escapeHtml($value) ?>"
-<?php endforeach ?>
-></div>
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="robots" content="noindex,nofollow"/>
+    <title><?php echo $this->escapeHtml($config['name'] !== '' ? $config['name'] : $this->__('New flow')) ?> &middot; <?php echo $this->escapeHtml($this->__('Automation')) ?></title>
+    <link rel="stylesheet" href="<?php echo $this->getSkinFile('flow.css') ?>"/>
+</head>
+<body>
+<div id="ecf"></div>
 <script>
-    (function () {
-        var root = document.getElementById('ysr-flow-editor-root');
-        var read = function (name, fallback) {
-            try {
-                return JSON.parse(root.getAttribute('data-json-' + name)) || fallback;
-            } catch (e) {
-                return fallback;
-            }
-        };
-
-        window.YsrFlowEditorConfig = {
-            saveUrl:        root.getAttribute('data-save-url'),
-            canvasUrl:      root.getAttribute('data-canvas-url'),
-            formKey:        root.getAttribute('data-form-key'),
-            flowId:         parseInt(root.getAttribute('data-flow-id'), 10) || 0,
-            name:           root.getAttribute('data-flow-name'),
-            status:         root.getAttribute('data-flow-status'),
-            version:        parseInt(root.getAttribute('data-flow-version'), 10) || 1,
-            publishedLabel: root.getAttribute('data-flow-published'),
-            storeId:        parseInt(root.getAttribute('data-flow-store-id'), 10) || 0,
-            graph:          read('graph', null),
-            templates:      read('templates', []),
-            storeOptions:   read('store-options', []),
-            events:         read('events', []),
-            orderStatuses:  read('order-statuses', []),
-            counts:         read('counts', {}),
-            limits:         read('limits', null),
-            i18n:           read('i18n', {})
-        };
-    })();
+    // Data, not markup: json with the characters that could end the script escaped
+    window.EC_FLOW = <?php echo json_encode($config, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
 </script>
-<link rel="stylesheet" href="<?php echo $skin ?>flowBuilder.css" />
-<script src="<?php echo $skin ?>flowBuilder.js"></script>
-
-<style>
-    .ysr-canvas-note { clear: both; margin: .4em 0 1em; color: #666; }
-    /*
-     * React Flow measures its container, so it needs a height it can read -
-     * a percentage against a parent of auto resolves to zero and the canvas
-     * renders as nothing. The same mistake cost an afternoon on the GrapesJS
-     * editor; viewport units avoid depending on any ancestor at all.
-     */
-    #ysr-flow-editor-root {
-        height: 76vh;
-        min-height: 520px;
-        border: 1px solid #c8c8c8;
-        background: #fafafa;
-        /*
-         * position and overflow are both load-bearing. React Flow positions
-         * every node absolutely, so without a positioned ancestor that clips
-         * them a long chain draws straight out of the bottom of the box and
-         * over the admin footer - which is what it did.
-         */
-        position: relative;
-        overflow: hidden;
-    }
-</style>
+<script src="<?php echo $this->getSkinFile('flow.js') ?>"></script>
+</body>
+</html>

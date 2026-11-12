@@ -16,175 +16,32 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_AutomationController
         $this->_title($this->__('Email Campaigns'))->_title($this->__('Automations'));
         $this->loadLayout();
         $this->_setActiveMenu('ysrtech_emailcampaigns/automation');
-        $this->_addContent($this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_automation'));
+        $this->_addContent($this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_automation_cards'));
         $this->renderLayout();
     }
 
+    /**
+     * A new flow opens straight on the canvas. Nothing is stored until
+     * something is put on it.
+     */
     public function newAction()
     {
-        $this->_forward('edit');
+        $this->_redirect('*/*/canvas');
     }
 
+    /**
+     * There is no separate form any more: a flow is made, and its settings
+     * set, on the canvas.
+     */
     public function editAction()
     {
         $id = (int) $this->getRequest()->getParam('id');
-        /** @var YSRTech_EmailCampaigns_Model_Automation $model */
-        $model = Mage::getModel('ysrtech_emailcampaigns/automation');
 
-        if ($id) {
-            $model->load($id);
-
-            if (!$model->getId()) {
-                $this->_getSession()->addError($this->__('Automation no longer exists.'));
-                $this->_redirect('*/*/index');
-                return;
-            }
-        }
-
-        Mage::register('ysrtech_emailcampaigns_automation', $model);
-
-        $this->_title($model->getId() ? $model->getName() : $this->__('New Automation'));
-        $this->loadLayout();
-        $this->_setActiveMenu('ysrtech_emailcampaigns/automation');
-        $this->_addContent($this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_automation_edit'));
-        $this->renderLayout();
-    }
-
-    public function saveAction()
-    {
-        if (!$this->getRequest()->isPost()) {
-            $this->_redirect('*/*/index');
-            return;
-        }
-
-        $this->_validateFormKey();
-
-        $data = $this->getRequest()->getPost();
-        $id   = (int) $this->getRequest()->getParam('id');
-
-        /** @var YSRTech_EmailCampaigns_Model_Automation $model */
-        $model = Mage::getModel('ysrtech_emailcampaigns/automation');
-
-        if ($id) {
-            $model->load($id);
-        }
-
-        try {
-            $source = YSRTech_EmailCampaigns_Model_System_Config_Source_Automation_Event::class;
-            $event  = (string) ($data['event'] ?? '');
-
-            if ($event === $source::ORDER_STATUS && empty($data['order_status'])) {
-                Mage::throwException($this->__('Choose which status should trigger this.'));
-            }
-
-            if ($event === $source::PRODUCT_PURCHASED && empty($data['product_id'])) {
-                Mage::throwException($this->__('Give the product id this should watch for.'));
-            }
-
-            $steps = $this->_readSteps($data['steps'] ?? []);
-
-            if (!$steps) {
-                Mage::throwException($this->__('A chain needs at least one message.'));
-            }
-
-            /*
-             * The form has no box for minutes, so a step keeps the minutes
-             * the canvas gave it. Carried here rather than left to the row
-             * that happens to be reused, so the flow that is checked is the
-             * flow that is stored.
-             */
-            $current = $model->getStepRows();
-
-            foreach ($steps as $position => $step) {
-                $steps[$position]['after_minutes'] = (int) ($current[$position]['after_minutes'] ?? 0);
-            }
-
-            /*
-             * Through the same door as the canvas. The form's rows are drawn
-             * as the chain they describe and that drawing is what gets
-             * checked and saved, so the rules for going live and for changing
-             * a live flow are one set of rules, in the model, and neither
-             * editor can be used to get round the other.
-             */
-            $graph = Mage::getSingleton('ysrtech_emailcampaigns/automation_graph')->toGraph($event, $steps, [
-                'order_status' => (string) ($data['order_status'] ?? ''),
-                'product_id'   => (int) ($data['product_id'] ?? 0),
-            ]);
-
-            $result = $model->saveFlow($graph, [
-                'name'                 => (string) ($data['name'] ?? ''),
-                'cancel_on'            => ($data['cancel_on'] ?? 'never') === 'order_placed' ? 'order_placed' : 'never',
-                'respect_subscription' => (int) !empty($data['respect_subscription']),
-                'store_id'             => (int) ($data['store_id'] ?? 0),
-                'active_from'          => !empty($data['active_from']) ? $data['active_from'] : null,
-                'active_to'            => !empty($data['active_to']) ? $data['active_to'] : null,
-            ], !empty($data['is_active']), false);
-
-            if ($result['demoted']) {
-                /*
-                 * Saved, but not switched on. Said as an error and not a
-                 * notice because the person asked for Active and did not get
-                 * it, and a green "saved" above a flow that is quietly off is
-                 * how a seasonal campaign fails to go out.
-                 */
-                $this->_getSession()->addError($this->__(
-                    'Saved as a draft, not switched on: there is something to fix first.'
-                ));
-
-                foreach ($result['problems'] as $problem) {
-                    $this->_getSession()->addError($problem['message']);
-                }
-
-                $this->_redirect('*/*/edit', ['id' => $model->getId()]);
-                return;
-            }
-
-            $this->_getSession()->addSuccess($this->__('Automation saved.'));
-        } catch (Mage_Core_Exception $e) {
-            $this->_getSession()->addError($e->getMessage());
-            $this->_redirect('*/*/edit', ['id' => $id]);
-            return;
-        } catch (Exception $e) {
-            $this->_getSession()->addError($e->getMessage());
-            Mage::logException($e);
-            $this->_redirect('*/*/edit', ['id' => $id]);
-            return;
-        }
-
-        $this->_redirect('*/*/index');
+        $this->_redirect('*/*/canvas', $id ? ['id' => $id] : []);
     }
 
     /**
-     * @param  mixed $posted
-     * @return array
-     */
-    protected function _readSteps($posted): array
-    {
-        $steps = [];
-
-        foreach ((array) $posted as $row) {
-            if (empty($row['template_id'])) {
-                continue;
-            }
-
-            $steps[] = [
-                'template_id' => (int) $row['template_id'],
-                'after_days'  => max(0, (int) ($row['after_days'] ?? 0)),
-                'after_hours' => max(0, (int) ($row['after_hours'] ?? 0)),
-            ];
-        }
-
-        // Earliest first, whatever order the rows were typed in
-        usort(
-            $steps,
-            static fn($a, $b) => ($a['after_days'] * 24 + $a['after_hours']) <=> ($b['after_days'] * 24 + $b['after_hours'])
-        );
-
-        return $steps;
-    }
-
-    /**
-     * The visual editor, on the same automation the form edits.
+     * The flow canvas.
      */
     public function canvasAction()
     {
@@ -204,11 +61,10 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_AutomationController
 
         Mage::register('ysrtech_emailcampaigns_automation', $model);
 
-        $this->_title($model->getId() ? $model->getName() : $this->__('New Flow'));
-        $this->loadLayout();
-        $this->_setActiveMenu('ysrtech_emailcampaigns/automation');
-        $this->_addContent($this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_automation_canvas'));
-        $this->renderLayout();
+        // A page of its own: the canvas is not drawn inside the admin's frame
+        $this->getResponse()->setBody(
+            $this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_automation_canvas')->toHtml()
+        );
     }
 
     /**
@@ -269,10 +125,32 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_AutomationController
 
             $wantActive = is_string($data['status'] ?? null) && $data['status'] === 'active';
 
-            $result = $model->saveFlow($graph, [
+            $fields = [
                 'name'     => is_string($data['name'] ?? null) ? $data['name'] : '',
                 'store_id' => max(0, min(65535, (int) ($data['store_id'] ?? 0))),
-            ], $wantActive, true);
+            ];
+
+            // The flow's settings, which the canvas now carries. Only what
+            // was sent is written: a page that sends none changes none.
+            if (isset($data['cancel_on'])) {
+                $fields['cancel_on'] = $data['cancel_on'] === 'order_placed' ? 'order_placed' : 'never';
+            }
+
+            if (isset($data['respect_subscription'])) {
+                $fields['respect_subscription'] = (int) !empty($data['respect_subscription']);
+            }
+
+            foreach (['active_from', 'active_to'] as $date) {
+                if (isset($data[$date])) {
+                    $fields[$date] = is_string($data[$date]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $data[$date]) ? $data[$date] : null;
+                }
+            }
+
+            if (!empty($fields['active_from']) && !empty($fields['active_to']) && $fields['active_to'] < $fields['active_from']) {
+                Mage::throwException($this->__('"Runs until" is before "Runs from".'));
+            }
+
+            $result = $model->saveFlow($graph, $fields, $wantActive, true);
 
             if ($result['demoted']) {
                 $message = $this->__(
@@ -330,6 +208,12 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_AutomationController
     {
         $id = (int) $this->getRequest()->getParam('id');
 
+        if (!$this->getRequest()->isPost() || !$this->_validateFormKey()) {
+            $this->_redirect('*/*/index');
+
+            return;
+        }
+
         try {
             /*
              * Queued rows go with it, by the cascade on the foreign key.
@@ -343,13 +227,5 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_AutomationController
         }
 
         $this->_redirect('*/*/index');
-    }
-
-    public function gridAction()
-    {
-        $this->loadLayout();
-        $this->getResponse()->setBody(
-            $this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_automation_grid')->toHtml()
-        );
     }
 }

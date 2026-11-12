@@ -1,19 +1,15 @@
 <?php
 /**
- * Hosts the visual automation editor.
+ * Hosts the flow canvas.
  *
- * The editor is a built React Flow bundle (source in frontend/src/flowBuilder),
- * and everything it needs arrives through one global that the template
- * writes - it never calls back for anything except to save. So this block's
- * whole job is to assemble that config: the automation as a graph, what can
- * be picked in it, how each message has fared, and the editor's own strings
- * in the admin's language.
+ * A page of its own rather than one inside the admin's frame. The canvas
+ * (skin/.../flow/flow.js) is handed everything it needs as one object - the
+ * automation as a graph, what can be picked in it, its settings, how each
+ * message has fared - and after that only calls back to save.
  *
- * The form editor is still there and still the only place some of an
- * automation can be set. The canvas draws what it understands - the trigger
- * and its condition, the waits, the messages - and the cancellation rule,
- * the marketing/transactional choice and the dates stay on the form, because
- * the canvas has no nodes for them. Saving from the canvas leaves those alone.
+ * There is no separate settings form any more. What ends a flow early,
+ * whether it counts as marketing, its store view and its dates are a panel
+ * on the canvas.
  */
 class YSRTech_EmailCampaigns_Block_Adminhtml_Automation_Canvas extends Mage_Adminhtml_Block_Template
 {
@@ -30,6 +26,68 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Automation_Canvas extends Mage_Admi
     {
         return Mage::registry('ysrtech_emailcampaigns_automation')
             ?: Mage::getModel('ysrtech_emailcampaigns/automation');
+    }
+
+    public function getSkinFile(string $file): string
+    {
+        $path = Mage::getBaseDir('skin') . '/adminhtml/default/default/ysrtech/emailcampaigns/flow/' . $file;
+
+        // The file's own time as a version, so a deploy is seen at once
+        return $this->getSkinUrl('ysrtech/emailcampaigns/flow/' . $file) . '?v=' . (is_file($path) ? filemtime($path) : 0);
+    }
+
+    /**
+     * Everything the canvas starts with, as one object.
+     */
+    public function getConfig(): array
+    {
+        $automation = $this->getAutomation();
+        $decode     = static fn (string $json) => json_decode($json, true);
+        $graph      = $automation->getCanvasGraph();
+
+        /** @var YSRTech_EmailCampaigns_Model_Automation_Graph $translator */
+        $translator = Mage::getSingleton('ysrtech_emailcampaigns/automation_graph');
+
+        try {
+            $problems = array_map(
+                static fn (array $problem): array => ['node' => $problem['node'], 'message' => $problem['message']],
+                $automation->getId() ? $translator->validate($translator->normalise($graph), $automation->validationContext()) : []
+            );
+        } catch (Throwable $e) {
+            $problems = [];
+        }
+
+        return [
+            'id'             => (int) $automation->getId(),
+            'name'           => (string) $automation->getName(),
+            'status'         => $this->getStatus(),
+            'version'        => max(1, (int) $automation->getVersion()),
+            'publishedLabel' => $this->getPublishedLabel(),
+            'storeId'        => (int) $automation->getStoreId(),
+            'graph'          => $graph,
+            'problems'       => $problems,
+            'templates'      => $decode($this->getTemplatesJson()),
+            'storeOptions'   => $decode($this->getStoreOptionsJson()),
+            'events'         => $decode($this->getEventsJson()),
+            'orderStatuses'  => $decode($this->getOrderStatusesJson()),
+            'counts'         => json_decode($this->getCountsJson()) ?: new stdClass(),
+            'limits'         => $decode($this->getLimitsJson()),
+            'settings'       => [
+                'cancel_on'            => (string) ($automation->getCancelOn() ?: 'never'),
+                // A new flow is marketing until somebody says otherwise
+                'respect_subscription' => $automation->getId() ? (bool) $automation->getRespectSubscription() : true,
+                'active_from'          => substr((string) $automation->getActiveFrom(), 0, 10),
+                'active_to'            => substr((string) $automation->getActiveTo(), 0, 10),
+            ],
+            'formKey'        => Mage::getSingleton('core/session')->getFormKey(),
+            'urls'           => [
+                'save'             => $this->getUrl('*/*/canvasSave', ['id' => '__ID__']),
+                'canvas'           => $this->getCanvasUrlTemplate(),
+                'back'             => $this->getUrl('*/*/index'),
+                'templateDesigner' => $this->getUrl('*/ysrtech_template/designer', ['id' => '__ID__']),
+                'templateNew'      => $this->getUrl('*/ysrtech_template/new'),
+            ],
+        ];
     }
 
     public function getSaveUrl(): string
@@ -161,111 +219,6 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Automation_Canvas extends Mage_Admi
         $publishedAt = $this->getAutomation()->getPublishedAt();
 
         return $publishedAt ? (string) Mage::helper('core')->formatDate($publishedAt, 'medium', true) : '';
-    }
-
-    /**
-     * The canvas's own strings, translated.
-     *
-     * The bundle looks each of its English strings up in this map and falls
-     * back to the English, so a string missing here is untranslated rather
-     * than broken. Placeholders are left for the bundle to fill. The
-     * validation messages are worded exactly as Model/Automation/Graph.php
-     * words them, so a problem reads the same whichever side found it.
-     */
-    public function getTranslationsJson(): string
-    {
-        $h   = Mage::helper('ysrtech_emailcampaigns');
-        $map = [];
-
-        foreach ([
-            '%d problems',
-            '1 problem',
-            'A connection leads to a step that is not in the flow.',
-            'A flow can send %d messages at most.',
-            'A flow starts from one trigger. Remove this one.',
-            'A wait has to be at least 1.',
-            'Active',
-            'Add a step after this one',
-            'Add a step here',
-            'Add a step',
-            'All changes saved.',
-            'Cancelled',
-            'Choose a status…',
-            'Choose a template…',
-            'Choose a trigger…',
-            'Choose the template this step sends.',
-            'Choose what starts this flow.',
-            'Choose which order status starts this flow.',
-            'Could not save: %s',
-            'Counted for the message at this position in the saved flow.',
-            'Counted from the step before, as drawn.',
-            'Discard',
-            'Dismiss',
-            'Draft',
-            'Drag onto the canvas, or use a + on the chain.',
-            'Every flow starts from one trigger, so this step cannot be removed.',
-            'Failed',
-            'Fires when the order changes into this status, not on every later save.',
-            'Flow name',
-            'Gave up after retrying',
-            'Give the id of the product this flow watches for.',
-            'Live · version %d',
-            'Messages already queued are still sent, as they were when queued.',
-            'Messages this step has sent',
-            'Name',
-            'Not saved yet.',
-            'Nothing follows this wait. Add a message after it or remove it.',
-            'Nothing to fix. This flow can go live.',
-            'Only one connection can leave a step. Flows here do not branch.',
-            'Pause',
-            'Pausing…',
-            'Product #%d',
-            'Product ID',
-            'Queued and not yet due, or being sent now',
-            'Remove this step',
-            'Restore',
-            'Save Draft',
-            'Save and Activate',
-            'Saving…',
-            'Select a step to change it. Use the + on a connection to put a step between two others, or the + under the last step to carry on.',
-            'Send Email',
-            'Sent',
-            'Show what needs fixing',
-            'Starts when',
-            'Status',
-            'Store view',
-            'Template removed',
-            'Template',
-            'The flow has no trigger, so nothing would ever start it.',
-            'The flow loops back on itself here, so it would never end.',
-            'The flow sends nothing yet. Add a Send Email step after the trigger.',
-            'The server did not answer as expected. Your session may have ended; reload the page.',
-            'The template this step used no longer exists. Choose another.',
-            'The waits add up to more than %d days.',
-            'This browser has changes to this flow from %s that were never saved.',
-            'This flow is live. Pause it to make changes.',
-            'This flow',
-            'This step is not connected to the chain from the trigger, so it would never run.',
-            'Tidy up',
-            'To fix before this can go live:',
-            'Trigger',
-            'Unsaved changes - kept in this browser until you save.',
-            'Version %d, switched on %s.',
-            'Wait for',
-            'Wait',
-            'Waiting',
-            'Which status',
-            'days',
-            'failed',
-            'hours',
-            'minutes',
-            'sent',
-            'waiting',
-        ] as $text) {
-            $map[$text] = $h->__($text);
-        }
-
-        return Mage::helper('core')->jsonEncode($map);
     }
 
     /**

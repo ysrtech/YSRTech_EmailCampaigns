@@ -401,9 +401,13 @@ class YSRTech_EmailCampaigns_Model_Automation extends Mage_Core_Model_Abstract
                 if (self::signatureOf(['steps' => $stored]) === self::signatureOf(['steps' => $rows])) {
                     foreach ($graph['nodes'] as $i => $node) {
                         if ($node['type'] === $translator::NODE_TRIGGER) {
-                            // The trigger's conditions live in columns the
-                            // form also edits, so those are the truth.
-                            $graph['nodes'][$i]['config'] = $trigger;
+                            // The trigger's conditions live in columns of
+                            // their own, so those are the truth - except for
+                            // a trigger nobody has chosen yet, which the
+                            // columns cannot say and the drawing can.
+                            if (($node['config']['trigger_type'] ?? '') !== '') {
+                                $graph['nodes'][$i]['config'] = $trigger;
+                            }
                             break;
                         }
                     }
