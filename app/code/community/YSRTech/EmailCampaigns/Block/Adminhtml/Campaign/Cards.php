@@ -42,6 +42,136 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Cards extends Mage_Adminht
         return trim((string) $this->getRequest()->getParam('q'));
     }
 
+    /** "cards" or "calendar" */
+    public function getView(): string
+    {
+        return $this->getRequest()->getParam('view') === 'calendar' ? 'calendar' : 'cards';
+    }
+
+    private function _timezone(): DateTimeZone
+    {
+        return new DateTimeZone((string) Mage::app()->getStore()->getConfig(Mage_Core_Model_Locale::XML_PATH_DEFAULT_TIMEZONE) ?: 'UTC');
+    }
+
+    /**
+     * The first day of the month the calendar shows, in the store's
+     * timezone: the one asked for, or this one.
+     */
+    public function getMonth(): DateTimeImmutable
+    {
+        $asked = (string) $this->getRequest()->getParam('m');
+        $zone  = $this->_timezone();
+
+        if (preg_match('/^(20\d\d)-(0[1-9]|1[0-2])$/', $asked)) {
+            return new DateTimeImmutable($asked . '-01 00:00:00', $zone);
+        }
+
+        return (new DateTimeImmutable('now', $zone))->modify('first day of this month')->setTime(0, 0);
+    }
+
+    /**
+     * The month as weeks of days, each day with the campaigns that go out
+     * or went out on it. A scheduled campaign sits on the day it is due; one
+     * that has gone sits on the day it was sent. Days are the store's days,
+     * not UTC's.
+     *
+     * @return array{weeks:array<int, array<int, array{date:DateTimeImmutable, in:bool, today:bool, items:array}>>, weekdays:string[], count:int}
+     */
+    public function getCalendar(): array
+    {
+        $zone  = $this->_timezone();
+        $utc   = new DateTimeZone('UTC');
+        $month = $this->getMonth();
+        $first = (int) Mage::getStoreConfig('general/locale/firstday');
+
+        // Back to the start of the week the month begins in, on to the end
+        // of the one it finishes in
+        $start = $month->modify('-' . ((7 + (int) $month->format('w') - $first) % 7) . ' days');
+        $last  = $month->modify('last day of this month');
+        $end   = $last->modify('+' . ((6 - (int) $last->format('w') + $first) % 7 + 1) . ' days');
+
+        $when = new Zend_Db_Expr("CASE WHEN main_table.status IN ('sent', 'failed', 'cancelled') THEN COALESCE(main_table.sent_at, main_table.scheduled_at) ELSE main_table.scheduled_at END");
+
+        $collection = Mage::getResourceModel('ysrtech_emailcampaigns/campaign_collection');
+        $collection->getSelect()
+            ->columns(['calendar_at' => $when])
+            ->where('main_table.status <> ?', 'draft')
+            ->where($when . ' >= ?', $start->setTimezone($utc)->format('Y-m-d H:i:s'))
+            ->where($when . ' < ?', $end->setTimezone($utc)->format('Y-m-d H:i:s'))
+            ->order('calendar_at ASC');
+
+        if ($this->getFilter() !== '') {
+            $collection->addFieldToFilter('status', ['in' => $this->_statuses($this->getFilter())]);
+        }
+
+        if ($this->getSearch() !== '') {
+            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $this->getSearch()) . '%';
+            $collection->addFieldToFilter(['name', 'subject'], [['like' => $like], ['like' => $like]]);
+        }
+
+        $byDay = [];
+
+        foreach ($collection as $campaign) {
+            $at = (new DateTimeImmutable((string) $campaign->getData('calendar_at'), $utc))->setTimezone($zone);
+
+            $byDay[$at->format('Y-m-d')][] = [
+                'id'     => (int) $campaign->getId(),
+                'name'   => (string) $campaign->getName(),
+                'status' => (string) $campaign->getStatus(),
+                'time'   => Mage::app()->getLocale()->date($at->getTimestamp())->toString(Mage::app()->getLocale()->getTimeFormat(Mage_Core_Model_Locale::FORMAT_TYPE_SHORT)),
+            ];
+        }
+
+        $today = (new DateTimeImmutable('now', $zone))->format('Y-m-d');
+        $weeks = [];
+
+        for ($day = $start; $day < $end; $day = $day->modify('+1 day')) {
+            $key = $day->format('Y-m-d');
+
+            $weeks[(int) floor($start->diff($day)->days / 7)][] = [
+                'date'  => $day,
+                'in'    => $day->format('Y-m') === $month->format('Y-m'),
+                'today' => $key === $today,
+                'items' => $byDay[$key] ?? [],
+            ];
+        }
+
+        $names    = Mage::app()->getLocale()->getTranslationList('days', ['gregorian', 'format', 'abbreviated']);
+        $order    = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        $weekdays = [];
+
+        for ($i = 0; $i < 7; $i++) {
+            $weekdays[] = (string) ($names[$order[($first + $i) % 7]] ?? ucfirst($order[($first + $i) % 7]));
+        }
+
+        return ['weeks' => $weeks, 'weekdays' => $weekdays, 'count' => $collection->getSize()];
+    }
+
+    public function getMonthLabel(): string
+    {
+        return Mage::app()->getLocale()->date($this->getMonth()->getTimestamp() + 86400 * 14)->toString('MMMM yyyy');
+    }
+
+    /**
+     * This page with something about it changed: the view, the month, the
+     * status. Null removes a parameter.
+     */
+    public function getViewUrl(array $change = []): string
+    {
+        $params = $change + [
+            'view'   => $this->getView() === 'calendar' ? 'calendar' : null,
+            'm'      => $this->getView() === 'calendar' ? $this->getRequest()->getParam('m') : null,
+            'status' => $this->getFilter(),
+            'q'      => $this->getSearch(),
+        ];
+
+        if (($params['view'] ?? null) !== 'calendar') {
+            unset($params['m'], $params['view']);
+        }
+
+        return $this->getUrl('*/*/index', array_filter($params, static fn ($v) => $v !== null && $v !== ''));
+    }
+
     /**
      * Which statuses a filter shows.
      *
@@ -152,6 +282,6 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Cards extends Mage_Adminht
 
     public function getPageUrl(int $page, ?string $filter = null): string
     {
-        return $this->getUrl('*/*/index', array_filter(['p' => $page > 1 ? $page : null, 'status' => $filter ?? $this->getFilter(), 'q' => $this->getSearch()]));
+        return $this->getViewUrl(['p' => $page > 1 ? $page : null, 'status' => $filter ?? $this->getFilter()]);
     }
 }

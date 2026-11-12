@@ -20,11 +20,61 @@ $pct        = static fn (int $part, int $whole) => $whole ? round($part / $whole
                 <a href="<?php echo $this->getPageUrl(1, $code) ?>" class="<?php echo $code === $this->getFilter() ? 'on' : '' ?>"><?php echo $this->escapeHtml($label) ?> <span><?php echo (int) $counts[$code] ?></span></a>
             <?php endforeach ?>
         </div>
-        <form class="tg-search" method="get" action="<?php echo $this->getUrl('*/*/index', array_filter(['status' => $this->getFilter()])) ?>">
+        <div class="eg-seg" role="group" aria-label="<?php echo $this->escapeHtml($this->__('View')) ?>">
+            <a href="<?php echo $this->getViewUrl(['view' => null]) ?>" class="<?php echo $this->getView() === 'cards' ? 'on' : '' ?>"><?php echo $this->escapeHtml($this->__('Cards')) ?></a>
+            <a href="<?php echo $this->getViewUrl(['view' => 'calendar']) ?>" class="<?php echo $this->getView() === 'calendar' ? 'on' : '' ?>"><?php echo $this->escapeHtml($this->__('Calendar')) ?></a>
+        </div>
+        <form class="tg-search" method="get" action="<?php echo $this->getViewUrl(['q' => null]) ?>">
             <input type="search" name="q" value="<?php echo $this->escapeHtml($this->getSearch()) ?>" placeholder="<?php echo $this->escapeHtml($this->__('Search campaigns')) ?>" aria-label="<?php echo $this->escapeHtml($this->__('Search campaigns')) ?>"/>
         </form>
     </div>
 
+    <?php if ($this->getView() === 'calendar'): ?>
+        <?php
+        $calendar = $this->getCalendar();
+        $month    = $this->getMonth();
+        ?>
+        <div class="cal-head">
+            <a class="eg-btn sm" href="<?php echo $this->getViewUrl(['m' => $month->modify('-1 month')->format('Y-m')]) ?>" title="<?php echo $this->escapeHtml($this->__('Previous month')) ?>">&larr;</a>
+            <b><?php echo $this->escapeHtml($this->getMonthLabel()) ?></b>
+            <a class="eg-btn sm" href="<?php echo $this->getViewUrl(['m' => $month->modify('+1 month')->format('Y-m')]) ?>" title="<?php echo $this->escapeHtml($this->__('Next month')) ?>">&rarr;</a>
+            <a class="eg-btn sm" href="<?php echo $this->getViewUrl(['m' => null]) ?>"><?php echo $this->escapeHtml($this->__('Today')) ?></a>
+            <span class="cal-note">
+                <?php echo $this->escapeHtml($this->__('%d campaign(s) this month.', $calendar['count'])) ?>
+                <?php if ($counts['draft'] > 0 && in_array($this->getFilter(), ['', 'draft'], true)): ?>
+                    <?php echo $this->escapeHtml($this->__('Drafts have no date yet, so they are not on the calendar:')) ?>
+                    <a href="<?php echo $this->getViewUrl(['view' => null, 'status' => 'draft']) ?>"><?php echo $this->escapeHtml($this->__('%d draft(s)', $counts['draft'])) ?></a>
+                <?php endif ?>
+            </span>
+        </div>
+        <table class="cal" cellspacing="0">
+            <thead>
+                <tr><?php foreach ($calendar['weekdays'] as $weekday): ?><th><?php echo $this->escapeHtml($weekday) ?></th><?php endforeach ?></tr>
+            </thead>
+            <tbody>
+            <?php foreach ($calendar['weeks'] as $week): ?>
+                <tr>
+                <?php foreach ($week as $day): ?>
+                    <td class="<?php echo $day['in'] ? '' : 'out' ?><?php echo $day['today'] ? ' today' : '' ?>">
+                        <span class="cal-day"><?php echo (int) $day['date']->format('j') ?></span>
+                        <?php foreach ($day['items'] as $item): ?>
+                            <a class="cal-item <?php echo $this->escapeHtml($item['status']) ?>" href="<?php echo $this->getUrl('*/*/edit', ['id' => $item['id']]) ?>" title="<?php echo $this->escapeHtml($item['name'] . ' · ' . $this->getStatusLabel($item['status']) . ' · ' . $item['time']) ?>">
+                                <span class="cal-time"><?php echo $this->escapeHtml($item['time']) ?></span>
+                                <span class="cal-name"><?php echo $this->escapeHtml($item['name']) ?></span>
+                            </a>
+                        <?php endforeach ?>
+                    </td>
+                <?php endforeach ?>
+                </tr>
+            <?php endforeach ?>
+            </tbody>
+        </table>
+        <div class="cal-legend">
+            <?php foreach (['scheduled', 'sending', 'sent', 'paused', 'failed'] as $status): ?>
+                <span class="eg-chip <?php echo $status ?>"><?php echo $this->escapeHtml($this->getStatusLabel($status)) ?></span>
+            <?php endforeach ?>
+        </div>
+    <?php else: ?>
     <div class="tg-grid cg-grid">
         <?php if (!$collection->getSize()): ?>
             <div class="tg-empty">
@@ -82,6 +132,7 @@ $pct        = static fn (int $part, int $whole) => $whole ? round($part / $whole
             <span><?php echo $this->escapeHtml($this->__('Page %d of %d', $page, $pages)) ?></span>
             <?php if ($page < $pages): ?><a class="eg-btn sm" href="<?php echo $this->getPageUrl($page + 1) ?>"><?php echo $this->escapeHtml($this->__('Older')) ?> &rarr;</a><?php endif ?>
         </div>
+    <?php endif ?>
     <?php endif ?>
 </div>
 <script type="text/javascript">
