@@ -68,7 +68,7 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
      *
      * @return string[]
      */
-    public function getCampaignUsage(): array
+    public function getCampaignUsage(bool $unfinishedOnly = false): array
     {
         if (!$this->getId()) {
             return [];
@@ -77,8 +77,7 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
         $resource = Mage::getSingleton('core/resource');
         $adapter  = $resource->getConnection('core_read');
 
-        $rows = $adapter->fetchAll(
-            $adapter->select()
+        $select = $adapter->select()
                 ->from(['cs' => $resource->getTableName('ysrtech_emailcampaigns/campaign_segment')], ['is_excluded'])
                 ->join(
                     ['c' => $resource->getTableName('ysrtech_emailcampaigns/campaign')],
@@ -86,8 +85,14 @@ class YSRTech_EmailCampaigns_Model_Segment extends Mage_Rule_Model_Abstract
                     ['name']
                 )
                 ->where('cs.segment_id = ?', (int) $this->getId())
-                ->order('c.name')
-        );
+                ->order('c.name');
+
+        // Campaigns still to go out, or going out: the ones a missing segment would change
+        if ($unfinishedOnly) {
+            $select->where('c.status IN (?)', ['draft', 'scheduled', 'sending', 'paused']);
+        }
+
+        $rows = $adapter->fetchAll($select);
 
         $helper = Mage::helper('ysrtech_emailcampaigns');
 

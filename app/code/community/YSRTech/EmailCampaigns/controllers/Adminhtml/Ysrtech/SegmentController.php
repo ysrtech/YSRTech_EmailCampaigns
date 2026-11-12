@@ -238,6 +238,13 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SegmentController
     {
         $id = (int) $this->getRequest()->getParam('id');
 
+        // An address alone deletes nothing: the button posts, with the session's key
+        if (!$this->getRequest()->isPost() || !$this->_validateFormKey()) {
+            $this->_redirect('*/*/index');
+
+            return;
+        }
+
         try {
             /** @var YSRTech_EmailCampaigns_Model_Segment $segment */
             $segment = Mage::getModel('ysrtech_emailcampaigns/segment')->load($id);
@@ -253,7 +260,10 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SegmentController
              * let somebody decide; the foreign key refuses it regardless, but
              * a constraint violation is not an explanation.
              */
-            $usedBy = $segment->getCampaignUsage();
+            // Only campaigns that have not gone out yet stand in the way. One
+            // that has been sent is finished with the segment, and holding
+            // on to it would make every segment ever used impossible to delete.
+            $usedBy = $segment->getCampaignUsage(true);
 
             if ($usedBy) {
                 Mage::throwException($this->__(
@@ -262,6 +272,12 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SegmentController
                     implode(', ', $usedBy)
                 ));
             }
+
+            $resource = Mage::getSingleton('core/resource');
+            $resource->getConnection('core_write')->delete(
+                $resource->getTableName('ysrtech_emailcampaigns/campaign_segment'),
+                ['segment_id = ?' => (int) $segment->getId()]
+            );
 
             $segment->delete();
             $this->_getSession()->addSuccess($this->__('Segment deleted.'));

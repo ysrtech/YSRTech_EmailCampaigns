@@ -25,6 +25,11 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Segment_View extends Mage_Adminhtml
             'onclick' => "setLocation('" . $this->getUrl('*/*/index') . "')",
             'class'   => 'back',
         ]);
+        $this->_addButton('delete', [
+            'label'   => $h->__('Delete Segment'),
+            'onclick' => $h->segmentDeleteJs($this->getUrl('*/*/delete', ['id' => $segment->getId()])),
+            'class'   => 'delete',
+        ]);
         $this->_addButton('reindex', [
             'label'   => $h->__('Recalculate Now'),
             'onclick' => "setLocation('" . $this->getUrl('*/*/reindex', ['id' => $segment->getId(), 'back' => 'view']) . "')",

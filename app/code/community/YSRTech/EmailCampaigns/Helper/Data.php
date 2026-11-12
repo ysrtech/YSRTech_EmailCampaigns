@@ -131,6 +131,17 @@ class YSRTech_EmailCampaigns_Helper_Data extends Mage_Core_Helper_Abstract
     }
 
     /**
+     * What a "Delete Segment" button does when pressed: ask, then post.
+     */
+    public function segmentDeleteJs(string $url): string
+    {
+        $question = $this->jsQuoteEscape($this->__('Delete this segment? The subscribers in it are not deleted or unsubscribed. Campaigns already sent to it keep their reports but will no longer show its name.'));
+
+        return "if (confirm('{$question}')) { var f = document.createElement('form'); f.method = 'post'; f.action = '{$url}';"
+            . " var k = document.createElement('input'); k.type = 'hidden'; k.name = 'form_key'; k.value = FORM_KEY; f.appendChild(k); document.body.appendChild(f); f.submit(); }";
+    }
+
+    /**
      * A segment's rules in words, one top-level condition a line. Empty for a
      * segment with no conditions, which matches every subscriber.
      *

@@ -13,6 +13,12 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Segment_Edit extends Mage_Adminhtml
         $this->_mode       = 'edit';
 
         $this->_updateButton('save', 'label', Mage::helper('ysrtech_emailcampaigns')->__('Save Segment'));
+
+        // Delete posts, with the session's key, rather than following a link
+        $this->_updateButton('delete', 'label', Mage::helper('ysrtech_emailcampaigns')->__('Delete Segment'));
+        $this->_updateButton('delete', 'onclick', Mage::helper('ysrtech_emailcampaigns')->segmentDeleteJs(
+            $this->getUrl('*/*/delete', ['id' => (int) $this->getRequest()->getParam('id')])
+        ));
     }
 
     /**
