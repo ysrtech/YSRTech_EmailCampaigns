@@ -165,6 +165,13 @@ $dash    = "\u{2014}";
                         <span class="gain"><?php echo $this->escapeHtml($this->__('+%d when fixed', $finding['weight'])) ?></span>
                         <p><?php echo $this->escapeHtml($finding['text']) ?></p>
                         <?php if ($finding['fix'] !== ''): ?><p class="fix"><?php echo $this->escapeHtml($finding['fix']) ?></p><?php endif ?>
+                        <?php if (!empty($finding['action'])): ?>
+                            <form method="post" action="<?php echo $this->getUrl('*/*/mailgunFix') ?>" class="fix-form">
+                                <?php echo $this->getBlockHtml('formkey') ?>
+                                <input type="hidden" name="fix" value="<?php echo $this->escapeHtml($finding['action']) ?>"/>
+                                <button type="submit" class="scalable save"><span><span><span><?php echo $this->escapeHtml($finding['action'] === 'https' ? $this->__('Switch To https On Mailgun') : $this->__('Remove Mailgun\'s Footer')) ?></span></span></span></button>
+                            </form>
+                        <?php endif ?>
                     </div>
                 <?php endforeach ?>
                 <?php if ($check['passed']): ?>

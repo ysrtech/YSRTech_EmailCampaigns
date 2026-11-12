@@ -39,6 +39,50 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_DashboardController
     }
 
     /**
+     * A fix offered by the sender check that can be made on Mailgun from
+     * here: removing its own unsubscribe footer, or moving tracked links to
+     * https. The check is run again afterwards so the page shows where
+     * things now stand.
+     */
+    public function mailgunFixAction()
+    {
+        try {
+            if (!$this->getRequest()->isPost() || !$this->_validateFormKey()) {
+                Mage::throwException($this->__('This page has been open a while. Reload it and try again.'));
+            }
+
+            /** @var YSRTech_EmailCampaigns_Model_Mailgun_Tracking $tracking */
+            $tracking = Mage::getSingleton('ysrtech_emailcampaigns/mailgun_tracking');
+            $what     = (string) $this->getRequest()->getPost('fix');
+
+            if ($what === 'footer') {
+                $result = $tracking->clearFooter();
+            } elseif ($what === 'https') {
+                $result = $tracking->useHttps();
+            } else {
+                Mage::throwException($this->__('Nothing to fix was named.'));
+            }
+
+            if (!$result['ok']) {
+                $this->_getSession()->addError($result['message']);
+            } elseif (!empty($result['pending'])) {
+                $this->_getSession()->addNotice($result['message']);
+            } else {
+                $this->_getSession()->addSuccess($result['message']);
+            }
+
+            Mage::getSingleton('ysrtech_emailcampaigns/deliverability')->refresh();
+        } catch (Mage_Core_Exception $e) {
+            $this->_getSession()->addError($e->getMessage());
+        } catch (Throwable $e) {
+            Mage::logException($e);
+            $this->_getSession()->addError($this->__('Could not make the change on Mailgun. See the exception log.'));
+        }
+
+        $this->_redirect('*/*/index', ['_fragment' => 'ysrtech-ec-sender']);
+    }
+
+    /**
      * The per-campaign grid reloads itself over ajax when sorted or paged.
      */
     public function gridAction()

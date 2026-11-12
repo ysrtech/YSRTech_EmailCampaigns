@@ -89,8 +89,9 @@ class YSRTech_EmailCampaigns_Model_Deliverability
         $findings  = [];
         $passed    = [];
         $unknown   = [];
-        $add       = static function (string $level, int $weight, string $title, string $text, string $fix = '') use (&$findings): void {
-            $findings[] = ['level' => $level, 'weight' => $weight, 'title' => $title, 'text' => $text, 'fix' => $fix];
+        // $action: a fix that can be made from here with one press (see Mailgun_Tracking)
+        $add       = static function (string $level, int $weight, string $title, string $text, string $fix = '', string $action = '') use (&$findings): void {
+            $findings[] = ['level' => $level, 'weight' => $weight, 'title' => $title, 'text' => $text, 'fix' => $fix, 'action' => $action];
         };
 
         $transport = (string) $h->getConfig('sending/transport');
@@ -199,6 +200,31 @@ class YSRTech_EmailCampaigns_Model_Deliverability
             }
         } else {
             $unknown[] = $h->__('Bounces and complaints: the %s transport does not report them back, so the rates below cannot be measured.', $transport ?: 'smtp');
+        }
+
+        // ---- two settings of the Mailgun domain that show in every email
+        if ($transport === 'mailgun') {
+            $tracking = Mage::getSingleton('ysrtech_emailcampaigns/mailgun_tracking')->state();
+
+            if ($tracking === null) {
+                $unknown[] = $h->__('Mailgun\'s tracking settings for %s could not be read with the saved API key.', $sending);
+            } else {
+                if ($tracking['footer']) {
+                    $add('warn', 5, $h->__('Mailgun adds a second unsubscribe link to every email.'),
+                        $h->__('The domain has an unsubscribe footer of its own, which Mailgun appends under your design: a plain "unsubscribe" at the bottom left, on top of the link already in your footer.'),
+                        $h->__('Remove Mailgun\'s footer. Unsubscribe tracking stays on, so the link in your design keeps working.'), 'footer');
+                } else {
+                    $passed[] = $h->__('Mailgun adds no unsubscribe footer of its own: the only link is the one in your design.');
+                }
+
+                if ($tracking['scheme'] !== 'https') {
+                    $add('warn', 10, $h->__('Links in your emails open over http, not https.'),
+                        $h->__('Mailgun passes every link, and the unsubscribe link, through its tracking address for %s, and that address is set to http. Browsers warn before opening it, and some mail apps mark the email as unsafe.', $sending),
+                        $h->__('Switch the tracking address to https. Mailgun issues the certificate itself; that takes a few minutes, so it is two presses a few minutes apart.'), 'https');
+                } else {
+                    $passed[] = $h->__('Tracked links and the unsubscribe link use https.');
+                }
+            }
         }
 
         // ---- how the last 30 days were received
