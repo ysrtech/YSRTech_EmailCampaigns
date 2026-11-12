@@ -80,6 +80,73 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SubscriberController
         $this->_redirect('*/*/view', ['id' => (int) $subscriber->getId()]);
     }
 
+    /**
+     * Put one address back on the list from its page.
+     *
+     * Nothing is emailed: the newsletter model's subscribe() would send a
+     * confirmation, and this is staff acting on the person's own request.
+     * An unsubscribe recorded on the suppression list is lifted with it, or
+     * the address would be subscribed in name and still never mailed. A
+     * hard bounce or a spam complaint is not: those are lifted, by somebody
+     * allowed to, on the Suppressions page.
+     */
+    public function resubscribeAction()
+    {
+        $subscriber = $this->_initSubscriber();
+
+        if (!$subscriber) {
+            return;
+        }
+
+        if ($this->getRequest()->isPost() && $this->_validateFormKey()) {
+            try {
+                $email    = (string) $subscriber->getSubscriberEmail();
+                $resource = Mage::getResourceSingleton('ysrtech_emailcampaigns/suppression');
+                $reason   = $resource->reasonOf($email);
+                $blocking = [
+                    YSRTech_EmailCampaigns_Model_Suppression::REASON_HARD_BOUNCE,
+                    YSRTech_EmailCampaigns_Model_Suppression::REASON_COMPLAINT,
+                ];
+
+                if ($reason && in_array($reason, $blocking, true)) {
+                    Mage::throwException($this->__('This address is suppressed for a hard bounce or a spam complaint. Remove it on the Suppressions page first.'));
+                }
+
+                if ($reason) {
+                    $adapter = Mage::getSingleton('core/resource')->getConnection('core_read');
+                    $ids     = $adapter->fetchCol(
+                        $adapter->select()->from($resource->getMainTable(), ['suppression_id'])->where('email = ?', strtolower(trim($email)))
+                    );
+                    $removed = $resource->removeByIds(array_map('intval', $ids));
+
+                    if (strtolower((string) Mage::helper('ysrtech_emailcampaigns')->getConfig('sending/transport')) === 'mailgun') {
+                        try {
+                            Mage::getSingleton('ysrtech_emailcampaigns/suppressions')->liftOnMailgun($removed);
+                        } catch (Exception $e) {
+                            Mage::logException($e);
+                            $this->_getSession()->addNotice($this->__('Mailgun could not be told to lift its own unsubscribe for this address. Remove it there, or Mailgun will go on refusing mail to it.'));
+                        }
+                    }
+                }
+
+                $subscriber->load($subscriber->getId())
+                    ->setSubscriberStatus(Mage_Newsletter_Model_Subscriber::STATUS_SUBSCRIBED)
+                    ->setChangeStatusAt(Varien_Date::now())
+                    ->setIsStatusChanged(true)
+                    ->save();
+
+                $this->_getSession()->addSuccess($this->__('%s is subscribed again. No email was sent to tell them.', $email));
+            } catch (Mage_Core_Exception $e) {
+                $this->_getSession()->addError($e->getMessage());
+            } catch (Exception $e) {
+                Mage::logException($e);
+                $this->_getSession()->addError($this->__('Could not subscribe this address. See the exception log.'));
+            }
+        }
+
+        $this->_redirect('*/*/view', ['id' => (int) $subscriber->getId()]);
+    }
+
     public function massUnsubscribeAction()
     {
         $done = 0;

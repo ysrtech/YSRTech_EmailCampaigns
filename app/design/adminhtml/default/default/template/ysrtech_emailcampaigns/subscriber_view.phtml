@@ -29,6 +29,12 @@ $pages      = (int) ceil($stats['total'] / YSRTech_EmailCampaigns_Model_Subscrib
                 <input type="hidden" name="form_key" value="<?php echo $this->getFormKey() ?>">
                 <button type="submit" class="eg-btn danger"><?php echo $e($this->__('Unsubscribe')) ?></button>
             </form>
+        <?php elseif (!$suppressed || !in_array($suppressed['reason'], [YSRTech_EmailCampaigns_Model_Suppression::REASON_HARD_BOUNCE, YSRTech_EmailCampaigns_Model_Suppression::REASON_COMPLAINT], true)): ?>
+            <form method="post" action="<?php echo $this->getUrl('*/*/resubscribe', ['id' => (int) $subscriber->getId()]) ?>"
+                  onsubmit="return confirm('<?php echo $this->jsQuoteEscape($this->__('Subscribe this address again? Only do this if the person has asked for it. They will get your campaigns from now on. No email is sent to tell them.')) ?>')">
+                <input type="hidden" name="form_key" value="<?php echo $this->getFormKey() ?>">
+                <button type="submit" class="eg-btn primary sv-resub"><?php echo $e($this->__('Subscribe Again')) ?></button>
+            </form>
         <?php endif ?>
     </div>
 
