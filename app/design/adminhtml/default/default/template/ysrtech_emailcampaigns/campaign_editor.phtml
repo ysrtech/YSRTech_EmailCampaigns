@@ -2,12 +2,14 @@
 /**
  * @var YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Editor $this
  */
+// A new address whenever the file changes: a kept copy of last month's script must not run this page
+$assets = $this->getLayout()->createBlock('ysrtech_emailcampaigns/adminhtml_assets');
 ?>
-<link rel="stylesheet" type="text/css" href="<?php echo $this->escapeHtml($this->getSkinUrl('ysrtech/emailcampaigns/campaign-editor.css')) ?>" />
+<link rel="stylesheet" type="text/css" href="<?php echo $this->escapeHtml($assets->versioned('ysrtech/emailcampaigns/campaign-editor.css')) ?>" />
 <div id="ecc-root" class="ecc"></div>
 <script type="text/javascript">
 //<![CDATA[
 window.ysrtechCampaignEditorConfig = <?php echo $this->getConfigJson() ?>;
 //]]>
 </script>
-<script type="text/javascript" src="<?php echo $this->escapeHtml($this->getSkinUrl('ysrtech/emailcampaigns/campaign-editor.js')) ?>"></script>
+<script type="text/javascript" src="<?php echo $this->escapeHtml($assets->versioned('ysrtech/emailcampaigns/campaign-editor.js')) ?>"></script>

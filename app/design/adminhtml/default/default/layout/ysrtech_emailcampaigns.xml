@@ -17,16 +17,20 @@
     <adminhtml_ysrtech_segment_new>
         <reference name="head">
             <action method="setCanLoadRulesJs"><flag>1</flag></action>
-            <action method="addItem"><type>skin_js</type><name>ysrtech/emailcampaigns/segment-preview.js</name></action>
-            <action method="addItem"><type>skin_css</type><name>ysrtech/emailcampaigns/admin.css</name></action>
+            <block type="ysrtech_emailcampaigns/adminhtml_assets" name="ysrtech.ec.assets.1">
+                <action method="addJs"><name>ysrtech/emailcampaigns/segment-preview.js</name></action>
+                <action method="addCss"><name>ysrtech/emailcampaigns/admin.css</name></action>
+            </block>
         </reference>
     </adminhtml_ysrtech_segment_new>
 
     <adminhtml_ysrtech_segment_edit>
         <reference name="head">
             <action method="setCanLoadRulesJs"><flag>1</flag></action>
-            <action method="addItem"><type>skin_js</type><name>ysrtech/emailcampaigns/segment-preview.js</name></action>
-            <action method="addItem"><type>skin_css</type><name>ysrtech/emailcampaigns/admin.css</name></action>
+            <block type="ysrtech_emailcampaigns/adminhtml_assets" name="ysrtech.ec.assets.2">
+                <action method="addJs"><name>ysrtech/emailcampaigns/segment-preview.js</name></action>
+                <action method="addCss"><name>ysrtech/emailcampaigns/admin.css</name></action>
+            </block>
         </reference>
     </adminhtml_ysrtech_segment_edit>
 
@@ -37,7 +41,9 @@
     -->
     <ysrtech_emailcampaigns_admin_css>
         <reference name="head">
-            <action method="addCss"><name>ysrtech/emailcampaigns/admin.css</name></action>
+            <block type="ysrtech_emailcampaigns/adminhtml_assets" name="ysrtech.ec.assets.3">
+                <action method="addCss"><name>ysrtech/emailcampaigns/admin.css</name></action>
+            </block>
         </reference>
     </ysrtech_emailcampaigns_admin_css>
 
@@ -76,7 +82,9 @@
     <!-- The card lists: templates, the starter gallery, campaigns -->
     <ysrtech_emailcampaigns_cards_css>
         <reference name="head">
-            <action method="addCss"><name>ysrtech/emailcampaigns/cards.css</name></action>
+            <block type="ysrtech_emailcampaigns/adminhtml_assets" name="ysrtech.ec.assets.4">
+                <action method="addCss"><name>ysrtech/emailcampaigns/cards.css</name></action>
+            </block>
         </reference>
     </ysrtech_emailcampaigns_cards_css>
 
