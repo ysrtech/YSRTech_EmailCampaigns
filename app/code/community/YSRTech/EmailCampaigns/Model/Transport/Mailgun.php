@@ -123,11 +123,13 @@ class YSRTech_EmailCampaigns_Model_Transport_Mailgun
 
         $addresses = [];
         $variables = [];
+        $chunkVars = [];
 
         foreach ($chunk as $recipient) {
             $email = (string) $recipient['email'];
             $addresses[] = $email;
             $variables[$email] = $this->_flatten($recipient);
+            $chunkVars[$email] = isset($recipient['vars']) && is_array($recipient['vars']) ? $recipient['vars'] : [];
         }
 
         /*
@@ -154,6 +156,35 @@ class YSRTech_EmailCampaigns_Model_Transport_Mailgun
         // Links left as written when they go straight to the store: clicks
         // are counted there, on arrival (Model_Conversions)
         $params['o:tracking-clicks'] = $tracking === 'yes' && !$direct ? 'htmlonly' : 'no';
+
+        /*
+         * The header behind a mailbox's own "Unsubscribe" button, pointing at
+         * the store's page for each person rather than left to the provider.
+         * RFC 8058: the address, and the line that says a POST to it is enough.
+         * The address is each recipient's own, so it is a recipient variable -
+         * which Mailgun documents for the subject and the body and does not
+         * mention for headers. Hence a setting, to be checked with a test
+         * send before it is relied on, not something done for everybody.
+         */
+        if ($direct && Mage::helper('ysrtech_emailcampaigns')->getConfig('tracking/own_unsubscribe_header')) {
+            $every = true;
+
+            foreach ($variables as $email => $flat) {
+                if (empty($flat['optout_url'])) {
+                    // A message sent on its own carries the address as its link
+                    $own = (string) ($chunkVars[$email]['unsubscribe_url'] ?? '');
+                    $variables[$email]['optout_url'] = $own;
+                    $every = $every && strpos($own, 'http') === 0;
+                }
+            }
+
+            // Only where every person has one: a header with nothing in it is worse than none
+            if ($every) {
+                $params['recipient-variables']       = Mage::helper('core')->jsonEncode($variables);
+                $params['h:List-Unsubscribe']        = '<%recipient.optout_url%>';
+                $params['h:List-Unsubscribe-Post']   = 'List-Unsubscribe=One-Click';
+            }
+        }
 
         /*
          * Mailgun echoes v: variables back in a webhook's user-variables, which

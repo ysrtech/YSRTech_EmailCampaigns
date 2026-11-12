@@ -2,7 +2,7 @@
 <config>
     <modules>
         <YSRTech_EmailCampaigns>
-            <version>0.23.1</version>
+            <version>0.24.0</version>
         </YSRTech_EmailCampaigns>
     </modules>
 
@@ -407,6 +407,7 @@
                 <utm_source>newsletter</utm_source>
                 <utm_medium>email</utm_medium>
                 <direct_links>0</direct_links>
+                <own_unsubscribe_header>0</own_unsubscribe_header>
             </tracking>
             <ai>
                 <enabled>0</enabled>
