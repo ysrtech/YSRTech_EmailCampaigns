@@ -116,7 +116,7 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Cards extends Mage_Adminht
 
             $byDay[$at->format('Y-m-d')][] = [
                 'id'     => (int) $campaign->getId(),
-                'name'   => (string) $campaign->getName(),
+                'name'   => $campaign->hasName() ? (string) $campaign->getName() : $this->__('Unnamed draft'),
                 'status' => (string) $campaign->getStatus(),
                 'time'   => Mage::app()->getLocale()->date($at->getTimestamp())->toString(Mage::app()->getLocale()->getTimeFormat(Mage_Core_Model_Locale::FORMAT_TYPE_SHORT)),
             ];

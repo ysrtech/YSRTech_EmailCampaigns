@@ -121,7 +121,7 @@ $pct        = static fn (int $part, int $whole) => $whole ? round($part / $whole
                 </span>
                 <span class="tg-info">
                     <span class="cg-top">
-                        <b title="<?php echo $this->escapeHtml($campaign->getName()) ?>"><?php echo $this->escapeHtml($campaign->getName()) ?></b>
+                        <?php $cardName = $campaign->hasName() ? $campaign->getName() : $this->__('Unnamed draft') ?><b title="<?php echo $this->escapeHtml($cardName) ?>"><?php echo $this->escapeHtml($cardName) ?></b>
                         <span class="eg-chip <?php echo $this->escapeHtml($status) ?>"><?php echo $this->escapeHtml($this->getStatusLabel($status)) ?></span>
                     </span>
                     <small class="line"><?php echo $this->escapeHtml($campaign->getSubject() ?: $this->__('No subject yet')) ?></small>

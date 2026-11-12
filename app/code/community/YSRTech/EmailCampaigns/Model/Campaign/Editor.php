@@ -99,7 +99,7 @@ class YSRTech_EmailCampaigns_Model_Campaign_Editor
 
         return [
             'id'        => (int) $campaign->getId(),
-            'name'      => (string) $campaign->getName(),
+            'name'      => $campaign->hasName() ? (string) $campaign->getName() : '',
             'status'    => (string) $campaign->getStatus(),
             'editable'  => $editable,
             'to'        => [
@@ -146,10 +146,12 @@ class YSRTech_EmailCampaigns_Model_Campaign_Editor
             // Once it has started, what became of it
             'report'    => $editable ? null : Mage::getSingleton('ysrtech_emailcampaigns/campaign_report')->compute($campaign),
             'when'      => [
+                'sent_at'      => $this->_local($campaign->getSentAt()),
                 'scheduled_at' => $this->_local($campaign->getScheduledAt()),
                 'timezone'     => (string) Mage::app()->getStore()->getConfig(Mage_Core_Model_Locale::XML_PATH_DEFAULT_TIMEZONE),
             ],
-            'problems'  => $problems,
+            // First, so it is the first thing the Send button gives as its reason
+            'problems'  => ($campaign->hasName() ? [] : ['name' => $h->__('Name the campaign.')]) + $problems,
             'saved_at'  => Mage::helper('core')->formatTime(null, 'short'),
         ];
     }

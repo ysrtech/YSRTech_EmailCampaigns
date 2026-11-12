@@ -83,6 +83,20 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
     }
 
     /**
+     * Whether somebody has named this campaign. A new one starts without a
+     * name, and nothing else about it can be saved until it has one;
+     * "Untitled campaign" is what older drafts were given before that and
+     * counts as no name.
+     */
+    public function hasName(): bool
+    {
+        $name = trim((string) $this->getName());
+
+        return $name !== '' && $name !== 'Untitled campaign'
+            && $name !== Mage::helper('ysrtech_emailcampaigns')->__('Untitled campaign');
+    }
+
+    /**
      * Whether this campaign is a plain-text letter rather than a designed
      * email.
      */

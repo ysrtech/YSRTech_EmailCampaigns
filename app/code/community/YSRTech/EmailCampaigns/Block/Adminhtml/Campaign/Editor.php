@@ -115,6 +115,10 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Editor extends Mage_Adminh
     protected function _labels(): array
     {
         $t = [
+            'nameLabel' => 'Campaign name', 'namePlaceholder' => 'Type a name for this campaign',
+            'nameFirst' => 'Give the campaign a name first.',
+            'nameNote' => 'Start here. The name is for you, not for the people you email; the steps below open once it has one.',
+            'details' => 'What was sent', 'dSent' => 'Sent', 'dStarted' => 'Started', 'dDesign' => 'A designed email', 'dNone' => 'None',
             'back' => 'Campaigns', 'saved' => 'Saved', 'saving' => 'Saving…', 'notSaved' => 'Not saved',
             'sendTest' => 'Send test', 'sendNow' => 'Send now', 'schedule' => 'Schedule', 'updateSchedule' => 'Update schedule',
             'backToDraft' => 'Back to draft', 'duplicate' => 'Duplicate', 'delete' => 'Delete',

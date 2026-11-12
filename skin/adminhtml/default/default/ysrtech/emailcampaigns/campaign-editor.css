@@ -50,10 +50,31 @@
 /* Top bar */
 .ecc .back { display: inline-block; margin-bottom: 10px; color: var(--text-2); font-size: 13px; }
 .ecc .top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 18px; }
-.ecc .title { flex: 1 1 260px; min-width: 0; height: 42px !important; border-color: transparent !important; background: transparent !important;
-  font-size: 22px !important; font-weight: 600 !important; padding: 0 8px !important; margin-left: -8px; }
-.ecc .title:hover:not(:disabled) { border-color: var(--border) !important; }
-.ecc .title:focus { border-color: var(--accent) !important; background: var(--surface) !important; }
+.ecc .top { align-items: flex-end; }
+/* The campaign's name: a field that looks like one, with its label, so nobody takes it for a heading */
+.ecc .name-field { flex: 1 1 320px; min-width: 0; max-width: 560px; display: flex; flex-direction: column; gap: 4px; }
+.ecc .name-field label { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.ecc .title { width: 100%; height: 42px !important; border: 1px solid var(--border-strong, #d4d4d8) !important; border-radius: var(--radius-sm) !important;
+  background: var(--surface) !important; font-size: 17px !important; font-weight: 600 !important; padding: 0 12px !important; box-shadow: 0 1px 2px rgba(24,24,27,.05); }
+.ecc .title::placeholder { font-weight: 400; color: var(--text-3); }
+.ecc .title:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 3px var(--accent-soft); outline: none; }
+.ecc .name-note { display: none; font-size: 12.5px; color: var(--accent-text); }
+.ecc .top > .chip, .ecc .top > .saved, .ecc .top > .btn { margin-bottom: 9px; }
+.ecc .top > .saved { margin-bottom: 12px; }
+.ecc .title-ro { flex: 0 1 auto; min-width: 0; margin: 0 4px 6px 0; font-size: 22px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* No name yet: the name is the one thing asking to be filled in, and the steps wait */
+.ecc.unnamed .title { border-color: var(--accent) !important; box-shadow: 0 0 0 3px var(--accent-soft); }
+.ecc.unnamed .name-note { display: block; }
+.ecc.unnamed .ready, .ecc.unnamed .sec, .ecc.unnamed .precheck { opacity: .45; }
+.ecc.unnamed .sec-head { cursor: not-allowed; }
+.ecc .title.nudge { animation: ecc-nudge .35s; }
+@keyframes ecc-nudge { 25% { transform: translateX(-5px); } 50% { transform: translateX(5px); } 75% { transform: translateX(-3px); } }
+/* A campaign that has started: its settings as one list */
+.ecc .details { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px; }
+.ecc .details .head { font-weight: 600; margin-bottom: 10px; }
+.ecc .details dl { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 9px 14px; margin: 0; font-size: 13.5px; }
+.ecc .details dt { color: var(--text-3); }
+.ecc .details dd { margin: 0; overflow-wrap: anywhere; }
 .ecc .chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px;
   font-size: 12px; font-weight: 600; background: var(--surface-2); color: var(--text-2); }
 .ecc .chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }

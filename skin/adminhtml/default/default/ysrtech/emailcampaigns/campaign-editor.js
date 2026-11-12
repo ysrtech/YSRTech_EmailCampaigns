@@ -19,7 +19,8 @@
 
     var t = cfg.t;
     var state = cfg.state;
-    var open = firstUnfinished();
+    var open = cfg.state.name ? firstUnfinished() : null;
+    var nameAsked = !cfg.state.name;
     var device = 'desktop';
     var when = {mode: null, date: '', time: '09:30'};
     var saveTimer = null;
@@ -83,12 +84,37 @@
     }
 
     function firstUnfinished() {
-        var s = cfg.state;
+        var s = state;
         if (!s.editable) { return null; }
         if (s.problems.aud) { return 'aud'; }
         if (s.problems.subj) { return 'subj'; }
         if (s.problems.content) { return 'content'; }
         return s.problems.from ? 'from' : 'when';
+    }
+
+    /*
+     * A campaign is named before anything else about it is set. The name is
+     * read from the box as it stands, so the steps open the moment a letter
+     * is typed, without waiting for a save to come back.
+     */
+    function named() {
+        var box = $('#ecc-name');
+        return (box ? box.value : state.name).trim() !== '';
+    }
+
+    function askName() {
+        var box = $('#ecc-name');
+        toast(t.nameFirst);
+        if (box) {
+            box.focus();
+            box.classList.remove('nudge');
+            void box.offsetWidth;
+            box.classList.add('nudge');
+        }
+    }
+
+    function paintNamed() {
+        root.classList.toggle('unnamed', state.editable && !named());
     }
 
     function typing() {
@@ -210,6 +236,14 @@
      */
     function save(fields, immediately) {
         if (!state.editable) { return Promise.resolve(); }
+
+        if (!named()) {
+            // No name, or the name of a campaign that had one emptied: say so, keep nothing
+            clearTimeout(saveTimer);
+            savedText = t.notSaved + ': ' + t.nameFirst; savedError = true; paintSaved();
+            if (!('name' in fields)) { askName(); }
+            return Promise.resolve();
+        }
 
         Object.keys(fields).forEach(function (key) { pending[key] = fields[key]; });
         clearTimeout(saveTimer);
@@ -399,7 +433,7 @@
     // ------------------------------------------------------------- render
 
     function isReady() {
-        return !Object.keys(state.problems).length && !!when.mode;
+        return !Object.keys(state.problems).filter(function (k) { return k !== 'name'; }).length && !!when.mode;
     }
 
     function topButtons() {
@@ -420,16 +454,17 @@
 
         html += '<button type="button" class="btn" data-go="duplicate">' + esc(t.duplicate) + '</button>';
 
-        if (['draft', 'sent', 'cancelled', 'failed'].indexOf(state.status) >= 0) {
+        // Once it has started there is nothing left to delete or try out from here
+        if (state.editable && state.status === 'draft') {
             html += '<button type="button" class="btn btn-danger" data-go="delete" data-confirm="' + esc(t.confirmDelete) + '">' + esc(t.delete) + '</button>';
         }
-        if (state.content.has) {
+        if (state.editable && state.content.has) {
             html += '<button type="button" class="btn" id="ecc-test">' + esc(t.sendTest) + '</button>';
         }
         if (state.editable) {
             var problems = Object.keys(state.problems);
             var why = problems.length ? state.problems[problems[0]] : (when.mode ? '' : t.chooseTime);
-            html += '<button type="button" class="btn btn-primary" id="ecc-go"' + (isReady() ? '' : ' disabled') + ' title="' + esc(why) + '">'
+            html += '<button type="button" class="btn btn-primary" id="ecc-go"' + (isReady() && named() ? '' : ' disabled') + ' title="' + esc(why) + '">'
                 + esc(state.status === 'scheduled' ? t.updateSchedule : (when.mode === 'now' ? t.sendNow : t.schedule)) + '</button>';
         }
 
@@ -484,18 +519,8 @@
         return html + '</div>';
     }
 
-    function render() {
-        var list = sections();
-        var doneCount = list.filter(function (s) { return s.done && !s.problem; }).length;
-
-        root.innerHTML = '<a class="back" href="' + esc(cfg.urls.back) + '">← ' + esc(t.back) + '</a>'
-            + '<div class="top"><input type="text" class="title" id="ecc-name" maxlength="255" value="' + esc(state.name) + '"' + (state.editable ? '' : ' disabled') + '>'
-            + '<span class="chip ' + esc(state.status) + '">' + esc(t['status_' + state.status] || state.status) + '</span>'
-            + '<span class="saved" id="ecc-saved"></span><span class="spacer"></span>' + topButtons() + '</div>'
-            + (state.editable ? '' : '<div class="banner">' + esc(t.readOnly) + ' <a href="' + esc(cfg.urls.dashboard) + '">' + esc(t.viewResults) + '</a></div>')
-            + '<div class="builder"><div>'
-            + report()
-            + '<div class="ready"><b>' + esc(isReady() ? t.ready : tr('ofReady', doneCount, list.length)) + '</b><div class="bars">'
+    function steps(list, doneCount) {
+        return '<div class="ready"><b>' + esc(isReady() ? t.ready : tr('ofReady', doneCount, list.length)) + '</b><div class="bars">'
             + list.map(function (s) { return '<span class="' + (s.done && !s.problem ? 'on' : '') + '"></span>'; }).join('') + '</div></div>'
             + list.map(function (s) {
                 var cls = s.problem || s.warn ? 'warn' : (s.done ? 'done' : '');
@@ -508,13 +533,56 @@
                     + (open === s.k ? '' : '<button type="button" class="btn btn-sm">' + esc(s.done ? t.edit : t.add) + '</button>') + '</div>'
                     + '<div class="sec-body">' + (open === s.k ? s.body()
                         + '<div class="sec-next"><button type="button" class="btn btn-primary btn-sm" data-next="' + s.k + '">'
-                        + esc(list[list.length - 1].k === s.k || !state.editable ? t.done : t.next) + '</button></div>' : '') + '</div></div>';
+                        + esc(list[list.length - 1].k === s.k ? t.done : t.next) + '</button></div>' : '') + '</div></div>';
             }).join('')
             + (state.content.checks.length ? '<div class="precheck"><div class="head"><span>' + esc(t.checks) + '</span><span class="badge">'
                 + esc(tr('passing', state.content.checks.filter(function (c) { return c.level === 'ok'; }).length, state.content.checks.length)) + '</span></div>'
                 + '<ul class="checks">' + state.content.checks.map(function (c) {
                     return '<li class="' + esc(c.level) + '"><span><b>' + esc(c.label) + '</b> — ' + esc(c.message) + '</span></li>';
-                }).join('') + '</ul></div>' : '')
+                }).join('') + '</ul></div>' : '');
+    }
+
+    /*
+     * A campaign that has started has nothing left to set, so its settings
+     * are not steps any more: one list of what went out, to whom and when.
+     */
+    function details() {
+        var row = function (label, value) {
+            return '<dt>' + esc(label) + '</dt><dd>' + (value ? esc(value) : '<span class="faint">' + esc(t.dNone) + '</span>') + '</dd>';
+        };
+        var letter = state.content.letter;
+        var at = state.when.sent_at || state.when.scheduled_at;
+
+        return '<div class="details"><div class="head">' + esc(t.details) + '</div><dl>'
+            + row(t.to, audienceSummary())
+            + row(t.from, state.from.email ? state.from.display_name + ' <' + state.from.email + '>' : '')
+            + (state.from.reply_to ? row(t.replyTo, state.from.reply_to) : '')
+            + row(t.subject, state.subject)
+            + row(t.previewText, state.preheader)
+            + row(t.content, letter.is ? t.letter + ' · ' + tr('letterWords', words(letter.text)) : (state.content.has ? t.dDesign + ' · ' + state.content.size_kb + ' KB' : ''))
+            + row(t.storeView, state.store_name)
+            + row(state.when.sent_at ? t.dSent : t.dStarted, at ? at.label : '')
+            + '</dl></div>';
+    }
+
+    function render() {
+        var list = sections();
+        var doneCount = list.filter(function (s) { return s.done && !s.problem; }).length;
+
+        // The page is redrawn whenever a step opens or a save comes back, and the name may have been
+        // typed since the last save: what is in the box wins over what the server last heard
+        var nameNow = $('#ecc-name') ? $('#ecc-name').value : state.name;
+        var nameField = '<div class="name-field"><label for="ecc-name">' + esc(t.nameLabel) + '</label>'
+            + '<input type="text" class="title" id="ecc-name" maxlength="255" value="' + esc(nameNow) + '" placeholder="' + esc(t.namePlaceholder) + '">'
+            + '<span class="name-note">' + esc(t.nameNote) + '</span></div>';
+
+        root.innerHTML = '<a class="back" href="' + esc(cfg.urls.back) + '">← ' + esc(t.back) + '</a>'
+            + '<div class="top">' + (state.editable ? nameField : '<h2 class="title-ro">' + esc(state.name) + '</h2>')
+            + '<span class="chip ' + esc(state.status) + '">' + esc(t['status_' + state.status] || state.status) + '</span>'
+            + (state.editable ? '<span class="saved" id="ecc-saved"></span>' : '') + '<span class="spacer"></span>' + topButtons() + '</div>'
+            + '<div class="builder"><div>'
+            + report()
+            + (state.editable ? steps(list, doneCount) : details())
             + '</div><aside class="preview-pane"><div class="pp-head"><span>' + esc(t.preview) + '</span><div class="seg">'
             + '<button type="button" data-dev="desktop" class="' + (device === 'desktop' ? 'on' : '') + '">' + esc(t.desktop) + '</button>'
             + '<button type="button" data-dev="mobile" class="' + (device === 'mobile' ? 'on' : '') + '">' + esc(t.mobile) + '</button></div></div>'
@@ -522,6 +590,7 @@
             + '<span class="fr" id="ecc-im-from"></span><span class="sj"><b id="ecc-im-subj"></b> <span id="ecc-im-pre"></span></span><span class="tm">09:30</span></div></div>'
             + '<div class="pp-body"><div class="pp-fit" id="ecc-fit"><iframe class="pp-frame ' + device + '" id="ecc-frame" sandbox="" title="' + esc(t.preview) + '"></iframe></div></div></aside></div>';
 
+        paintNamed();
         paintSaved();
         paintLive();
         paintFrames();
@@ -588,6 +657,7 @@
     function bind() {
         $$('.sec-head').forEach(function (head) {
             head.onclick = function () {
+                if (!named()) { askName(); return; }
                 var k = head.parentNode.getAttribute('data-k');
                 open = open === k ? null : k;
                 render();
@@ -595,7 +665,8 @@
         });
 
         $$('[data-next]').forEach(function (button) {
-            button.onclick = function () {
+            button.onclick = function (e) {
+                if (!named()) { e.stopPropagation(); askName(); return; }
                 var keys = sections().map(function (s) { return s.k; });
                 var at = keys.indexOf(button.getAttribute('data-next'));
                 open = state.editable && at < keys.length - 1 ? keys[at + 1] : null;
@@ -646,7 +717,24 @@
 
         if (!state.editable) { return; }
 
-        $('#ecc-name').oninput = function () { save({name: this.value}); };
+        var nameBox = $('#ecc-name');
+        nameBox.oninput = function () {
+            paintNamed();
+            var send = $('#ecc-go');
+            if (send) { send.disabled = !(isReady() && named()); }
+            save({name: this.value});
+        };
+        nameBox.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); nameBox.blur(); } };
+        // Just named, and nothing open yet: on to the first step that needs filling in
+        nameBox.onblur = function () {
+            if (nameAsked && named() && open === null) {
+                nameAsked = false;
+                open = firstUnfinished();
+                renderLater = true;
+            }
+        };
+        // Only while it is still empty: taking the cursor back after that would get in the way of the next click
+        if (!named() && !document.querySelector('.ecc-modal-back')) { nameBox.focus(); }
 
         $$('[data-seg]').forEach(function (box) {
             box.onchange = function () { save({segments: readSegments()}, true); };

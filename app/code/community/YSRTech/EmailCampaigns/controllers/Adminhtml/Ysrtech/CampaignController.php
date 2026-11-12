@@ -29,7 +29,8 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
     public function newAction()
     {
         $campaign = Mage::getModel('ysrtech_emailcampaigns/campaign')->setData([
-            'name'     => $this->__('Untitled campaign'),
+            // No name yet: the editor asks for one before anything else
+            'name'     => '',
             'status'   => YSRTech_EmailCampaigns_Model_Campaign::STATUS_DRAFT,
             'store_id' => 0,
         ])->save();
@@ -116,8 +117,10 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
                 }
             }
 
-            if (array_key_exists('name', $post) && $campaign->getName() === '') {
-                $campaign->setName($this->__('Untitled campaign'));
+            // The name comes first: nothing about a campaign is kept until
+            // it has one, and an existing name cannot be emptied
+            if (!$campaign->hasName()) {
+                Mage::throwException($h->__('Give the campaign a name first.'));
             }
 
             if (array_key_exists('from_local', $post)) {
@@ -191,6 +194,10 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
 
             /** @var YSRTech_EmailCampaigns_Model_Template_Starter $starter */
             $starter = Mage::getSingleton('ysrtech_emailcampaigns/template_starter');
+
+            if (!$campaign->hasName()) {
+                Mage::throwException($h->__('Give the campaign a name first.'));
+            }
 
             if ($source === 'clear') {
                 // The letter's words are kept: switching back finds them
@@ -269,6 +276,13 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
         if (!$campaign || !$this->_editable($campaign)) {
             $this->_getSession()->addError($this->__('This campaign can no longer be edited.'));
             $this->_redirect('*/*/index');
+
+            return;
+        }
+
+        if (!$campaign->hasName()) {
+            $this->_getSession()->addError($this->__('Give the campaign a name first.'));
+            $this->_redirect('*/*/edit', ['id' => $campaign->getId()]);
 
             return;
         }
