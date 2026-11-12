@@ -153,8 +153,11 @@ $ok('a test send has the store\'s unsubscribe link too, not the provider\'s',
     && strpos((string) ($one['vars']['optout_url'] ?? ''), 'emailcampaigns/preferences/unsubscribe/test/1') !== false && ($one['email'] ?? '') === 'tester@example.com');
 $set('ysrtech_emailcampaigns/tracking/direct_links', 0);
 $sender->sendTest(Mage::getModel('ysrtech_emailcampaigns/campaign')->load($ownId), 'tester@example.com');
-$ok('with the setting off, a test send uses the provider\'s link as before',
-    strpos(YSRTech_EmailCampaigns_Model_Transport_Noop::$lastHtml, 'href="%unsubscribe_url%"') !== false);
+$one = YSRTech_EmailCampaigns_Model_Transport_Noop::$lastRecipients[0] ?? [];
+$ok('with the setting off, a test send still never carries the provider\'s live unsubscribe link',
+    strpos(YSRTech_EmailCampaigns_Model_Transport_Noop::$lastHtml, '%unsubscribe_url%') === false
+    && strpos(YSRTech_EmailCampaigns_Model_Transport_Noop::$lastHtml, 'href="%recipient.optout_url%"') !== false
+    && strpos((string) ($one['vars']['optout_url'] ?? ''), 'emailcampaigns/preferences/unsubscribe/test/1') !== false);
 
 $db->delete($t('ysrtech_emailcampaigns/queue'), ['campaign_id = ?' => $ownId]);
 $db->delete($t('ysrtech_emailcampaigns/campaign'), ['campaign_id = ?' => $ownId]);

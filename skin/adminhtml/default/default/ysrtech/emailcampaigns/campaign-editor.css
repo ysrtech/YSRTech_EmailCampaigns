@@ -250,3 +250,8 @@
 .ecc .report details.links td:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ecc .report details.links td a { color: var(--accent-text); }
 .ecc .report details.links td small { color: var(--text-3); margin-left: 4px; }
+
+/* A campaign waiting to go out: when, and how long from now */
+.ecc .banner.warn { background: var(--warn-soft, #fef3c7); color: var(--warn, #b45309); }
+.ecc .help .bad { color: var(--bad); }
+.ecc .help.warn-note { color: var(--warn, #b45309); }

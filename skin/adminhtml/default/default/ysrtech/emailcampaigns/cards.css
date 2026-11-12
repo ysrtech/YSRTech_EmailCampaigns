@@ -187,3 +187,5 @@
 
 /* What an email earned */
 .ecg .earned, .ecg .earned b { color: var(--ok); }
+
+.ecg .overdue { color: var(--warn); font-weight: 700; }

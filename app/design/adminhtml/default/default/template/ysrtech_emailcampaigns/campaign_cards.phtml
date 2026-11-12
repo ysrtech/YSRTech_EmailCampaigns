@@ -125,7 +125,7 @@ $pct        = static fn (int $part, int $whole) => $whole ? round($part / $whole
                         <span class="eg-chip <?php echo $this->escapeHtml($status) ?>"><?php echo $this->escapeHtml($this->getStatusLabel($status)) ?></span>
                     </span>
                     <small class="line"><?php echo $this->escapeHtml($campaign->getSubject() ?: $this->__('No subject yet')) ?></small>
-                    <small><?php echo $this->escapeHtml($when) ?></small>
+                    <small><?php echo $this->escapeHtml($when) ?><?php if ($status === 'scheduled' && $campaign->getScheduledAt() && strtotime($campaign->getScheduledAt() . ' UTC') < time() - 300): ?> <b class="overdue" title="<?php echo $this->escapeHtml($this->__('Its time has passed and it has not started: the store\'s scheduler (cron) may not be running.')) ?>"><?php echo $this->escapeHtml($this->__('overdue')) ?></b><?php endif ?></small>
                     <?php if ($s['sent'] > 0): ?>
                         <span class="tg-stats">
                             <span><b><?php echo number_format($s['sent']) ?></b> <?php echo $this->escapeHtml($this->__('sent')) ?></span>

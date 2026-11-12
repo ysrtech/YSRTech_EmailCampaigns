@@ -2,7 +2,7 @@
 <config>
     <modules>
         <YSRTech_EmailCampaigns>
-            <version>0.24.3</version>
+            <version>0.25.0</version>
         </YSRTech_EmailCampaigns>
     </modules>
 

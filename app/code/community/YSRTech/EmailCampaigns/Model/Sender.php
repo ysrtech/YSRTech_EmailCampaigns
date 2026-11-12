@@ -798,13 +798,13 @@ class YSRTech_EmailCampaigns_Model_Sender
             'store'           => ['name' => $storeName],
             // Nobody is unsubscribed by a test. With links going straight to
             // the store there is no provider page to stand in: the link leads nowhere
-            'unsubscribe_url' => $delegates && !$direct ? '%unsubscribe_url%' : $nowhere,
-        ];
-
-        if ($direct) {
+            // Never the provider's own unsubscribe link, whichever way links
+            // are set to go: that one is live, and following it from a test
+            // took the tester off the list for every campaign after
+            'unsubscribe_url' => $nowhere,
             // What the provider fills the shared body's placeholder with
-            $vars['optout_url'] = $nowhere;
-        }
+            'optout_url'      => $nowhere,
+        ];
 
         $subject = Mage::helper('ysrtech_emailcampaigns')->__('[TEST] %s', (string) $campaign->getSubject());
         $text    = null;
@@ -825,7 +825,7 @@ class YSRTech_EmailCampaigns_Model_Sender
             $transport->setLetter(['text' => $delegates ? $text : null, 'track' => $tracked]);
         } else {
             $html = $delegates
-                ? $renderer->render($template, $this->_placeholderVars($storeName, $direct))
+                ? $renderer->render($template, $this->_placeholderVars($storeName, true))
                 : $renderer->render($template, $vars);
         }
 

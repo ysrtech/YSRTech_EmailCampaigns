@@ -168,6 +168,14 @@ class YSRTech_EmailCampaigns_Model_Campaign_Editor
                 'sent_at'      => $this->_local($campaign->getSentAt()),
                 'scheduled_at' => $this->_local($campaign->getScheduledAt()),
                 'timezone'     => (string) Mage::app()->getStore()->getConfig(Mage_Core_Model_Locale::XML_PATH_DEFAULT_TIMEZONE),
+                // For "in 3 hours" on the page: the two instants, by the server's clock
+                'scheduled_ts' => $campaign->getScheduledAt() ? strtotime($campaign->getScheduledAt() . ' UTC') : null,
+                'now_ts'       => time(),
+                // The store's clock as it stands, and the time first offered
+                // for a later send: today, on the next half hour that is at
+                // least ten minutes off
+                'now'          => $this->_local(gmdate('Y-m-d H:i:s')),
+                'suggested'    => $this->_local(gmdate('Y-m-d H:i:s', (int) (ceil((time() + 600) / 1800) * 1800))),
             ],
             // First, so it is the first thing the Send button gives as its reason
             'problems'  => ($campaign->hasName() ? [] : ['name' => $h->__('Name the campaign.')]) + $problems,

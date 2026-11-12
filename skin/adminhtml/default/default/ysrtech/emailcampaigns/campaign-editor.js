@@ -22,7 +22,9 @@
     var open = cfg.state.name ? firstUnfinished() : null;
     var nameAsked = !cfg.state.name;
     var device = 'desktop';
-    var when = {mode: null, date: '', time: '09:30'};
+    var when = {mode: null, date: '', time: ''};
+    // When the page's idea of "now" was taken, to count on from it without trusting this computer's clock
+    var loadedAt = Date.now();
     var saveTimer = null;
     var pending = {};
     var savedText = t.saved;
@@ -33,9 +35,11 @@
         when = {mode: 'scheduled', date: state.when.scheduled_at.date, time: state.when.scheduled_at.time};
     }
 
-    if (!when.date) {
-        var tomorrow = new Date(Date.now() + 864e5);
-        when.date = tomorrow.getFullYear() + '-' + pad(tomorrow.getMonth() + 1) + '-' + pad(tomorrow.getDate());
+    // A later send is first offered for today, on the next half hour, by the store's clock: a date
+    // that starts on tomorrow is easily missed by somebody who only meant to change the time
+    if (!when.date && state.when.suggested) {
+        when.date = state.when.suggested.date;
+        when.time = state.when.suggested.time;
     }
 
     // ------------------------------------------------------------ helpers
@@ -116,6 +120,76 @@
     function paintNamed() {
         root.classList.toggle('unnamed', state.editable && !named());
     }
+
+    // ------------------------------------------------------------ the clock
+
+    // Seconds from now until an instant, by the server's clock carried forward
+    function secondsUntil(ts) {
+        return ts - (state.when.now_ts + Math.round((Date.now() - loadedAt) / 1000));
+    }
+
+    function span(seconds, far) {
+        var m = Math.max(0, Math.round(seconds / 60));
+        if (m >= 2880) { return tr(far ? 'inDays' : 'agoHours', far ? Math.floor(m / 1440) : Math.floor(m / 60), far ? Math.floor((m % 1440) / 60) : m % 60); }
+        if (m >= 60) { return tr(far ? 'inHours' : 'agoHours', Math.floor(m / 60), m % 60); }
+        return tr(far ? 'inMinutes' : 'agoMinutes', m);
+    }
+
+    // "in 3 h 20 min", for a time still to come
+    function until(seconds) {
+        return seconds < 90 ? t.inMoment : span(seconds, true);
+    }
+
+    /*
+     * How far off the date and time in the two boxes are. Both they and the
+     * store's "now" are wall-clock readings in the store's timezone, so their
+     * difference is the wait (but for the hour a clock change adds or takes).
+     */
+    function chosenIn() {
+        if (!when.date || !when.time || !state.when.now) { return null; }
+        var stamp = function (date, time) {
+            var d = date.split('-'), h = time.split(':');
+            return Date.UTC(+d[0], +d[1] - 1, +d[2], +h[0], +h[1]) / 1000;
+        };
+        return stamp(when.date, when.time) - stamp(state.when.now.date, state.when.now.time) - Math.round((Date.now() - loadedAt) / 1000);
+    }
+
+    function chosenNote() {
+        var seconds = chosenIn();
+        if (seconds === null) { return ''; }
+        return seconds <= 0 ? '<span class="bad">' + esc(t.thatPassed) + '</span>' : esc(tr('thatIs', until(seconds)));
+    }
+
+    // Said only when it matters: this computer keeps different time from the store
+    function clockNote() {
+        try {
+            var read = function (zone) {
+                return new Intl.DateTimeFormat('en-GB', zone ? {timeZone: zone, hour: '2-digit', minute: '2-digit', hour12: false} : {hour: '2-digit', minute: '2-digit', hour12: false}).format(new Date());
+            };
+            var here = read(null), there = read(state.when.timezone);
+            return here === there ? '' : tr('clockDiffers', here, there, state.when.timezone);
+        } catch (e) {
+            return '';
+        }
+    }
+
+    // The line under the title of a campaign that is waiting to go out
+    function schedLine() {
+        if (state.status !== 'scheduled' || !state.when.scheduled_ts) { return ''; }
+        var seconds = secondsUntil(state.when.scheduled_ts);
+        // Five minutes' grace: the scheduler runs each minute, and building a large queue takes a little
+        if (seconds < -300) {
+            return '<div class="banner warn" id="ecc-sched">' + esc(tr('overdue', span(-seconds, false))) + '</div>';
+        }
+        return '<div class="banner" id="ecc-sched">' + esc(tr('sendsAt', state.when.scheduled_at.label, state.when.timezone, until(seconds))) + '</div>';
+    }
+
+    // The waits on the page are kept true while it sits open
+    setInterval(function () {
+        var line = $('#ecc-sched'), note = $('#ecc-wnote');
+        if (line) { line.outerHTML = schedLine(); }
+        if (note) { note.innerHTML = chosenNote(); }
+    }, 30000);
 
     function typing() {
         var el = document.activeElement;
@@ -268,6 +342,7 @@
 
     function applyState(json, forceRender) {
         state = json.state;
+        loadedAt = Date.now();
         savedText = t.saved; savedError = false;
 
         if (json.unscheduled) {
@@ -428,7 +503,8 @@
                         + (when.mode === 'scheduled' ? '<div class="row2" style="margin-top:14px"><div class="field"><label for="ecc-wd">' + esc(t.date) + '</label>'
                             + '<input type="date" id="ecc-wd" value="' + esc(when.date) + '"' + ro + '></div><div class="field"><label for="ecc-wt">' + esc(t.time) + '</label>'
                             + '<input type="time" id="ecc-wt" value="' + esc(when.time) + '"' + ro + '></div></div>'
-                            + '<p class="help" style="margin-top:6px">' + esc(tr('storeTime', state.when.timezone)) + '</p>' : '');
+                            + '<p class="help" style="margin-top:6px">' + esc(tr('storeTime', state.when.timezone)) + ' <b id="ecc-wnote">' + chosenNote() + '</b></p>'
+                            + (clockNote() ? '<p class="help warn-note">' + esc(clockNote()) + '</p>' : '') : '');
                 }
             }
         ];
@@ -605,6 +681,7 @@
             + '<div class="top">' + (state.editable ? nameField : '<h2 class="title-ro">' + esc(state.name) + '</h2>')
             + '<span class="chip ' + esc(state.status) + '">' + esc(t['status_' + state.status] || state.status) + '</span>'
             + (state.editable ? '<span class="saved" id="ecc-saved"></span>' : '') + '<span class="spacer"></span>' + topButtons() + '</div>'
+            + schedLine()
             + '<div class="builder"><div>'
             + report()
             + (state.editable ? steps(list, doneCount) : details())
@@ -847,8 +924,9 @@
             card.onclick = function () { when.mode = card.getAttribute('data-when'); render(); };
         });
         var wd = $('#ecc-wd'), wt = $('#ecc-wt');
-        if (wd) { wd.onchange = function () { when.date = wd.value; }; }
-        if (wt) { wt.onchange = function () { when.time = wt.value; }; }
+        var wnote = function () { var n = $('#ecc-wnote'); if (n) { n.innerHTML = chosenNote(); } };
+        if (wd) { wd.onchange = function () { when.date = wd.value; wnote(); }; wd.oninput = wd.onchange; }
+        if (wt) { wt.onchange = function () { when.time = wt.value; wnote(); }; wt.oninput = wt.onchange; }
 
         var unschedule = $('#ecc-unsch');
         if (unschedule) {
