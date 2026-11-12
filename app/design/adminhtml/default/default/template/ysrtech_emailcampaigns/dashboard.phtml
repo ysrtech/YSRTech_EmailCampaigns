@@ -136,59 +136,7 @@ $dash    = "\u{2014}";
     <p class="note ysrtech-ec-lede"><?php echo $this->escapeHtml($this->__('Grouped by the address\'s domain name, so a company domain hosted on Google or Microsoft counts under Other.')) ?></p>
 </div>
 
-<?php $check = $this->getSenderCheck(); ?>
-<div class="entry-edit" id="ysrtech-ec-sender">
-    <div class="entry-edit-head">
-        <h4><?php echo $this->escapeHtml($this->__('Sender Check')) ?></h4>
-        <form method="post" action="<?php echo $this->getUrl('*/*/senderCheck') ?>" class="ysrtech-ec-headform">
-            <?php echo $this->getBlockHtml('formkey') ?>
-            <button type="submit" class="scalable"><span><span><span><?php echo $this->escapeHtml($check ? $this->__('Check Again') : $this->__('Run Check')) ?></span></span></span></button>
-        </form>
-    </div>
-    <div class="fieldset">
-    <?php if (!$check): ?>
-        <p><?php echo $this->escapeHtml($this->__('Checks what Gmail, Yahoo and Microsoft require of a bulk sender: the sending domain\'s SPF, DKIM and DMARC records, that bounces and complaints are being recorded, and the bounce and complaint rates of the last 30 days. It looks the domain up in DNS, so it runs when asked rather than every time this page opens.')) ?></p>
-    <?php else: ?>
-        <div class="ysrtech-ec-check">
-            <div class="score <?php echo $check['score'] >= 85 ? 'good' : ($check['score'] >= 60 ? 'fair' : 'poor') ?>">
-                <div class="n"><?php echo (int) $check['score'] ?></div>
-                <div class="of"><?php echo $this->escapeHtml($this->__('out of 100')) ?></div>
-            </div>
-            <div class="body">
-                <p class="note"><?php echo $this->escapeHtml($this->__('Sending as %s through %s. Checked %s.', $check['from_domain'] ?: $dash, $check['sending_domain'] ?: $dash, $this->formatDate($check['checked_at'], 'medium', true))) ?></p>
-                <?php if (!$check['findings']): ?>
-                    <p><strong><?php echo $this->escapeHtml($this->__('Nothing to fix.')) ?></strong></p>
-                <?php endif ?>
-                <?php foreach ($check['findings'] as $finding): ?>
-                    <div class="finding <?php echo $this->escapeHtml($finding['level']) ?>">
-                        <strong><?php echo $this->escapeHtml($finding['title']) ?></strong>
-                        <span class="gain"><?php echo $this->escapeHtml($this->__('+%d when fixed', $finding['weight'])) ?></span>
-                        <p><?php echo $this->escapeHtml($finding['text']) ?></p>
-                        <?php if ($finding['fix'] !== ''): ?><p class="fix"><?php echo $this->escapeHtml($finding['fix']) ?></p><?php endif ?>
-                        <?php if (!empty($finding['action'])): ?>
-                            <form method="post" action="<?php echo $this->getUrl('*/*/mailgunFix') ?>" class="fix-form">
-                                <?php echo $this->getBlockHtml('formkey') ?>
-                                <input type="hidden" name="fix" value="<?php echo $this->escapeHtml($finding['action']) ?>"/>
-                                <button type="submit" class="scalable save"><span><span><span><?php echo $this->escapeHtml($finding['action'] === 'https' ? $this->__('Switch To https On Mailgun') : $this->__('Remove Mailgun\'s Footer')) ?></span></span></span></button>
-                            </form>
-                        <?php endif ?>
-                    </div>
-                <?php endforeach ?>
-                <?php if ($check['passed']): ?>
-                    <ul class="passed">
-                        <?php foreach ($check['passed'] as $line): ?><li><?php echo $this->escapeHtml($line) ?></li><?php endforeach ?>
-                    </ul>
-                <?php endif ?>
-                <?php if ($check['unknown']): ?>
-                    <ul class="unknown">
-                        <?php foreach ($check['unknown'] as $line): ?><li><?php echo $this->escapeHtml($line) ?></li><?php endforeach ?>
-                    </ul>
-                <?php endif ?>
-            </div>
-        </div>
-    <?php endif ?>
-    </div>
-</div>
+<p class="note ysrtech-ec-lede"><?php echo $this->escapeHtml($this->__('Looking for the Sender Check? It is in the settings now:')) ?> <a href="<?php echo $this->getUrl('adminhtml/system_config/edit', ['section' => 'ysrtech_emailcampaigns']) ?>"><?php echo $this->escapeHtml($this->__('Email Campaigns > Settings > Sender Check')) ?></a></p>
 
 <script type="text/javascript">
 //<![CDATA[

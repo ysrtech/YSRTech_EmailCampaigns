@@ -142,6 +142,11 @@ class YSRTech_EmailCampaigns_Model_Mailgun_Tracking
             // None yet, or one that expired or failed: ask for one
             $made = $this->_request($have === 'expired' ? 'PUT' : 'POST', $x509);
 
+            // Not a fault to chase in DNS: the account's plan does not include it
+            if ($made !== null && ($made['status'] === 402 || stripos($this->_reason($made), 'upgrade') !== false)) {
+                return $fail($h->__('Mailgun does not issue https certificates on this account\'s plan ("%s"). Either upgrade the Mailgun plan, or use "Send Links Straight To The Store" instead: links then go directly to your store over https and need no certificate.', $this->_reason($made)));
+            }
+
             if ($made === null || $made['status'] < 200 || $made['status'] >= 300) {
                 return $fail($h->__('Mailgun could not issue a certificate for %s: %s Check that %s is a CNAME to mailgun.org and, if it goes through Cloudflare, that it is set to "DNS only" (grey cloud).',
                     $host, $made === null ? '' : $this->_reason($made), $host));

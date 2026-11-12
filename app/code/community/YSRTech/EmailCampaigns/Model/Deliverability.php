@@ -217,10 +217,12 @@ class YSRTech_EmailCampaigns_Model_Deliverability
                     $passed[] = $h->__('Mailgun adds no unsubscribe footer of its own: the only link is the one in your design.');
                 }
 
-                if ($tracking['scheme'] !== 'https') {
+                if ($h->linksGoDirect()) {
+                    $passed[] = $h->__('Links go straight to your store over https, and the unsubscribe link is your store\'s own page. Clicks are counted on arrival.');
+                } elseif ($tracking['scheme'] !== 'https') {
                     $add('warn', 10, $h->__('Links in your emails open over http, not https.'),
                         $h->__('Mailgun passes every link, and the unsubscribe link, through its tracking address for %s, and that address is set to http. Browsers warn before opening it, and some mail apps mark the email as unsafe.', $sending),
-                        $h->__('Switch the tracking address to https. Mailgun issues the certificate itself; that takes a few minutes, so it is two presses a few minutes apart.'), 'https');
+                        $h->__('Either send links straight to your store, which needs nothing from Mailgun: links are https, clicks are counted when the visitor arrives, and only clicks on links to other websites go uncounted. Or switch Mailgun\'s tracking address to https, which needs a Mailgun plan that issues certificates and two presses a few minutes apart.'), 'https');
                 } else {
                     $passed[] = $h->__('Tracked links and the unsubscribe link use https.');
                 }

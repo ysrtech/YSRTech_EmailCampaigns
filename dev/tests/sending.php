@@ -18,6 +18,7 @@ class YSRTech_EmailCampaigns_Model_Transport_Noop implements YSRTech_EmailCampai
     public static $envelope = [];
     public static $sentWith = [];
     public static $lastHtml = '';
+    public static $lastRecipients = [];
     public function setEnvelope(?string $from, ?string $replyTo = null): void { self::$envelope = [$from, $replyTo]; }
     public function supportsRecipientVariables(): bool { return true; }
     public function send(string $to, string $subject, string $html, array $vars = [], ?int $timestamp = null) { return null; }
@@ -25,6 +26,7 @@ class YSRTech_EmailCampaigns_Model_Transport_Noop implements YSRTech_EmailCampai
     {
         self::$sentWith[] = self::$envelope;
         self::$lastHtml = $html;
+        self::$lastRecipients = $recipients;
         self::$calls++;
         self::$recipients += count($recipients);
         return null;
@@ -127,6 +129,23 @@ $ok('from its own sender at the configured domain, with its reply address',
     YSRTech_EmailCampaigns_Model_Transport_Noop::$sentWith[0] === ['Deals Desk <deals@mail.example.invalid>', 'help@example.invalid']);
 $ok('and the sender is put back to the default afterwards',
     YSRTech_EmailCampaigns_Model_Transport_Noop::$envelope === [null, null]);
+// ---- links straight to the store: the unsubscribe link is the store's own page, per person
+$db->delete($t('ysrtech_emailcampaigns/queue'), ['campaign_id = ?' => $ownId]);
+$db->update($t('ysrtech_emailcampaigns/campaign'), ['status' => 'scheduled', 'scheduled_at' => Varien_Date::now(), 'sent_at' => null,
+    'html' => '<p><a href="' . $shop . 'sale.html">Shop</a> <a href="{{ unsubscribe_url }}">Unsubscribe</a></p>'], ['campaign_id = ?' => $ownId]);
+$set('ysrtech_emailcampaigns/tracking/direct_links', 1);
+$sender->launchScheduledCampaigns();
+$sender->processQueue();
+$one = YSRTech_EmailCampaigns_Model_Transport_Noop::$lastRecipients[0] ?? [];
+$ok('with links going straight to the store, the shared body asks the provider for each person\'s own unsubscribe address',
+    strpos(YSRTech_EmailCampaigns_Model_Transport_Noop::$lastHtml, 'href="%recipient.optout_url%"') !== false
+    && strpos(YSRTech_EmailCampaigns_Model_Transport_Noop::$lastHtml, '%unsubscribe_url%') === false);
+$ok('and each person carries it: the store\'s unsubscribe page with their message\'s token',
+    strpos((string) ($one['vars']['optout_url'] ?? ''), 'emailcampaigns/preferences/unsubscribe/token/' . ($one['vars']['tracking_token'] ?? 'none')) !== false);
+$ok('links to the store still carry the token, which is how the click is now counted',
+    strpos(YSRTech_EmailCampaigns_Model_Transport_Noop::$lastHtml, 'sale.html?ec=%recipient.tracking_token%') !== false);
+$set('ysrtech_emailcampaigns/tracking/direct_links', 0);
+
 $db->delete($t('ysrtech_emailcampaigns/queue'), ['campaign_id = ?' => $ownId]);
 $db->delete($t('ysrtech_emailcampaigns/campaign'), ['campaign_id = ?' => $ownId]);
 

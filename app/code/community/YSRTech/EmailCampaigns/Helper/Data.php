@@ -131,6 +131,36 @@ class YSRTech_EmailCampaigns_Helper_Data extends Mage_Core_Helper_Abstract
     }
 
     /**
+     * Whether links go straight to the store rather than through the
+     * provider's tracking address (the "Send Links Straight To The Store"
+     * setting). Clicks are then counted here, on arrival, and the
+     * unsubscribe link is the store's own page.
+     */
+    public function linksGoDirect($storeId = null): bool
+    {
+        return (bool) $this->getConfig('tracking/enabled', $storeId) && (bool) $this->getConfig('tracking/direct_links', $storeId);
+    }
+
+    /**
+     * The store's own unsubscribe page for one message, over https where the
+     * store has it.
+     */
+    public function unsubscribeUrl(string $token, $storeId = null): string
+    {
+        // _nosid: this runs from cron, where reaching for a frontend session
+        // dies with "Unable to start session". The token as a plain
+        // parameter: keys starting with an underscore are read as url options.
+        return Mage::getUrl('emailcampaigns/preferences/unsubscribe', [
+            'token'   => $token,
+            '_store'  => $storeId,
+            '_nosid'  => true,
+            // https wherever the store has an https address at all, whatever
+            // it is set to use for ordinary pages
+            '_secure' => strpos((string) Mage::app()->getStore($storeId)->getConfig(Mage_Core_Model_Store::XML_PATH_SECURE_BASE_URL), 'https://') === 0,
+        ]);
+    }
+
+    /**
      * What a "Delete Segment" button does when pressed: ask, then post.
      */
     public function segmentDeleteJs(string $url): string

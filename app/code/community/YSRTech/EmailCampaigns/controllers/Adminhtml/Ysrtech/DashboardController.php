@@ -35,7 +35,7 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_DashboardController
             $this->_getSession()->addError($e->getMessage());
         }
 
-        $this->_redirect('*/*/index', ['_fragment' => 'ysrtech-ec-sender']);
+        $this->_redirect('adminhtml/system_config/edit', ['section' => 'ysrtech_emailcampaigns', '_fragment' => 'ysrtech-ec-sender']);
     }
 
     /**
@@ -59,6 +59,12 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_DashboardController
                 $result = $tracking->clearFooter();
             } elseif ($what === 'https') {
                 $result = $tracking->useHttps();
+            } elseif ($what === 'direct') {
+                // Not a change on Mailgun at all: a setting of this module
+                Mage::getConfig()->saveConfig('ysrtech_emailcampaigns/tracking/direct_links', 1);
+                Mage::getConfig()->reinit();
+                Mage::app()->reinitStores();
+                $result = ['ok' => true, 'message' => $this->__('Links in emails sent from now on go straight to your store over https, and the unsubscribe link opens your store\'s own page. Clicks are counted when the visitor arrives.')];
             } else {
                 Mage::throwException($this->__('Nothing to fix was named.'));
             }
@@ -79,7 +85,7 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_DashboardController
             $this->_getSession()->addError($this->__('Could not make the change on Mailgun. See the exception log.'));
         }
 
-        $this->_redirect('*/*/index', ['_fragment' => 'ysrtech-ec-sender']);
+        $this->_redirect('adminhtml/system_config/edit', ['section' => 'ysrtech_emailcampaigns', '_fragment' => 'ysrtech-ec-sender']);
     }
 
     /**

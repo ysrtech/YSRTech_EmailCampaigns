@@ -174,11 +174,11 @@ class YSRTech_EmailCampaigns_Model_Automation_Variables
     {
         $transport = Mage::getSingleton('ysrtech_emailcampaigns/transport_factory')->get();
 
-        if ($transport->supportsRecipientVariables()) {
+        if ($transport->supportsRecipientVariables() && !Mage::helper('ysrtech_emailcampaigns')->linksGoDirect($storeId)) {
             return '%unsubscribe_url%';
         }
 
-        return $this->_url('emailcampaigns/preferences/unsubscribe', ['token' => $item->getTrackingToken()], $storeId);
+        return Mage::helper('ysrtech_emailcampaigns')->unsubscribeUrl((string) $item->getTrackingToken(), $storeId);
     }
 
     /**

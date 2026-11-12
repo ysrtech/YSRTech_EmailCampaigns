@@ -113,7 +113,13 @@ class YSRTech_EmailCampaigns_Model_Transport_Mailgun
             return $this->_postLetterChunk($chunk, $subject, $html, $timestamp);
         }
 
-        $this->_assertUnsubscribeTrackingActive();
+        $direct = Mage::helper('ysrtech_emailcampaigns')->linksGoDirect();
+
+        // With links going straight to the store the body carries the store's
+        // own unsubscribe page, not %unsubscribe_url%: nothing to assert
+        if (!$direct) {
+            $this->_assertUnsubscribeTrackingActive();
+        }
 
         $addresses = [];
         $variables = [];
@@ -145,7 +151,9 @@ class YSRTech_EmailCampaigns_Model_Transport_Mailgun
         $tracking = Mage::helper('ysrtech_emailcampaigns')->getConfig('tracking/enabled') ? 'yes' : 'no';
         $params['o:tracking']        = $tracking;
         $params['o:tracking-opens']  = $tracking;
-        $params['o:tracking-clicks'] = $tracking === 'yes' ? 'htmlonly' : 'no';
+        // Links left as written when they go straight to the store: clicks
+        // are counted there, on arrival (Model_Conversions)
+        $params['o:tracking-clicks'] = $tracking === 'yes' && !$direct ? 'htmlonly' : 'no';
 
         /*
          * Mailgun echoes v: variables back in a webhook's user-variables, which

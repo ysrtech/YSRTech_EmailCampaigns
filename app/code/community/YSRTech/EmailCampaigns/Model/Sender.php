@@ -441,6 +441,9 @@ class YSRTech_EmailCampaigns_Model_Sender
         $names     = $this->_loadRecipientNames($items);
         $storeName = $this->storeName($campaign->getStoreId());
         $delegates = $transport->supportsRecipientVariables();
+        // Links straight to the store: the unsubscribe link is the store's own
+        // page for each person, as a letter's already is
+        $direct    = Mage::helper('ysrtech_emailcampaigns')->linksGoDirect($campaign->getStoreId());
 
         /** @var YSRTech_EmailCampaigns_Model_Letter $letter */
         $letter     = Mage::getSingleton('ysrtech_emailcampaigns/letter');
@@ -463,7 +466,7 @@ class YSRTech_EmailCampaigns_Model_Sender
             // placeholder, filled in per person as it delivers
             $sharedHtml = $delegates
                 ? $conversions->tagLinks(
-                    $renderer->render($template, $this->_placeholderVars($storeName)),
+                    $renderer->render($template, $this->_placeholderVars($storeName, $direct)),
                     '%recipient.tracking_token%', (string) $campaign->getName(), $campaign->getStoreId()
                 )
                 : null;
@@ -485,7 +488,7 @@ class YSRTech_EmailCampaigns_Model_Sender
                 // A letter's way out is the store's own page, written into
                 // the words: the provider's link would bring its bulk
                 // headers with it
-                'unsubscribe_url' => $this->_unsubscribeUrl($campaign, $item, $delegates && !$isLetter),
+                'unsubscribe_url' => $this->_unsubscribeUrl($campaign, $item, $delegates && !$isLetter && !$direct),
                 /*
                  * Carried so an open or a click coming back from the provider
                  * can be matched to this exact row rather than guessed at from
@@ -494,6 +497,12 @@ class YSRTech_EmailCampaigns_Model_Sender
                  */
                 'tracking_token'  => (string) $item->getTrackingToken(),
             ];
+
+            if ($direct && !$isLetter) {
+                // Handed to the provider as each person's own value, for the
+                // placeholder in the shared body
+                $vars['optout_url'] = $vars['unsubscribe_url'];
+            }
 
             if ($isLetter) {
                 // The provider reads recipient variables one level deep
@@ -780,7 +789,11 @@ class YSRTech_EmailCampaigns_Model_Sender
                 'email'     => $email,
             ],
             'store'           => ['name' => $storeName],
-            'unsubscribe_url' => $delegates ? '%unsubscribe_url%' : '#test-send',
+            // Nobody is unsubscribed by a test. With links going straight to
+            // the store there is no provider page to stand in: the link leads nowhere
+            'unsubscribe_url' => $delegates && !Mage::helper('ysrtech_emailcampaigns')->linksGoDirect($campaign->getStoreId())
+                ? '%unsubscribe_url%'
+                : Mage::app()->getStore($campaign->getStoreId())->getBaseUrl(Mage_Core_Model_Store::URL_TYPE_LINK) . '#test-send',
         ];
 
         $subject = Mage::helper('ysrtech_emailcampaigns')->__('[TEST] %s', (string) $campaign->getSubject());
@@ -905,11 +918,7 @@ class YSRTech_EmailCampaigns_Model_Sender
          * parameter - Magento reads keys starting with an underscore as url
          * options, so "_token" was being swallowed rather than put in the link.
          */
-        return Mage::getUrl('emailcampaigns/preferences/unsubscribe', [
-            'token'  => $item->getTrackingToken(),
-            '_store' => $campaign->getStoreId(),
-            '_nosid' => true,
-        ]);
+        return Mage::helper('ysrtech_emailcampaigns')->unsubscribeUrl((string) $item->getTrackingToken(), $campaign->getStoreId());
     }
 
     /**

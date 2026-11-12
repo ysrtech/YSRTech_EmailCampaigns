@@ -63,11 +63,13 @@ class YSRTech_EmailCampaigns_Model_Conversions
      */
     public function tagLinks(string $html, string $token, string $label = '', $storeId = null): string
     {
-        if ($html === '' || !$this->isEnabled($storeId)) {
+        $h = Mage::helper('ysrtech_emailcampaigns');
+
+        // The token is also how a click is counted when links go straight to the store
+        if ($html === '' || (!$this->isEnabled($storeId) && !$h->linksGoDirect($storeId))) {
             return $html;
         }
 
-        $h     = Mage::helper('ysrtech_emailcampaigns');
         $utm   = (bool) $h->getConfig('tracking/utm', $storeId);
         $extra = [];
 
@@ -175,7 +177,10 @@ class YSRTech_EmailCampaigns_Model_Conversions
         $token = $request->getParam(self::PARAM);
         $token = is_string($token) ? $token : '';
 
-        if (!preg_match('/^[A-Za-z0-9]{16,64}$/', $token) || !$this->isEnabled()) {
+        $h      = Mage::helper('ysrtech_emailcampaigns');
+        $direct = $h->linksGoDirect();
+
+        if (!preg_match('/^[A-Za-z0-9]{16,64}$/', $token) || (!$this->isEnabled() && !$direct)) {
             return;
         }
 
@@ -192,7 +197,10 @@ class YSRTech_EmailCampaigns_Model_Conversions
             return;
         }
 
-        Mage::getSingleton('core/cookie')->set(self::COOKIE, $token, $this->windowDays() * 86400, '/', null, null, true);
+        // The cookie is for crediting an order, and only set where orders are tracked
+        if ($this->isEnabled()) {
+            Mage::getSingleton('core/cookie')->set(self::COOKIE, $token, $this->windowDays() * 86400, '/', null, null, true);
+        }
 
         /*
          * Which link it was - but only where the provider does not say. One
@@ -200,15 +208,21 @@ class YSRTech_EmailCampaigns_Model_Conversions
          * what arrives here may have been redirected on the way, and the same
          * click would be listed twice under two addresses.
          */
-        if (strtolower((string) Mage::helper('ysrtech_emailcampaigns')->getConfig('sending/transport')) !== 'mailgun') {
+        $here = $direct || strtolower((string) $h->getConfig('sending/transport')) !== 'mailgun';
+
+        if ($here) {
             $row = $adapter->fetchRow($adapter->select()->from($queue, ['queue_id', 'campaign_id', 'automation_id'])->where('queue_id = ?', $id));
             $this->recordLinkClick($row, $request->getScheme() . "://" . $request->getHttpHost(false) . $request->getRequestUri(), Varien_Date::now());
         }
 
-        // Proof of a click in its own right, for a provider that reports none
+        /*
+         * The click itself. Where the provider counts clicks too, this only
+         * makes sure there is one on record; where this is the only count
+         * (links straight to the store), every arrival is a click.
+         */
         $adapter->update($queue, [
             'clicked_at'  => new Zend_Db_Expr('COALESCE(clicked_at, ' . $adapter->quote(Varien_Date::now()) . ')'),
-            'click_count' => new Zend_Db_Expr('GREATEST(click_count, 1)'),
+            'click_count' => new Zend_Db_Expr($direct ? 'click_count + 1' : 'GREATEST(click_count, 1)'),
         ], ['queue_id = ?' => $id]);
     }
 
