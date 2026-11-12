@@ -147,6 +147,45 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Cards extends Mage_Adminht
         return ['weeks' => $weeks, 'weekdays' => $weekdays, 'count' => $collection->getSize()];
     }
 
+    /**
+     * The years the calendar can jump to: from the first campaign there is
+     * (and never fewer than the last two years) to next year, and the year
+     * being shown whatever it is.
+     *
+     * @return int[]
+     */
+    public function getYears(): array
+    {
+        $resource = Mage::getSingleton('core/resource');
+        $adapter  = $resource->getConnection('core_read');
+        $earliest = $adapter->fetchOne(
+            $adapter->select()->from($resource->getTableName('ysrtech_emailcampaigns/campaign'), [new Zend_Db_Expr('MIN(LEAST(COALESCE(sent_at, scheduled_at, created_at), COALESCE(scheduled_at, created_at), created_at))')])
+        );
+
+        $now   = (int) (new DateTimeImmutable('now', $this->_timezone()))->format('Y');
+        $shown = (int) $this->getMonth()->format('Y');
+        // At least the two years before this one, further back if there
+        // are campaigns from then
+        $from  = min($earliest ? (int) substr((string) $earliest, 0, 4) : $now, $shown, $now - 2);
+
+        return range(max($from, 2000), max($now + 1, $shown));
+    }
+
+    /**
+     * @return array<int, string> 1..12 => the month's name
+     */
+    public function getMonthNames(): array
+    {
+        $names = Mage::app()->getLocale()->getTranslationList('months', ['gregorian', 'stand-alone', 'wide']);
+        $out   = [];
+
+        for ($m = 1; $m <= 12; $m++) {
+            $out[$m] = (string) ($names[$m] ?? date('F', mktime(0, 0, 0, $m, 1)));
+        }
+
+        return $out;
+    }
+
     public function getMonthLabel(): string
     {
         return Mage::app()->getLocale()->date($this->getMonth()->getTimestamp() + 86400 * 14)->toString('MMMM yyyy');

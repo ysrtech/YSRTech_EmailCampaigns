@@ -120,3 +120,6 @@
 .ecg .cal-item.failed, .ecg .cal-item.cancelled { background: var(--bad-soft); color: var(--bad); border-left-color: var(--bad); }
 .ecg .cal-legend { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 @media (max-width: 900px) { .ecg .cal-time { display: none; } .ecg table.cal td { height: 84px; padding: 4px; } }
+
+.ecg .cal-pick { display: inline-flex; gap: 6px; }
+.ecg .cal-pick select { height: 30px; padding: 0 8px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--surface); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: none; }

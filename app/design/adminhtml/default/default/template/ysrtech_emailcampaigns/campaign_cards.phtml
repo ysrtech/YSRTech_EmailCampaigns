@@ -36,7 +36,19 @@ $pct        = static fn (int $part, int $whole) => $whole ? round($part / $whole
         ?>
         <div class="cal-head">
             <a class="eg-btn sm" href="<?php echo $this->getViewUrl(['m' => $month->modify('-1 month')->format('Y-m')]) ?>" title="<?php echo $this->escapeHtml($this->__('Previous month')) ?>">&larr;</a>
-            <b><?php echo $this->escapeHtml($this->getMonthLabel()) ?></b>
+            <?php /* Straight to any month of any year, without stepping there */ ?>
+            <span class="cal-pick" data-url="<?php echo $this->escapeHtml($this->getViewUrl(['m' => '0000-00'])) ?>">
+                <select id="ysrtech-ec-cal-month" aria-label="<?php echo $this->escapeHtml($this->__('Month')) ?>">
+                    <?php foreach ($this->getMonthNames() as $number => $name): ?>
+                        <option value="<?php echo sprintf('%02d', $number) ?>"<?php if ($number === (int) $month->format('n')): ?> selected="selected"<?php endif ?>><?php echo $this->escapeHtml($name) ?></option>
+                    <?php endforeach ?>
+                </select>
+                <select id="ysrtech-ec-cal-year" aria-label="<?php echo $this->escapeHtml($this->__('Year')) ?>">
+                    <?php foreach ($this->getYears() as $year): ?>
+                        <option value="<?php echo $year ?>"<?php if ($year === (int) $month->format('Y')): ?> selected="selected"<?php endif ?>><?php echo $year ?></option>
+                    <?php endforeach ?>
+                </select>
+            </span>
             <a class="eg-btn sm" href="<?php echo $this->getViewUrl(['m' => $month->modify('+1 month')->format('Y-m')]) ?>" title="<?php echo $this->escapeHtml($this->__('Next month')) ?>">&rarr;</a>
             <a class="eg-btn sm" href="<?php echo $this->getViewUrl(['m' => null]) ?>"><?php echo $this->escapeHtml($this->__('Today')) ?></a>
             <span class="cal-note">
@@ -138,6 +150,16 @@ $pct        = static fn (int $part, int $whole) => $whole ? round($part / $whole
 <script type="text/javascript">
 //<![CDATA[
 (function () {
+    var pick = document.querySelector('.ecg .cal-pick');
+    if (pick) {
+        var go = function () {
+            window.location.href = pick.getAttribute('data-url').replace('0000-00',
+                document.getElementById('ysrtech-ec-cal-year').value + '-' + document.getElementById('ysrtech-ec-cal-month').value);
+        };
+        document.getElementById('ysrtech-ec-cal-month').addEventListener('change', go);
+        document.getElementById('ysrtech-ec-cal-year').addEventListener('change', go);
+    }
+
     var fit = function () {
         Array.prototype.forEach.call(document.querySelectorAll('.ecg .tg-thumb iframe'), function (frame) {
             frame.style.transform = 'scale(' + (frame.parentNode.clientWidth / 680) + ')';
