@@ -234,3 +234,5 @@
 
 /* The way on from an open step */
 .ecc .sec-next { display: flex; justify-content: flex-end; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+
+.ecc .aud-who { margin: 4px 0 16px; }

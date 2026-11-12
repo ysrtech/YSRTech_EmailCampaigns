@@ -294,7 +294,7 @@
     // ------------------------------------------------------------ sections
 
     function audienceSummary() {
-        if (!state.to.included.length) { return ''; }
+        if (!state.to.included.length && !state.to.all) { return ''; }
         var n = state.to.recipients;
         return state.to.names.join(', ') + (n === null ? '' : ' · ' + (n === 1 ? t.recipient : tr('recipients', fmt(n))));
     }
@@ -305,7 +305,7 @@
 
         return cfg.segments.map(function (segment) {
             var on = chosen.indexOf(segment.id) >= 0;
-            var taken = other.indexOf(segment.id) >= 0;
+            var taken = other.indexOf(segment.id) >= 0 && !(state.to.all && kind === 'excluded');
             return '<label class="aud ' + (on ? 'on' : '') + '"><input type="checkbox" data-seg="' + kind + '" value="' + segment.id + '"'
                 + (on ? ' checked' : '') + (taken || !state.editable ? ' disabled' : '') + '>'
                 + '<span class="nm">' + esc(segment.name) + '</span><span class="n">' + fmt(segment.count) + '</span></label>';
@@ -321,17 +321,21 @@
 
         return [
             {
-                k: 'aud', title: t.to, summary: audienceSummary(), done: !p.aud, problem: state.to.included.length ? p.aud : null,
+                k: 'aud', title: t.to, summary: audienceSummary(), done: !p.aud, problem: state.to.included.length || state.to.all ? p.aud : null,
                 body: function () {
-                    if (!cfg.segments.length) {
-                        return '<p class="faint">' + esc(t.noSegments) + ' <a href="' + esc(cfg.urls.segments) + '">' + esc(t.manageSegments) + '</a></p>';
-                    }
+                    // Everybody, or the people in chosen segments
+                    var who = '<div class="radio-cards aud-who">' + [['1', t.toAll, t.toAllNote], ['0', t.toSegments, t.toSegmentsNote]].map(function (o) {
+                        return '<label class="radio-card ' + ((state.to.all ? '1' : '0') === o[0] ? 'on' : '') + '" data-all="' + o[0] + '"><span class="dot"></span><div><b>' + esc(o[1]) + '</b><span>' + esc(o[2]) + '</span></div></label>';
+                    }).join('') + '</div>';
+                    var none = '<p class="faint">' + esc(t.noSegments) + ' <a href="' + esc(cfg.urls.segments) + '">' + esc(t.manageSegments) + '</a></p>';
+
                     return '<div class="field"><label for="ecc-store">' + esc(t.storeView) + '</label><select id="ecc-store"' + ro + '>'
                         + cfg.stores.map(function (store) {
                             return '<option value="' + store.id + '"' + (store.id === state.store_id ? ' selected' : '') + '>' + esc(store.name) + '</option>';
                         }).join('') + '</select><span class="help">' + esc(t.storeViewNote) + '</span></div>'
-                        + '<div class="aud-label">' + esc(t.include) + '</div><div class="aud-list">' + segmentRows('included') + '</div>'
-                        + '<div class="aud-label">' + esc(t.exclude) + '</div><div class="aud-list">' + segmentRows('excluded') + '</div>'
+                        + who
+                        + (state.to.all ? '' : '<div class="aud-label">' + esc(t.include) + '</div>' + (cfg.segments.length ? '<div class="aud-list">' + segmentRows('included') + '</div>' : none))
+                        + (cfg.segments.length ? '<div class="aud-label">' + esc(t.exclude) + '</div><div class="aud-list">' + segmentRows('excluded') + '</div>' : '')
                         + (state.to.recipients !== null ? '<div class="aud-total"><b>' + esc(state.to.recipients === 1 ? t.recipient : tr('recipients', fmt(state.to.recipients)))
                             + '</b> <span class="faint">' + esc(t.recipientsNote) + '</span></div>' : '')
                         + '<p class="help" style="margin-top:8px"><a href="' + esc(cfg.urls.segments) + '">' + esc(t.manageSegments) + '</a></p>';
@@ -554,7 +558,8 @@
         var at = state.when.sent_at || state.when.scheduled_at;
 
         return '<div class="details"><div class="head">' + esc(t.details) + '</div><dl>'
-            + row(t.to, audienceSummary())
+            + row(t.to, state.to.names.join(', '))
+            + (state.to.excluded_names.length ? row(t.dNotTo, state.to.excluded_names.join(', ')) : '')
             + row(t.from, state.from.email ? state.from.display_name + ' <' + state.from.email + '>' : '')
             + (state.from.reply_to ? row(t.replyTo, state.from.reply_to) : '')
             + row(t.subject, state.subject)
@@ -645,8 +650,13 @@
     }
 
     function readSegments() {
-        var chosen = {included: [], excluded: []};
+        var chosen = {included: [], excluded: [], all: state.to.all ? 1 : 0};
+
+        // Sent to everybody, the boxes for "people in" are not on the page: keep what was ticked
+        if (state.to.all) { chosen.included = state.to.included.slice(); }
+
         $$('[data-seg]').forEach(function (box) { if (box.checked) { chosen[box.getAttribute('data-seg')].push(parseInt(box.value, 10)); } });
+        if (arguments.length) { chosen.all = arguments[0] ? 1 : 0; }
         return JSON.stringify(chosen);
     }
 
@@ -738,6 +748,12 @@
 
         $$('[data-seg]').forEach(function (box) {
             box.onchange = function () { save({segments: readSegments()}, true); };
+        });
+        $$('[data-all]').forEach(function (card) {
+            card.onclick = function () {
+                var all = card.getAttribute('data-all') === '1';
+                if (all !== state.to.all) { save({segments: readSegments(all)}, true); }
+            };
         });
 
         var storeSelect = $('#ecc-store'), brandBox = $('#ecc-brand');

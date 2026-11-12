@@ -23,25 +23,42 @@ class YSRTech_EmailCampaigns_Model_Campaign_Editor
         $problems = [];
 
         // ---- To
-        $recipients = null;
-        $names      = [];
+        $recipients    = null;
+        $names         = [];
+        $excludedNames = [];
+        $all           = $campaign->isToAll();
+        $started       = !in_array($campaign->getStatus(), [$C::STATUS_DRAFT, $C::STATUS_SCHEDULED], true);
 
-        if ($included) {
+        if ($included || $excluded) {
             foreach (Mage::getResourceModel('ysrtech_emailcampaigns/segment_collection')
-                         ->addFieldToFilter('segment_id', ['in' => $included]) as $segment) {
-                $names[] = (string) $segment->getName();
+                         ->addFieldToFilter('segment_id', ['in' => array_merge($included, $excluded)]) as $segment) {
+                if (in_array((int) $segment->getId(), $excluded, true)) {
+                    $excludedNames[] = (string) $segment->getName();
+                } elseif (!$all) {
+                    $names[] = (string) $segment->getName();
+                }
             }
+        }
 
+        if ($all) {
+            $names = [$h->__('All subscribers')];
+        }
+
+        if ($included || $all) {
             try {
                 // Counted from membership as it stands; the queue build
-                // recalculates the segments before it reads them
-                $recipients = $C::countRecipients($included, $excluded, false);
+                // recalculates the segments before it reads them. Not counted
+                // at all once it has gone: who is in a segment today says
+                // nothing about who was sent it.
+                $recipients = $started ? null : $C::countRecipients($included, $excluded, false, $all);
             } catch (Exception $e) {
                 $recipients = null;
             }
 
             if ($recipients === 0) {
-                $problems['aud'] = $h->__('Nobody in these segments can be emailed right now.');
+                $problems['aud'] = $all
+                    ? $h->__('There is nobody subscribed who can be emailed right now.')
+                    : $h->__('Nobody in these segments can be emailed right now.');
             }
         } else {
             $problems['aud'] = $h->__('Choose who to send to.');
@@ -105,7 +122,9 @@ class YSRTech_EmailCampaigns_Model_Campaign_Editor
             'to'        => [
                 'included'   => $included,
                 'excluded'   => $excluded,
+                'all'        => $all,
                 'names'      => $names,
+                'excluded_names' => $excludedNames,
                 'recipients' => $recipients,
             ],
             'from'      => [

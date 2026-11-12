@@ -172,6 +172,7 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
 
                 $campaign->setData('included_segment_ids', array_map('intval', (array) ($segments['included'] ?? [])));
                 $campaign->setData('excluded_segment_ids', array_map('intval', (array) ($segments['excluded'] ?? [])));
+                $campaign->setData('send_to_all', empty($segments['all']) ? 0 : 1);
             }
 
             $campaign->save();
@@ -457,6 +458,7 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_CampaignController
             'letter_track' => (int) $campaign->getLetterTrack(),
             'store_id'    => $campaign->getStoreId(),
             'use_brand'   => (int) $campaign->getUseBrand(),
+            'send_to_all' => (int) $campaign->isToAll(),
             'included_segment_ids' => $campaign->getIncludedSegmentIds(),
             'excluded_segment_ids' => $campaign->getExcludedSegmentIds(),
         ])->save();

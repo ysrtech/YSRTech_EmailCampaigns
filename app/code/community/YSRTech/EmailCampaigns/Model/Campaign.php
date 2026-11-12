@@ -88,6 +88,15 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
      * "Untitled campaign" is what older drafts were given before that and
      * counts as no name.
      */
+    /**
+     * Whether this goes to every subscriber rather than to chosen segments.
+     * Excluded segments, unsubscribes and the suppression list still hold.
+     */
+    public function isToAll(): bool
+    {
+        return (bool) (int) $this->getData('send_to_all');
+    }
+
     public function hasName(): bool
     {
         $name = trim((string) $this->getName());
@@ -315,19 +324,19 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
      * @param  int[] $excludedIds
      * @return int
      */
-    public static function countRecipients(array $includedIds, array $excludedIds, bool $reindex = true): int
+    public static function countRecipients(array $includedIds, array $excludedIds, bool $reindex = true, bool $all = false): int
     {
-        if (!$includedIds) {
+        if (!$includedIds && !$all) {
             return 0;
         }
 
         if ($reindex) {
-            self::reindexSegments(array_merge($includedIds, $excludedIds));
+            self::reindexSegments(array_merge($all ? [] : $includedIds, $excludedIds));
         }
 
         $adapter = Mage::getSingleton('core/resource')->getConnection('core_read');
 
-        $select = self::recipientSelect($includedIds, $excludedIds, ['subscriber_id']);
+        $select = self::recipientSelect($includedIds, $excludedIds, ['subscriber_id'], $all);
 
         return (int) $adapter->fetchOne(
             $adapter->select()->from(['r' => $select], [new Zend_Db_Expr('COUNT(*)')])
@@ -341,11 +350,13 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
      * @param  int[] $includedIds
      * @param  int[] $excludedIds
      * @param  array $columns
+     * @param  bool  $all      every subscriber, whatever segment they are or are not in;
+     *                         the excluded segments and the two checks below still apply
      * @return Varien_Db_Select
      */
-    public static function recipientSelect(array $includedIds, array $excludedIds, array $columns): Varien_Db_Select
+    public static function recipientSelect(array $includedIds, array $excludedIds, array $columns, bool $all = false): Varien_Db_Select
     {
-        if (!$includedIds) {
+        if (!$includedIds && !$all) {
             Mage::throwException('Campaign has no included segments, so there is nobody to send to.');
         }
 
@@ -364,9 +375,14 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
          */
         $select = $adapter->select()
             ->distinct()
-            ->from(['ns' => $subscriberTable], $columns)
-            ->join(['m' => $membershipTable], 'm.subscriber_id = ns.subscriber_id', [])
-            ->where('m.segment_id IN (?)', $includedIds)
+            ->from(['ns' => $subscriberTable], $columns);
+
+        if (!$all) {
+            $select->join(['m' => $membershipTable], 'm.subscriber_id = ns.subscriber_id', [])
+                ->where('m.segment_id IN (?)', $includedIds);
+        }
+
+        $select
             /*
              * Magento's own newsletter status is the authority on who may be
              * mailed. Reading membership without it would send to the people
@@ -419,12 +435,15 @@ class YSRTech_EmailCampaigns_Model_Campaign extends Mage_Core_Model_Abstract
          * the membership as it stood when somebody clicked Schedule would mail
          * everyone who unsubscribed in between.
          */
-        self::reindexSegments(array_merge($this->getIncludedSegmentIds(), $this->getExcludedSegmentIds()));
+        $all = $this->isToAll();
+
+        self::reindexSegments(array_merge($all ? [] : $this->getIncludedSegmentIds(), $this->getExcludedSegmentIds()));
 
         $select = self::recipientSelect(
             $this->getIncludedSegmentIds(),
             $this->getExcludedSegmentIds(),
-            ['subscriber_id', 'customer_id', 'email' => 'subscriber_email']
+            ['subscriber_id', 'customer_id', 'email' => 'subscriber_email'],
+            $all
         );
 
         $campaignId = (int) $this->getId();
