@@ -132,8 +132,8 @@ class YSRTech_EmailCampaigns_Helper_Data extends Mage_Core_Helper_Abstract
 
     /**
      * Whether links go straight to the store rather than through the
-     * provider's tracking address (the "Send Links Straight To The Store"
-     * setting). Clicks are then counted here, on arrival, and the
+     * provider's tracking address (the "Links In Emails Go" setting, at
+     * "Straight to the store"). Clicks are then counted here, on arrival, and the
      * unsubscribe link is the store's own page.
      */
     public function linksGoDirect($storeId = null): bool

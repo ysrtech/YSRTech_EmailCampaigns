@@ -144,7 +144,7 @@ class YSRTech_EmailCampaigns_Model_Mailgun_Tracking
 
             // Not a fault to chase in DNS: the account's plan does not include it
             if ($made !== null && ($made['status'] === 402 || stripos($this->_reason($made), 'upgrade') !== false)) {
-                return $fail($h->__('Mailgun does not issue https certificates on this account\'s plan ("%s"). Either upgrade the Mailgun plan, or use "Send Links Straight To The Store" instead: links then go directly to your store over https and need no certificate.', $this->_reason($made)));
+                return $fail($h->__('Mailgun does not issue https certificates on this account\'s plan ("%s"). Either upgrade the Mailgun plan, or set "Links In Emails Go" to "Straight to the store" in the Tracking settings: links then go directly to your store over https and need no certificate.', $this->_reason($made)));
             }
 
             if ($made === null || $made['status'] < 200 || $made['status'] >= 300) {
