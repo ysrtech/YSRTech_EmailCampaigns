@@ -147,6 +147,29 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_SubscriberController
         $this->_redirect('*/*/view', ['id' => (int) $subscriber->getId()]);
     }
 
+    /**
+     * The "Sync Names With Customers" button: the list takes its names from
+     * the customer accounts.
+     */
+    public function syncNamesAction()
+    {
+        if ($this->getRequest()->isPost() && $this->_validateFormKey()) {
+            try {
+                $result = Mage::getSingleton('ysrtech_emailcampaigns/subscriber_names')->sync();
+
+                $this->_getSession()->addSuccess($result['named'] || $result['linked']
+                    ? $this->__('Names synced: %s subscriber(s) now have the name on their customer account. %s subscriber(s) were matched to an account for the first time.',
+                        number_format($result['named']), number_format($result['linked']))
+                    : $this->__('Everything was already in step: no subscriber needed a name from their account.'));
+            } catch (Exception $e) {
+                Mage::logException($e);
+                $this->_getSession()->addError($this->__('Could not sync the names. See the exception log.'));
+            }
+        }
+
+        $this->_redirect('*/*/index');
+    }
+
     public function massUnsubscribeAction()
     {
         $done = 0;
