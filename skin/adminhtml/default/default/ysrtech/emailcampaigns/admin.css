@@ -107,3 +107,12 @@ td.ysrtech-ec-flag { color: #df280a; font-weight: bold; }
 .ysrtech-ec-aiform .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; margin-bottom: 10px; }
 .ysrtech-ec-aiform .row input.input-text { width: 380px; max-width: 100%; }
 .ysrtech-ec-aiform .note { margin: 0; color: #666; max-width: 860px; }
+
+/* CSV import: what each value of the status column means */
+.ysrtech-ec-values > td { background: #f8f8f8 !important; border-top: 0 !important; padding: 10px 12px 12px !important; }
+.ysrtech-ec-values-head { margin: 0 0 6px; font-weight: bold; }
+.ysrtech-ec-values-none { margin: 0; color: #b45309; }
+.ysrtech-ec-values-list td { border: 0 !important; padding: 3px 14px 3px 0 !important; background: none !important; vertical-align: middle; }
+.ysrtech-ec-values-list td.v code { padding: 1px 6px; background: #fff; border: 1px solid #ddd; border-radius: 3px; }
+.ysrtech-ec-values-list td.c { color: #777; white-space: nowrap; }
+.ysrtech-ec-values-list select { width: 240px; }

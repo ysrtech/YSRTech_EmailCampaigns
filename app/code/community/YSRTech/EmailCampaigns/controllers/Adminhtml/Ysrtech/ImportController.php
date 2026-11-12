@@ -139,11 +139,54 @@ class YSRTech_EmailCampaigns_Adminhtml_Ysrtech_ImportController
             return $this->_fail($this->__('Exactly one column has to be the email address.'), '*/*/map', ['id' => $import->getId()]);
         }
 
-        $post = $this->getRequest()->getPost();
+        $statusColumns = array_keys($mapping, $I::FIELD_UNSUBSCRIBED, true);
+
+        if (count($statusColumns) > 1) {
+            return $this->_fail($this->__('Only one column can be the subscription status.'), '*/*/map', ['id' => $import->getId()]);
+        }
+
+        $post      = $this->getRequest()->getPost();
+        $statusMap = null;
+
+        /*
+         * What each value of the status column means, as chosen on the page.
+         * Read against the file rather than trusted from the form: every
+         * value in the column has to have been given a meaning.
+         */
+        if ($statusColumns) {
+            $csv     = Mage::getModel('ysrtech_emailcampaigns/import_csv');
+            $preview = $csv->preview($import->getFile());
+            $values  = $preview['values'][$statusColumns[0]] ?? null;
+            $chosen  = (array) ($post['status_values'][$statusColumns[0]] ?? []);
+            $means   = [$csv::MEANS_SUBSCRIBED, $csv::MEANS_UNSUBSCRIBED, $csv::MEANS_SKIP];
+
+            if ($values === null) {
+                return $this->_fail(
+                    $this->__('"%s" has more than %d different values, so it is not a subscription status. Choose another column, or set it to "Do not import".',
+                        (string) ($preview['columns'][$statusColumns[0]] ?? ''), $csv::MAX_STATUS_VALUES),
+                    '*/*/map', ['id' => $import->getId()]
+                );
+            }
+
+            $statusMap = [];
+
+            foreach (array_keys($values) as $n => $value) {
+                // Posted by position, so that no value - an empty one, one with
+                // brackets in it - has to survive being a form field's name
+                $choice = (string) ($chosen[$n] ?? '');
+
+                if (!in_array($choice, $means, true)) {
+                    return $this->_fail($this->__('Say what each value in the status column means.'), '*/*/map', ['id' => $import->getId()]);
+                }
+
+                $statusMap[(string) $value] = $choice;
+            }
+        }
 
         $import->setMapping($mapping)
             ->setOptions([
                 'consent'         => 1,
+                'status_map'      => $statusMap,
                 'update_existing' => !empty($post['update_existing']) ? 1 : 0,
                 'include_roles'   => !empty($post['include_roles']) ? 1 : 0,
                 'check_domains'   => !empty($post['check_domains']) ? 1 : 0,

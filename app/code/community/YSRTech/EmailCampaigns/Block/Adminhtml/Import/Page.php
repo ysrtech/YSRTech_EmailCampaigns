@@ -22,7 +22,7 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Import_Page extends Mage_Adminhtml_
             $I::FIELD_FIRST_NAME   => $this->__('First name'),
             $I::FIELD_LAST_NAME    => $this->__('Last name'),
             $I::FIELD_FULL_NAME    => $this->__('Full name (split into first and last)'),
-            $I::FIELD_UNSUBSCRIBED => $this->__('Unsubscribed (yes / no)'),
+            $I::FIELD_UNSUBSCRIBED => $this->__('Subscription status'),
         ];
     }
 

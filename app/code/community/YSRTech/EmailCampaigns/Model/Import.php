@@ -27,7 +27,7 @@ class YSRTech_EmailCampaigns_Model_Import extends Mage_Core_Model_Abstract
     /** Counted for every import that brings contacts, in the order shown */
     public const CONTACT_STATS = [
         'created', 'updated', 'unchanged', 'duplicates', 'invalid', 'typo', 'role',
-        'no_mail_server', 'suppressed', 'marked_unsubscribed', 'extras_skipped',
+        'no_mail_server', 'status_skipped', 'suppressed', 'marked_unsubscribed', 'extras_skipped',
     ];
 
     protected function _construct()
@@ -82,6 +82,7 @@ class YSRTech_EmailCampaigns_Model_Import extends Mage_Core_Model_Abstract
             'typo'                 => $h->__('Skipped: looks like a typo'),
             'role'                 => $h->__('Skipped: role address (a shared inbox)'),
             'no_mail_server'       => $h->__('Skipped: domain cannot receive email'),
+            'status_skipped'       => $h->__('Skipped: their status in the file was one you chose not to import'),
             'extras_skipped'       => $h->__('Contacts whose extra fields or tags were not carried over'),
             'templates_created'    => $h->__('Templates created'),
             'templates_skipped'    => $h->__('Templates already here by that name'),

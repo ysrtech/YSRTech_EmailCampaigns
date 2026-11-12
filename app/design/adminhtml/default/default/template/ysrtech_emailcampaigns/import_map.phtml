@@ -4,6 +4,13 @@ $import  = $this->getImport();
 $preview = Mage::registry('ysrtech_emailcampaigns_import_preview');
 $mapping = $import->getMapping();
 $fields  = $this->getFieldOptions();
+$csv     = Mage::getSingleton('ysrtech_emailcampaigns/import_csv');
+$status  = YSRTech_EmailCampaigns_Model_Import::FIELD_UNSUBSCRIBED;
+$means   = [
+    $csv::MEANS_SUBSCRIBED   => $this->__('Subscribed'),
+    $csv::MEANS_UNSUBSCRIBED => $this->__('Unsubscribed'),
+    $csv::MEANS_SKIP         => $this->__('Do not import these rows'),
+];
 ?>
 <div class="content-header">
     <table cellspacing="0">
@@ -35,11 +42,40 @@ $fields  = $this->getFieldOptions();
                         <td><strong><?php echo $this->escapeHtml($column !== '' ? $column : $this->__('(no name)')) ?></strong></td>
                         <td class="ysrtech-ec-sample"><?php echo $this->escapeHtml(implode('  ·  ', array_filter(array_map(static fn ($row) => mb_substr(trim((string) ($row[$index] ?? '')), 0, 40), $preview['sample']), 'strlen'))) ?></td>
                         <td>
-                            <select name="mapping[<?php echo (int) $index ?>]" class="select" style="width:300px">
+                            <select name="mapping[<?php echo (int) $index ?>]" class="select ysrtech-ec-mapsel" data-col="<?php echo (int) $index ?>" style="width:300px">
                                 <?php foreach ($fields as $value => $label): ?>
                                     <option value="<?php echo $value ?>"<?php if (($mapping[$index] ?? 'skip') === $value): ?> selected="selected"<?php endif ?>><?php echo $this->escapeHtml($label) ?></option>
                                 <?php endforeach ?>
                             </select>
+                        </td>
+                    </tr>
+                    <?php /* What each value in this column means, asked when the column is the subscription status */ ?>
+                    <?php $values = $preview['values'][$index] ?? null; $isStatus = ($mapping[$index] ?? 'skip') === $status; ?>
+                    <tr class="ysrtech-ec-values" data-col="<?php echo (int) $index ?>"<?php if (!$isStatus): ?> style="display:none"<?php endif ?>>
+                        <td></td>
+                        <td colspan="2">
+                            <?php if ($values === null): ?>
+                                <p class="ysrtech-ec-values-none"><?php echo $this->escapeHtml($this->__('This column has more than %d different values, so it does not look like a subscription status. Choose the column that says who is subscribed and who is not.', $csv::MAX_STATUS_VALUES)) ?></p>
+                            <?php else: ?>
+                                <p class="ysrtech-ec-values-head"><?php echo $this->escapeHtml($this->__('What does each value in this column mean?')) ?></p>
+                                <table cellspacing="0" class="ysrtech-ec-values-list">
+                                    <?php $n = 0; foreach ($values as $value => $count): ?>
+                                        <tr>
+                                            <td class="v"><?php echo (string) $value === '' ? '<em>' . $this->escapeHtml($this->__('(empty)')) . '</em>' : '<code>' . $this->escapeHtml((string) $value) . '</code>' ?></td>
+                                            <td class="c"><?php echo $this->escapeHtml($count === 1 ? $this->__('1 row') : $this->__('%s rows', number_format($count))) ?></td>
+                                            <td>
+                                                <?php $guess = $csv->guessMeaning((string) $value, (string) $column) ?>
+                                                <select name="status_values[<?php echo (int) $index ?>][<?php echo $n ?>]" class="select"<?php if (!$isStatus): ?> disabled="disabled"<?php endif ?>>
+                                                    <?php foreach ($means as $code => $label): ?>
+                                                        <option value="<?php echo $code ?>"<?php if ($guess === $code): ?> selected="selected"<?php endif ?>><?php echo $this->escapeHtml($label) ?></option>
+                                                    <?php endforeach ?>
+                                                </select>
+                                            </td>
+                                        </tr>
+                                    <?php $n++; endforeach ?>
+                                </table>
+                                <p class="note"><span><?php echo $this->escapeHtml($this->__('Unsubscribed addresses are recorded so they are never mailed. Check each line: these are first guesses.')) ?></span></p>
+                            <?php endif ?>
                         </td>
                     </tr>
                 <?php endforeach ?>
@@ -71,3 +107,35 @@ $fields  = $this->getFieldOptions();
         </div>
     </div>
 </form>
+<script type="text/javascript">
+//<![CDATA[
+(function () {
+    var status = '<?php echo $status ?>';
+    var selects = document.querySelectorAll('.ysrtech-ec-mapsel');
+
+    function paint() {
+        Array.prototype.forEach.call(selects, function (select) {
+            var row = document.querySelector('.ysrtech-ec-values[data-col="' + select.getAttribute('data-col') + '"]');
+            var on = select.value === status;
+            row.style.display = on ? '' : 'none';
+            // Only the status column's meanings are sent
+            Array.prototype.forEach.call(row.querySelectorAll('select'), function (s) { s.disabled = !on; });
+        });
+    }
+
+    Array.prototype.forEach.call(selects, function (select) {
+        select.addEventListener('change', function () {
+            // One status column: choosing a second lets go of the first
+            if (select.value === status) {
+                Array.prototype.forEach.call(selects, function (other) {
+                    if (other !== select && other.value === status) { other.value = 'skip'; }
+                });
+            }
+            paint();
+        });
+    });
+
+    paint();
+}());
+//]]>
+</script>
