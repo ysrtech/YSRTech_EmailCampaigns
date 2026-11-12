@@ -251,8 +251,27 @@ $good = [
 ];
 $valid = [['name' => 'pic._domainkey.mg.shop.example.com', 'valid' => 'valid'], ['name' => 'mg.shop.example.com', 'valid' => 'valid']];
 
+// What Mailgun says about the domain's tracking settings, canned: nothing is asked of Mailgun
+$mailgunSays = function (string $footer, string $scheme) {
+    Mage::getSingleton('ysrtech_emailcampaigns/mailgun_tracking')->setRequester(fn () => ['status' => 200, 'body' => '', 'json' => ['tracking' => [
+        'web_scheme' => $scheme, 'unsubscribe' => ['active' => true, 'html_footer' => $footer, 'text_footer' => ''],
+    ]]]);
+};
+$mailgunSays('', 'https');
+
 $result = $check($good, $valid);
-$ok('all in place: nothing to fix in the setup', $setup($result) === [] && count($result['passed']) >= 5);
+$ok('all in place: nothing to fix in the setup', $setup($result) === [] && count($result['passed']) >= 7);
+
+$mailgunSays('<p><a href="%unsubscribe_url%">unsubscribe</a></p>', 'http');
+$result  = $check($good, $valid);
+$actions = array_column($setup($result), 'action', 'title');
+$ok('a footer of Mailgun\'s own and http links are each found, each with its one-press fix',
+    ($actions['Mailgun adds a second unsubscribe link to every email.'] ?? '') === 'footer'
+    && ($actions['Links in your emails open over http, not https.'] ?? '') === 'https', $titles($result));
+Mage::getSingleton('ysrtech_emailcampaigns/mailgun_tracking')->setRequester(fn () => ['status' => 401, 'body' => '', 'json' => []]);
+$result = $check($good, $valid);
+$ok('Mailgun not answering about them is "could not be read", not a finding', $setup($result) === [] && strpos(implode(' ', $result['unknown']), 'tracking settings') !== false);
+$mailgunSays('', 'https');
 
 $result = $check([], $valid);
 $ok('no SPF and no DMARC are both found', strpos($titles($result), 'No SPF record') !== false && strpos($titles($result), 'No DMARC record') !== false);
