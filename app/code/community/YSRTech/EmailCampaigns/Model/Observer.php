@@ -2,6 +2,34 @@
 class YSRTech_EmailCampaigns_Model_Observer
 {
     /** Cron: launch campaigns whose schedule is due. */
+    /**
+     * The built-in newsletter's templates, queue and problem reports are
+     * closed: this module does that work now, and two places to write and
+     * send a newsletter is one too many. Somebody arriving on an old
+     * bookmark is taken to the page that replaced it. Subscribers stay.
+     */
+    public function closeOldNewsletterPages($observer)
+    {
+        $action = $observer->getEvent()->getControllerAction();
+        $moved  = [
+            'newsletter_template' => ['*/ysrtech_template/index', 'Newsletter templates are under Email Campaigns > Templates now.'],
+            'newsletter_queue'    => ['*/ysrtech_campaign/index', 'The newsletter queue is replaced by Email Campaigns > Campaigns.'],
+            'newsletter_problem'  => ['*/ysrtech_suppression/index', 'Newsletter problem reports are replaced by Email Campaigns > Suppressions.'],
+        ];
+        $name   = (string) $action->getRequest()->getControllerName();
+
+        if (!isset($moved[$name]) || $action->getRequest()->getControllerModule() !== 'Mage_Adminhtml') {
+            return;
+        }
+
+        Mage::getSingleton('adminhtml/session')->addNotice(
+            Mage::helper('ysrtech_emailcampaigns')->__($moved[$name][1])
+        );
+
+        $action->setFlag('', Mage_Core_Controller_Varien_Action::FLAG_NO_DISPATCH, true);
+        $action->getResponse()->setRedirect(Mage::helper('adminhtml')->getUrl($moved[$name][0]));
+    }
+
     public function launchScheduledCampaigns()
     {
         Mage::getSingleton('ysrtech_emailcampaigns/sender')->launchScheduledCampaigns();

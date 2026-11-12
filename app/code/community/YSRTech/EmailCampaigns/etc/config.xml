@@ -2,7 +2,7 @@
 <config>
     <modules>
         <YSRTech_EmailCampaigns>
-            <version>0.19.0</version>
+            <version>0.20.0</version>
         </YSRTech_EmailCampaigns>
     </modules>
 
@@ -181,6 +181,16 @@
     </admin>
 
     <adminhtml>
+        <events>
+            <controller_action_predispatch_adminhtml>
+                <observers>
+                    <ysrtech_emailcampaigns_old_newsletter_pages>
+                        <class>ysrtech_emailcampaigns/observer</class>
+                        <method>closeOldNewsletterPages</method>
+                    </ysrtech_emailcampaigns_old_newsletter_pages>
+                </observers>
+            </controller_action_predispatch_adminhtml>
+        </events>
         <layout>
             <updates>
                 <ysrtech_emailcampaigns>
@@ -196,6 +206,14 @@
             and for nobody else.
         -->
         <menu>
+            <!--
+                The built-in Newsletter menu goes: its subscribers are listed
+                under Email Campaigns, and its templates, queue and problem
+                reports are the older way of doing what this module does.
+            -->
+            <newsletter>
+                <disabled>1</disabled>
+            </newsletter>
             <ysrtech_emailcampaigns translate="title" module="ysrtech_emailcampaigns">
                 <title>Email Campaigns</title>
                 <sort_order>75</sort_order>
@@ -205,6 +223,11 @@
                         <action>adminhtml/ysrtech_dashboard/index</action>
                         <sort_order>10</sort_order>
                     </dashboard>
+                    <subscriber translate="title" module="ysrtech_emailcampaigns">
+                        <title>Subscribers</title>
+                        <action>adminhtml/ysrtech_subscriber/index</action>
+                        <sort_order>15</sort_order>
+                    </subscriber>
                     <segment translate="title" module="ysrtech_emailcampaigns">
                         <title>Segments</title>
                         <action>adminhtml/ysrtech_segment/index</action>
@@ -264,6 +287,10 @@
                                     <title>Dashboard</title>
                                     <sort_order>10</sort_order>
                                 </dashboard>
+                                <subscriber translate="title" module="ysrtech_emailcampaigns">
+                                    <title>Subscribers</title>
+                                    <sort_order>15</sort_order>
+                                </subscriber>
                                 <segment translate="title" module="ysrtech_emailcampaigns">
                                     <title>Segments</title>
                                     <sort_order>20</sort_order>

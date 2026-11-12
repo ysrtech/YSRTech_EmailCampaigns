@@ -119,12 +119,13 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Segment_View_Grid extends Mage_Admi
     }
 
     /**
-     * A subscriber with an account opens that customer; one without has
-     * nowhere to go.
+     * A row opens that person's page: every email and what they did with it.
      */
     #[Override]
     public function getRowUrl($row)
     {
-        return (int) $row->getCustomerId() ? $this->getUrl('*/customer/edit', ['id' => (int) $row->getCustomerId()]) : '';
+        return Mage::getSingleton('admin/session')->isAllowed('ysrtech_emailcampaigns/subscriber')
+            ? $this->getUrl('*/ysrtech_subscriber/view', ['id' => (int) $row->getId()])
+            : '';
     }
 }

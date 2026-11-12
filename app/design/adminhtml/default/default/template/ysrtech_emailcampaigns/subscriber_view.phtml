@@ -1,0 +1,180 @@
+<?php
+/** @var YSRTech_EmailCampaigns_Block_Adminhtml_Subscriber_View $this */
+$profile    = $this->getProfile();
+$subscriber = $profile->getSubscriber();
+$customer   = $profile->getCustomer();
+$status     = $profile->getStatus();
+$stats      = $profile->getStats();
+$page       = $this->getPage();
+$messages   = $profile->getMessages($page);
+$segments   = $profile->getSegments();
+$orders     = $profile->getOrders();
+$suppressed = $profile->getSuppression();
+$name       = $profile->getName();
+$e          = fn ($text) => $this->escapeHtml((string) $text);
+$isOn       = (int) $subscriber->getSubscriberStatus() === Mage_Newsletter_Model_Subscriber::STATUS_SUBSCRIBED;
+$store      = Mage::app()->getStore((int) $subscriber->getStoreId());
+$pages      = (int) ceil($stats['total'] / YSRTech_EmailCampaigns_Model_Subscriber_Profile::PAGE_SIZE);
+?>
+<div class="ecg sv">
+    <div class="eg-head">
+        <a class="eg-btn" href="<?php echo $this->getUrl('*/*/index') ?>">&larr; <?php echo $e($this->__('Subscribers')) ?></a>
+        <span class="spacer"></span>
+        <?php if ($customer && $this->isAllowed('customer/manage')): ?>
+            <a class="eg-btn" href="<?php echo $this->getUrl('*/customer/edit', ['id' => (int) $customer->getId()]) ?>"><?php echo $e($this->__('Customer Account')) ?></a>
+        <?php endif ?>
+        <?php if ($isOn): ?>
+            <form method="post" action="<?php echo $this->getUrl('*/*/unsubscribe', ['id' => (int) $subscriber->getId()]) ?>"
+                  onsubmit="return confirm('<?php echo $this->jsQuoteEscape($this->__('Unsubscribe this address? They will get no more campaigns. No email is sent to tell them.')) ?>')">
+                <input type="hidden" name="form_key" value="<?php echo $this->getFormKey() ?>">
+                <button type="submit" class="eg-btn danger"><?php echo $e($this->__('Unsubscribe')) ?></button>
+            </form>
+        <?php endif ?>
+    </div>
+
+    <div class="sv-who">
+        <span class="sv-avatar"><?php echo $e($this->getInitials()) ?></span>
+        <div>
+            <h1><?php echo $e($name !== '' ? $name : $profile->getEmail()) ?></h1>
+            <div class="sv-sub">
+                <?php if ($name !== ''): ?><span><?php echo $e($profile->getEmail()) ?></span><?php endif ?>
+                <span class="eg-chip <?php echo $status['code'] ?>"><?php echo $e($status['label']) ?></span>
+                <span class="sv-note"><?php echo $e($status['note']) ?></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="sv-stats">
+        <div><small><?php echo $e($this->__('Emails sent')) ?></small><b><?php echo number_format($stats['sent']) ?></b></div>
+        <div><small><?php echo $e($this->__('Opened')) ?></small><b><?php echo number_format($stats['opened']) ?></b></div>
+        <div><small><?php echo $e($this->__('Clicked')) ?></small><b><?php echo number_format($stats['clicked']) ?></b></div>
+        <div title="<?php echo $e($this->__('Of the emails sent, how many they opened. Shown once three have gone out.')) ?>">
+            <small><?php echo $e($this->__('Open rate')) ?></small>
+            <b><?php echo $stats['open_rate'] === null ? $e($this->__('New')) : $stats['open_rate'] . '%' ?></b>
+        </div>
+        <div><small><?php echo $e($this->__('Orders')) ?></small><b><?php echo number_format($orders['count']) ?></b></div>
+        <div><small><?php echo $e($this->__('Spent')) ?></small><b><?php echo $e($this->money($orders['total'], $orders['currency'])) ?></b></div>
+    </div>
+
+    <div class="sv-cols">
+        <div class="sv-main">
+            <div class="sv-card">
+                <div class="sv-card-head">
+                    <b><?php echo $e($this->__('Emails')) ?></b>
+                    <span><?php echo $e($this->__('%s in all', number_format($stats['total']))) ?><?php if ($stats['waiting']): ?> · <?php echo $e($this->__('%d waiting to go', $stats['waiting'])) ?><?php endif ?></span>
+                </div>
+                <?php if (!$messages): ?>
+                    <p class="sv-empty"><?php echo $e($this->__('Nothing has been sent to this address from here yet.')) ?></p>
+                <?php endif ?>
+                <?php foreach ($messages as $m): ?>
+                    <?php
+                    $link = '';
+                    if ($m['kind'] === 'campaign' && $m['campaign_name'] !== null && $this->isAllowed('ysrtech_emailcampaigns/campaign')) {
+                        $link = $this->getUrl('*/ysrtech_campaign/edit', ['id' => (int) $m['campaign_id']]);
+                    } elseif ($m['kind'] === 'automation' && $m['automation_name'] !== null && $this->isAllowed('ysrtech_emailcampaigns/automation')) {
+                        $link = $this->getUrl('*/ysrtech_automation/canvas', ['id' => (int) $m['automation_id']]);
+                    }
+                    ?>
+                    <div class="sv-mail">
+                        <span class="sv-kind <?php echo $m['kind'] ?>" title="<?php echo $e($m['kind'] === 'automation' ? $this->__('Sent by an automation') : $this->__('Sent as a campaign')) ?>"></span>
+                        <div class="sv-mail-txt">
+                            <?php if ($link): ?>
+                                <a class="sv-subject" href="<?php echo $link ?>"><?php echo $e($m['subject']) ?></a>
+                            <?php else: ?>
+                                <span class="sv-subject"><?php echo $e($m['subject']) ?></span>
+                            <?php endif ?>
+                            <small>
+                                <?php echo $e($m['kind'] === 'automation' ? $this->__('Automation') : $this->__('Campaign')) ?><?php if ($m['from'] !== '' && $m['from'] !== $m['subject']): ?>: <?php echo $e($m['from']) ?><?php endif ?>
+                                · <?php echo $e($this->when($m['at'])) ?>
+                            </small>
+                        </div>
+                        <div class="sv-marks">
+                            <?php foreach ($this->getMarks($m) as $mark): ?>
+                                <span class="eg-chip <?php echo $mark[0] ?>" title="<?php echo $e($mark[2]) ?>"><?php echo $e($mark[1]) ?></span>
+                            <?php endforeach ?>
+                        </div>
+                    </div>
+                <?php endforeach ?>
+                <?php if ($pages > 1): ?>
+                    <div class="eg-pages">
+                        <?php if ($page > 1): ?><a class="eg-btn" href="<?php echo $this->getPageUrl($page - 1) ?>">&larr; <?php echo $e($this->__('Newer')) ?></a><?php endif ?>
+                        <span><?php echo $e($this->__('Page %d of %d', $page, $pages)) ?></span>
+                        <?php if ($page < $pages): ?><a class="eg-btn" href="<?php echo $this->getPageUrl($page + 1) ?>"><?php echo $e($this->__('Older')) ?> &rarr;</a><?php endif ?>
+                    </div>
+                <?php endif ?>
+            </div>
+        </div>
+
+        <div class="sv-side">
+            <div class="sv-card">
+                <div class="sv-card-head"><b><?php echo $e($this->__('Details')) ?></b></div>
+                <dl class="sv-kv">
+                    <dt><?php echo $e($this->__('Email')) ?></dt><dd><?php echo $e($profile->getEmail()) ?></dd>
+                    <dt><?php echo $e($this->__('Customer')) ?></dt><dd><?php echo $customer ? $e($this->__('Yes, account #%d', (int) $customer->getId())) : $e($this->__('No account: signed up as a guest')) ?></dd>
+                    <dt><?php echo $e($this->__('Store view')) ?></dt><dd><?php echo $e($store->getName()) ?></dd>
+                    <dt><?php echo $e($this->__('Status since')) ?></dt><dd><?php echo $e($this->when($subscriber->getChangeStatusAt(), false)) ?></dd>
+                    <dt><?php echo $e($this->__('Last emailed')) ?></dt><dd><?php echo $e($this->when($stats['last_sent'] ?? null)) ?></dd>
+                    <dt><?php echo $e($this->__('Last opened')) ?></dt><dd><?php echo $e($this->when($stats['last_opened'] ?? null)) ?></dd>
+                    <dt><?php echo $e($this->__('Last clicked')) ?></dt><dd><?php echo $e($this->when($stats['last_clicked'] ?? null)) ?></dd>
+                    <?php if ($stats['bounced'] || $stats['complained'] || $stats['failed']): ?>
+                        <dt><?php echo $e($this->__('Problems')) ?></dt>
+                        <dd><?php echo $e(implode(', ', array_filter([
+                            $stats['bounced'] ? $this->__('%d bounced', $stats['bounced']) : '',
+                            $stats['complained'] ? $this->__('%d marked as spam', $stats['complained']) : '',
+                            $stats['failed'] ? $this->__('%d not sent', $stats['failed']) : '',
+                        ]))) ?></dd>
+                    <?php endif ?>
+                </dl>
+                <?php if ($suppressed): ?>
+                    <div class="sv-warn">
+                        <b><?php echo $e($this->__('On the suppression list')) ?></b>
+                        <?php echo $e($this->__('Since %s.', $this->when($suppressed['created_at'], false))) ?>
+                        <?php if ((string) $suppressed['detail'] !== ''): ?><?php echo $e($suppressed['detail']) ?><?php endif ?>
+                        <?php if ($this->isAllowed('ysrtech_emailcampaigns/suppression')): ?>
+                            <a href="<?php echo $this->getUrl('*/ysrtech_suppression/index') ?>"><?php echo $e($this->__('Suppressions')) ?> &rarr;</a>
+                        <?php endif ?>
+                    </div>
+                <?php endif ?>
+            </div>
+
+            <div class="sv-card">
+                <div class="sv-card-head"><b><?php echo $e($this->__('Segments')) ?></b><span><?php echo count($segments) ?></span></div>
+                <?php if ($segments): ?>
+                    <div class="sv-tags">
+                        <?php foreach ($segments as $segment): ?>
+                            <?php if ($this->isAllowed('ysrtech_emailcampaigns/segment')): ?>
+                                <a href="<?php echo $this->getUrl('*/ysrtech_segment/view', ['id' => (int) $segment['segment_id']]) ?>"><?php echo $e($segment['name']) ?></a>
+                            <?php else: ?>
+                                <span><?php echo $e($segment['name']) ?></span>
+                            <?php endif ?>
+                        <?php endforeach ?>
+                    </div>
+                <?php else: ?>
+                    <p class="sv-empty"><?php echo $e($this->__('Not in any segment as last calculated.')) ?></p>
+                <?php endif ?>
+            </div>
+
+            <div class="sv-card">
+                <div class="sv-card-head"><b><?php echo $e($this->__('Orders')) ?></b><span><?php echo number_format($orders['count']) ?></span></div>
+                <?php if ($orders['recent']): ?>
+                    <?php foreach ($orders['recent'] as $order): ?>
+                        <div class="sv-order">
+                            <?php if ($this->isAllowed('sales/order')): ?>
+                                <a href="<?php echo $this->getUrl('*/sales_order/view', ['order_id' => (int) $order['entity_id']]) ?>">#<?php echo $e($order['increment_id']) ?></a>
+                            <?php else: ?>
+                                <span>#<?php echo $e($order['increment_id']) ?></span>
+                            <?php endif ?>
+                            <small><?php echo $e($this->when($order['created_at'], false)) ?> · <?php echo $e(ucfirst(str_replace('_', ' ', (string) $order['status']))) ?></small>
+                            <b><?php echo $e($this->money((float) $order['base_grand_total'], (string) $order['base_currency_code'])) ?></b>
+                        </div>
+                    <?php endforeach ?>
+                    <?php if ($orders['count'] > count($orders['recent'])): ?>
+                        <p class="sv-empty"><?php echo $e($this->__('The latest %d are shown.', count($orders['recent']))) ?></p>
+                    <?php endif ?>
+                <?php else: ?>
+                    <p class="sv-empty"><?php echo $e($this->__('No orders with this address.')) ?></p>
+                <?php endif ?>
+            </div>
+        </div>
+    </div>
+</div>

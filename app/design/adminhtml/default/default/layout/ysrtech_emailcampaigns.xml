@@ -80,6 +80,20 @@
         </reference>
     </ysrtech_emailcampaigns_cards_css>
 
+    <adminhtml_ysrtech_subscriber_view>
+        <update handle="ysrtech_emailcampaigns_cards_css"/>
+    </adminhtml_ysrtech_subscriber_view>
+
+    <!--
+        The built-in subscriber list is still reachable from old links; it
+        lights up Email Campaigns > Subscribers rather than a menu that is gone.
+    -->
+    <adminhtml_newsletter_subscriber_index>
+        <reference name="menu">
+            <action method="setActive"><path>ysrtech_emailcampaigns/subscriber</path></action>
+        </reference>
+    </adminhtml_newsletter_subscriber_index>
+
     <adminhtml_ysrtech_template_new>
         <update handle="ysrtech_emailcampaigns_cards_css"/>
     </adminhtml_ysrtech_template_new>
