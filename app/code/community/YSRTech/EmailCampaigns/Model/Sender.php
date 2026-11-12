@@ -782,6 +782,11 @@ class YSRTech_EmailCampaigns_Model_Sender
          */
         $preview = $this->previewVars($campaign->getStoreId());
 
+        // A test goes out the way the campaign will: with links going straight
+        // to the store, its unsubscribe link is the store's too, not the provider's
+        $direct  = Mage::helper('ysrtech_emailcampaigns')->linksGoDirect($campaign->getStoreId());
+        $nowhere = Mage::app()->getStore($campaign->getStoreId())->getBaseUrl(Mage_Core_Model_Store::URL_TYPE_LINK, $direct ? true : null) . '#test-send';
+
         $vars = [
             'customer' => [
                 'firstname' => $preview['customer']['firstname'],
@@ -791,10 +796,13 @@ class YSRTech_EmailCampaigns_Model_Sender
             'store'           => ['name' => $storeName],
             // Nobody is unsubscribed by a test. With links going straight to
             // the store there is no provider page to stand in: the link leads nowhere
-            'unsubscribe_url' => $delegates && !Mage::helper('ysrtech_emailcampaigns')->linksGoDirect($campaign->getStoreId())
-                ? '%unsubscribe_url%'
-                : Mage::app()->getStore($campaign->getStoreId())->getBaseUrl(Mage_Core_Model_Store::URL_TYPE_LINK) . '#test-send',
+            'unsubscribe_url' => $delegates && !$direct ? '%unsubscribe_url%' : $nowhere,
         ];
+
+        if ($direct) {
+            // What the provider fills the shared body's placeholder with
+            $vars['optout_url'] = $nowhere;
+        }
 
         $subject = Mage::helper('ysrtech_emailcampaigns')->__('[TEST] %s', (string) $campaign->getSubject());
         $text    = null;
@@ -815,7 +823,7 @@ class YSRTech_EmailCampaigns_Model_Sender
             $transport->setLetter(['text' => $delegates ? $text : null, 'track' => $tracked]);
         } else {
             $html = $delegates
-                ? $renderer->render($template, $this->_placeholderVars($storeName))
+                ? $renderer->render($template, $this->_placeholderVars($storeName, $direct))
                 : $renderer->render($template, $vars);
         }
 

@@ -144,7 +144,17 @@ $ok('and each person carries it: the store\'s unsubscribe page with their messag
     strpos((string) ($one['vars']['optout_url'] ?? ''), 'emailcampaigns/preferences/unsubscribe/token/' . ($one['vars']['tracking_token'] ?? 'none')) !== false);
 $ok('links to the store still carry the token, which is how the click is now counted',
     strpos(YSRTech_EmailCampaigns_Model_Transport_Noop::$lastHtml, 'sale.html?ec=%recipient.tracking_token%') !== false);
+// A test send goes out the same way
+$sender->sendTest(Mage::getModel('ysrtech_emailcampaigns/campaign')->load($ownId), 'tester@example.com');
+$one = YSRTech_EmailCampaigns_Model_Transport_Noop::$lastRecipients[0] ?? [];
+$ok('a test send has the store\'s unsubscribe link too, not the provider\'s',
+    strpos(YSRTech_EmailCampaigns_Model_Transport_Noop::$lastHtml, 'href="%recipient.optout_url%"') !== false
+    && strpos(YSRTech_EmailCampaigns_Model_Transport_Noop::$lastHtml, '%unsubscribe_url%') === false
+    && substr((string) ($one['vars']['optout_url'] ?? ''), -10) === '#test-send' && ($one['email'] ?? '') === 'tester@example.com');
 $set('ysrtech_emailcampaigns/tracking/direct_links', 0);
+$sender->sendTest(Mage::getModel('ysrtech_emailcampaigns/campaign')->load($ownId), 'tester@example.com');
+$ok('with the setting off, a test send uses the provider\'s link as before',
+    strpos(YSRTech_EmailCampaigns_Model_Transport_Noop::$lastHtml, 'href="%unsubscribe_url%"') !== false);
 
 $db->delete($t('ysrtech_emailcampaigns/queue'), ['campaign_id = ?' => $ownId]);
 $db->delete($t('ysrtech_emailcampaigns/campaign'), ['campaign_id = ?' => $ownId]);
