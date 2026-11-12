@@ -102,10 +102,12 @@ $ok('the campaign is marked sent when its queue is empty',
     Mage::getModel('ysrtech_emailcampaigns/campaign')->load($id)->getStatus() === 'sent' && $count('sent') === $total);
 
 // ---- a campaign with its own email and its own sender
+$shop = (string) Mage::app()->getDefaultStoreView()->getConfig('web/unsecure/base_url');
 $own = Mage::getModel('ysrtech_emailcampaigns/campaign')->setData([
     'name' => '[test] own content', 'subject' => 'Own', 'template_id' => $templateId, 'store_id' => 0,
     'status' => 'scheduled', 'scheduled_at' => Varien_Date::now(), 'included_segment_ids' => [$segmentId],
-    'html' => '<p>ONLY-IN-THE-CAMPAIGN {{ customer.firstname|there }}</p>', 'preheader' => 'Own preview text',
+    'html' => '<p>ONLY-IN-THE-CAMPAIGN {{ customer.firstname|there }} <a href="' . $shop . 'sale.html">Shop</a> <a href="https://elsewhere.example/">Other</a></p>',
+    'preheader' => 'Own preview text',
     'from_name' => 'Deals Desk', 'from_local' => 'deals', 'reply_to' => 'help@example.invalid',
 ]);
 $own->save();
@@ -118,6 +120,9 @@ $sender->processQueue();
 $ok('a campaign sends its own copy, not the template it started from',
     strpos(YSRTech_EmailCampaigns_Model_Transport_Noop::$lastHtml, 'ONLY-IN-THE-CAMPAIGN') !== false
     && strpos(YSRTech_EmailCampaigns_Model_Transport_Noop::$lastHtml, 'Own preview text') !== false);
+$ok('its links to the store carry each recipient\'s token and the campaign\'s name; links elsewhere are untouched',
+    strpos(YSRTech_EmailCampaigns_Model_Transport_Noop::$lastHtml, 'href="' . $shop . 'sale.html?ec=%recipient.tracking_token%&amp;utm_source=newsletter&amp;utm_medium=email&amp;utm_campaign=test-own-content"') !== false
+    && strpos(YSRTech_EmailCampaigns_Model_Transport_Noop::$lastHtml, 'href="https://elsewhere.example/"') !== false);
 $ok('from its own sender at the configured domain, with its reply address',
     YSRTech_EmailCampaigns_Model_Transport_Noop::$sentWith[0] === ['Deals Desk <deals@mail.example.invalid>', 'help@example.invalid']);
 $ok('and the sender is put back to the default afterwards',

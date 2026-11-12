@@ -497,6 +497,8 @@
             + (r.purged ? '' : tile(t.rDelivered, fmt(r.delivered), pct(r.delivered, r.sent))
                 + (r.tracks_opens ? tile(t.rOpened, fmt(r.opened), pct(r.opened, r.sent)) + tile(t.rClicked, fmt(r.clicked), pct(r.clicked, r.sent))
                     : tile(t.rOpened, '–', untracked) + tile(t.rClicked, '–', untracked))
+                + (r.tracks_orders ? tile(t.rOrders, fmt(r.orders), pct(r.orders, r.sent), r.orders ? 'good' : '')
+                    + tile(t.rRevenue, esc(r.revenue), r.revenue_each && r.orders ? '<small>' + esc(tr('rRevenueEach', r.revenue_each)) + '</small>' : '', r.orders ? 'good' : '') : '')
                 + tile(t.rBounced, fmt(r.bounced), pct(r.bounced, r.sent), r.bounced ? 'warn' : '')
                 + tile(t.rComplained, fmt(r.complained), '', r.complained ? 'bad' : '')
                 + tile(t.rWaiting, fmt(r.waiting), pct(r.waiting, r.sent)))
@@ -506,6 +508,24 @@
 
         if (r.purged) {
             html += '<p class="help">' + esc(t.rPurged) + '</p>';
+        }
+
+        if (r.tracks_orders) {
+            html += '<p class="help orders-note">' + esc(tr('rOrdersNote', r.conversion_days))
+                + (r.orders_by_address ? ' ' + esc(tr('rByAddress', fmt(r.orders_by_address))) : '') + '</p>';
+        }
+
+        if (r.tracks_opens && (!r.purged || r.links.length)) {
+            html += '<details class="links"' + (r.links.length ? ' open' : '') + '><summary>' + esc(t.rLinks) + (r.links.length ? ' (' + r.links.length + ')' : '') + '</summary>'
+                + (r.links.length ? '<table><thead><tr><th>' + esc(t.rLink) + '</th><th>' + esc(t.rPeople) + '</th><th>' + esc(t.rClicks) + '</th></tr></thead><tbody>'
+                    + r.links.map(function (link) {
+                        // Shown as text and opened only as a web address: what was clicked came from outside
+                        var safe = /^https?:\/\//i.test(link.url);
+                        return '<tr><td>' + (safe ? '<a href="' + esc(link.url) + '" target="_blank" rel="noopener noreferrer">' + esc(link.url) + '</a>' : esc(link.url))
+                            + '</td><td>' + fmt(link.people) + (r.clicked ? ' <small>' + (Math.round(link.people / r.clicked * 1000) / 10) + '%</small>' : '') + '</td><td>' + fmt(link.clicks) + '</td></tr>';
+                    }).join('') + '</tbody></table>'
+                    : '<p class="help">' + esc(t.rLinksNone) + '</p>')
+                + '</details>';
         }
 
         if (r.waiting_emails.length) {

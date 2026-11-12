@@ -2,7 +2,7 @@
 <config>
     <modules>
         <YSRTech_EmailCampaigns>
-            <version>0.21.2</version>
+            <version>0.22.0</version>
         </YSRTech_EmailCampaigns>
     </modules>
 
@@ -18,6 +18,12 @@
                     <template>
                         <table>ysrtech_emailcampaigns_template</table>
                     </template>
+                    <conversion>
+                        <table>ysrtech_emailcampaigns_conversion</table>
+                    </conversion>
+                    <link_click>
+                        <table>ysrtech_emailcampaigns_link_click</table>
+                    </link_click>
                     <segment>
                         <table>ysrtech_emailcampaigns_segment</table>
                     </segment>
@@ -106,6 +112,10 @@
             -->
             <sales_order_save_commit_after>
                 <observers>
+                    <ysrtech_emailcampaigns_conversion>
+                        <class>ysrtech_emailcampaigns/observer</class>
+                        <method>creditOrder</method>
+                    </ysrtech_emailcampaigns_conversion>
                     <ysrtech_emailcampaigns_order_status>
                         <class>ysrtech_emailcampaigns/observer</class>
                         <method>orderStatusChanged</method>
@@ -136,6 +146,19 @@
                     </ysrtech_emailcampaigns_creditmemo>
                 </observers>
             </sales_order_creditmemo_save_commit_after>
+            <!--
+                Before any page is chosen, and so before anything that serves a
+                page from a cache gets the chance: a visitor arriving through an
+                email's link is remembered here.
+            -->
+            <controller_front_init_before>
+                <observers>
+                    <ysrtech_emailcampaigns_arrival>
+                        <class>ysrtech_emailcampaigns/observer</class>
+                        <method>rememberArrival</method>
+                    </ysrtech_emailcampaigns_arrival>
+                </observers>
+            </controller_front_init_before>
             <ysrtech_emailcampaigns_reindex_segments>
                 <observers>
                     <ysrtech_emailcampaigns_reindex>
@@ -378,6 +401,11 @@
             </cleanup>
             <tracking>
                 <enabled>1</enabled>
+                <conversions>1</conversions>
+                <conversion_days>5</conversion_days>
+                <utm>1</utm>
+                <utm_source>newsletter</utm_source>
+                <utm_medium>email</utm_medium>
             </tracking>
             <ai>
                 <enabled>0</enabled>

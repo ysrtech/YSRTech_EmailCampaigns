@@ -144,7 +144,45 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Dashboard extends Mage_Adminhtml_Bl
             ];
         }
 
+        $tiles[] = $this->_revenueTile($s['days']);
+
         return $tiles;
+    }
+
+    /**
+     * What email earned in the period, against the period before it.
+     */
+    protected function _revenueTile(int $days): array
+    {
+        /** @var YSRTech_EmailCampaigns_Model_Conversions $conversions */
+        $conversions = Mage::getSingleton('ysrtech_emailcampaigns/conversions');
+        $kind        = $this->getType() ?: null;
+        $now         = time();
+        $utc         = static fn (int $t) => gmdate('Y-m-d H:i:s', $t);
+        $this_       = $conversions->since($utc($now - $days * 86400), null, $kind);
+        $before      = $conversions->since($utc($now - 2 * $days * 86400), $utc($now - $days * 86400), $kind);
+        $delta       = '';
+        $good        = true;
+
+        if ($before['revenue'] > 0) {
+            $change = ($this_['revenue'] - $before['revenue']) / $before['revenue'] * 100;
+            $delta  = ($change > 0 ? '+' : ($change < 0 ? "\u{2212}" : '')) . number_format(abs($change), 1) . '%';
+            $good   = $change >= 0;
+        } elseif ($this_['revenue'] > 0) {
+            $delta = $this->__('new');
+        }
+
+        return [
+            'label' => $this->__('Revenue from email'),
+            'value' => $conversions->money($this_['revenue'], $this_['currency']),
+            'delta' => $delta,
+            'good'  => $good,
+            'note'  => $conversions->isEnabled()
+                ? $this->__('%s orders', number_format($this_['orders']))
+                : $this->__('Order tracking is off'),
+            'tip'   => $this->__('Orders placed within %d days of clicking an email, credited to the last one clicked. The goods after discounts, without shipping or tax, less refunds.', $conversions->windowDays()),
+            'spark' => [],
+        ];
     }
 
     /**

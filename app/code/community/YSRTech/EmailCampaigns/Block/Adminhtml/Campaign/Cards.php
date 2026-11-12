@@ -294,7 +294,13 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Campaign_Cards extends Mage_Adminht
                 ->where('campaign_id IN (?)', $ids)
                 ->group('campaign_id')
         ) as $row) {
-            $stats[(int) $row['campaign_id']] = ['sent' => (int) $row['sent'], 'opened' => (int) $row['opened'], 'clicked' => (int) $row['clicked']];
+            $stats[(int) $row['campaign_id']] = ['sent' => (int) $row['sent'], 'opened' => (int) $row['opened'], 'clicked' => (int) $row['clicked'], 'orders' => 0, 'revenue' => ''];
+        }
+
+        // What each earned
+        foreach (Mage::getSingleton('ysrtech_emailcampaigns/conversions')->grouped('campaign_id', array_keys($stats)) as $id => $earned) {
+            $stats[$id]['orders']  = $earned['orders'];
+            $stats[$id]['revenue'] = $earned['label'];
         }
 
         return $stats;

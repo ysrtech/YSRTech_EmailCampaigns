@@ -184,3 +184,6 @@
 .ecg .sv-order a:hover { color: var(--accent-text); }
 .ecg .sv-order small { color: var(--text-3); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 1000px) { .ecg .sv-cols { grid-template-columns: minmax(0, 1fr); } .ecg .sv-mail { flex-wrap: wrap; } .ecg .sv-marks { max-width: none; justify-content: flex-start; padding-left: 20px; } }
+
+/* What an email earned */
+.ecg .earned, .ecg .earned b { color: var(--ok); }

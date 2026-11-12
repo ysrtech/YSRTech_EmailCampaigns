@@ -109,9 +109,21 @@ class YSRTech_EmailCampaigns_Block_Adminhtml_Automation_Cards extends Mage_Admin
                 'messages' => $messages,
                 'sent'     => $counts[$id]['sent'] ?? 0,
                 'waiting'  => $counts[$id]['waiting'] ?? 0,
+                'orders'   => 0,
+                'revenue'  => '',
                 'kind'     => (int) $automation->getRespectSubscription() ? $h->__('Marketing') : $h->__('Transactional'),
                 'stops'    => $automation->getCancelOn() === 'order_placed',
             ];
+        }
+
+        // What each flow has earned, all time
+        $earned = Mage::getSingleton('ysrtech_emailcampaigns/conversions')->grouped('automation_id', array_column($this->_cards, 'id'));
+
+        foreach ($this->_cards as $i => $card) {
+            if (isset($earned[$card['id']])) {
+                $this->_cards[$i]['orders']  = $earned[$card['id']]['orders'];
+                $this->_cards[$i]['revenue'] = $earned[$card['id']]['label'];
+            }
         }
 
         return $this->_cards;

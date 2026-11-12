@@ -45,6 +45,9 @@ $running = count(array_filter($cards, static fn ($card) => $card['active']));
                 <div class="ag-stats">
                     <div><small><?php echo $this->escapeHtml($this->__('Sent · 30 days')) ?></small><b><?php echo number_format($card['sent']) ?></b></div>
                     <div><small><?php echo $this->escapeHtml($this->__('Waiting now')) ?></small><b><?php echo number_format($card['waiting']) ?></b></div>
+                    <?php if ($card['orders']): ?>
+                        <div title="<?php echo $this->escapeHtml($this->__('%d orders from this flow, all time', $card['orders'])) ?>"><small><?php echo $this->escapeHtml($this->__('Earned')) ?></small><b class="earned"><?php echo $this->escapeHtml($card['revenue']) ?></b></div>
+                    <?php endif ?>
                     <div><small><?php echo $this->escapeHtml($this->__('Emails')) ?></small><b><?php echo (int) $card['messages'] ?></b></div>
                     <div><small><?php echo $this->escapeHtml($this->__('Kind')) ?></small><b class="ag-kind"><?php echo $this->escapeHtml($card['kind']) ?></b></div>
                 </div>

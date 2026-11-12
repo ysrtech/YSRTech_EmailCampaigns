@@ -236,3 +236,17 @@
 .ecc .sec-next { display: flex; justify-content: flex-end; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
 
 .ecc .aud-who { margin: 4px 0 16px; }
+
+.ecc .report .rt.good b { color: var(--ok); }
+.ecc .report .orders-note { margin: 10px 0 0; }
+
+/* The links of a campaign, by how many people clicked each */
+.ecc .report details.links { margin-top: 14px; }
+.ecc .report details.links summary { cursor: pointer; font-weight: 600; }
+.ecc .report details.links table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; table-layout: fixed; }
+.ecc .report details.links th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.ecc .report details.links th:nth-child(2), .ecc .report details.links th:nth-child(3), .ecc .report details.links td:nth-child(2), .ecc .report details.links td:nth-child(3) { width: 110px; text-align: right; white-space: nowrap; }
+.ecc .report details.links td { padding: 7px 8px; border-bottom: 1px solid var(--border); }
+.ecc .report details.links td:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ecc .report details.links td a { color: var(--accent-text); }
+.ecc .report details.links td small { color: var(--text-3); margin-left: 4px; }

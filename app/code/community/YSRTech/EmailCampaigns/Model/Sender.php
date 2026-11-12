@@ -319,6 +319,11 @@ class YSRTech_EmailCampaigns_Model_Sender
 
         $html = Mage::getSingleton('ysrtech_emailcampaigns/renderer')->setStoreId($storeId)->render($template, $vars);
 
+        // Links to the store carry this message's token, so an order that
+        // follows a click can be credited to it
+        $html = Mage::getSingleton('ysrtech_emailcampaigns/conversions')
+            ->tagLinks($html, (string) $item->getTrackingToken(), (string) $automation->getName(), $storeId);
+
         $transport = Mage::getSingleton('ysrtech_emailcampaigns/transport_factory')->get();
 
         $transport->sendBatch(
@@ -430,6 +435,9 @@ class YSRTech_EmailCampaigns_Model_Sender
 
         $this->_applyEnvelope($transport, $campaign);
 
+        /** @var YSRTech_EmailCampaigns_Model_Conversions $conversions */
+        $conversions = Mage::getSingleton('ysrtech_emailcampaigns/conversions');
+
         $names     = $this->_loadRecipientNames($items);
         $storeName = $this->storeName($campaign->getStoreId());
         $delegates = $transport->supportsRecipientVariables();
@@ -451,8 +459,13 @@ class YSRTech_EmailCampaigns_Model_Sender
         if ($isLetter) {
             $sharedHtml = $delegates && $tracked ? $letter->html($sharedText) : ($delegates ? '' : null);
         } else {
+            // One body for everybody: the token in its links is the provider's
+            // placeholder, filled in per person as it delivers
             $sharedHtml = $delegates
-                ? $renderer->render($template, $this->_placeholderVars($storeName))
+                ? $conversions->tagLinks(
+                    $renderer->render($template, $this->_placeholderVars($storeName)),
+                    '%recipient.tracking_token%', (string) $campaign->getName(), $campaign->getStoreId()
+                )
                 : null;
         }
 
@@ -491,7 +504,10 @@ class YSRTech_EmailCampaigns_Model_Sender
                 $html = $delegates ? $sharedHtml : ($tracked ? $letter->html($text) : '');
             } else {
                 $text = null;
-                $html = $delegates ? $sharedHtml : $renderer->render($template, $vars);
+                $html = $delegates ? $sharedHtml : $conversions->tagLinks(
+                    $renderer->render($template, $vars),
+                    (string) $item->getTrackingToken(), (string) $campaign->getName(), $campaign->getStoreId()
+                );
             }
 
             $recipients[] = [

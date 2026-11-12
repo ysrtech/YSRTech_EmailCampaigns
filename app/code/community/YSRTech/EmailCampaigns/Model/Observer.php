@@ -30,6 +30,56 @@ class YSRTech_EmailCampaigns_Model_Observer
         $action->getResponse()->setRedirect(Mage::helper('adminhtml')->getUrl($moved[$name][0]));
     }
 
+    /**
+     * A visitor arriving on the store through a link in an email.
+     */
+    public function rememberArrival($observer)
+    {
+        try {
+            $request = Mage::app()->getRequest();
+
+            // The one cheap check every request pays for
+            if (!is_string($request->getParam(YSRTech_EmailCampaigns_Model_Conversions::PARAM))) {
+                return $this;
+            }
+
+            // The admin is not the shop. Told by its address: this early, the
+            // admin store has not been switched to yet.
+            $admin = (string) Mage::getConfig()->getNode('admin/routers/adminhtml/args/frontName');
+
+            if (Mage::app()->getStore()->isAdmin()
+                || ($admin !== '' && preg_match('#/' . preg_quote($admin, '#') . '(/|$|\?)#', (string) $request->getRequestUri()))
+            ) {
+                return $this;
+            }
+
+            Mage::getSingleton('ysrtech_emailcampaigns/conversions')->remember($request);
+        } catch (Throwable $e) {
+            // Counting a click is never worth a broken page
+            Mage::logException($e);
+        }
+
+        return $this;
+    }
+
+    /**
+     * An order has been stored: credit it to the email behind it, if any.
+     */
+    public function creditOrder($observer)
+    {
+        try {
+            $order = $observer->getEvent()->getOrder();
+
+            if ($order instanceof Mage_Sales_Model_Order) {
+                Mage::getSingleton('ysrtech_emailcampaigns/conversions')->credit($order);
+            }
+        } catch (Throwable $e) {
+            Mage::logException($e);
+        }
+
+        return $this;
+    }
+
     public function launchScheduledCampaigns()
     {
         Mage::getSingleton('ysrtech_emailcampaigns/sender')->launchScheduledCampaigns();

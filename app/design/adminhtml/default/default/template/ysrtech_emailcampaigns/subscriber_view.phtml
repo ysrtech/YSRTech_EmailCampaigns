@@ -10,6 +10,8 @@ $messages   = $profile->getMessages($page);
 $segments   = $profile->getSegments();
 $orders     = $profile->getOrders();
 $suppressed = $profile->getSuppression();
+$earned     = $profile->getEarned();
+$conv       = Mage::getSingleton('ysrtech_emailcampaigns/conversions');
 $name       = $profile->getName();
 $e          = fn ($text) => $this->escapeHtml((string) $text);
 $isOn       = (int) $subscriber->getSubscriberStatus() === Mage_Newsletter_Model_Subscriber::STATUS_SUBSCRIBED;
@@ -60,6 +62,10 @@ $pages      = (int) ceil($stats['total'] / YSRTech_EmailCampaigns_Model_Subscrib
         </div>
         <div><small><?php echo $e($this->__('Orders')) ?></small><b><?php echo number_format($orders['count']) ?></b></div>
         <div><small><?php echo $e($this->__('Spent')) ?></small><b><?php echo $e($this->money($orders['total'], $orders['currency'])) ?></b></div>
+        <div title="<?php echo $e($this->__('Orders placed after clicking one of your emails: %d.', $earned['totals']['orders'])) ?>">
+            <small><?php echo $e($this->__('From email')) ?></small>
+            <b<?php if ($earned['totals']['orders']): ?> class="earned"<?php endif ?>><?php echo $e($conv->money($earned['totals']['revenue'], $earned['totals']['currency'])) ?></b>
+        </div>
     </div>
 
     <div class="sv-cols">
@@ -98,6 +104,11 @@ $pages      = (int) ceil($stats['total'] / YSRTech_EmailCampaigns_Model_Subscrib
                             <?php foreach ($this->getMarks($m) as $mark): ?>
                                 <span class="eg-chip <?php echo $mark[0] ?>" title="<?php echo $e($mark[2]) ?>"><?php echo $e($mark[1]) ?></span>
                             <?php endforeach ?>
+                            <?php if (isset($earned['by_queue'][(int) $m['queue_id']])): $won = $earned['by_queue'][(int) $m['queue_id']]; ?>
+                                <span class="eg-chip sent sv-won" title="<?php echo $e($won['via'] === 'address'
+                                    ? $this->__('Order #%s, placed after clicking this email (matched by their address: ordered on another device).', $won['increment_id'])
+                                    : $this->__('Order #%s, placed after clicking this email.', $won['increment_id'])) ?>"><?php echo $e($this->__('Ordered %s', $conv->money($won['revenue'], $won['currency']))) ?></span>
+                            <?php endif ?>
                         </div>
                     </div>
                 <?php endforeach ?>

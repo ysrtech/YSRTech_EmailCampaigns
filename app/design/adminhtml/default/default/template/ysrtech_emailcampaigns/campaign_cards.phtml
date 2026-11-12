@@ -131,6 +131,9 @@ $pct        = static fn (int $part, int $whole) => $whole ? round($part / $whole
                             <span><b><?php echo number_format($s['sent']) ?></b> <?php echo $this->escapeHtml($this->__('sent')) ?></span>
                             <span><b><?php echo $pct($s['opened'], $s['sent']) ?></b> <?php echo $this->escapeHtml($this->__('opened')) ?></span>
                             <span><b><?php echo $pct($s['clicked'], $s['sent']) ?></b> <?php echo $this->escapeHtml($this->__('clicked')) ?></span>
+                            <?php if (!empty($s['orders'])): ?>
+                                <span class="earned" title="<?php echo $this->escapeHtml($this->__('%d orders from this email', $s['orders'])) ?>"><b><?php echo $this->escapeHtml($s['revenue']) ?></b></span>
+                            <?php endif ?>
                         </span>
                     <?php endif ?>
                 </span>

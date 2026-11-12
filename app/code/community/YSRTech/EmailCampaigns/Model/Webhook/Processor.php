@@ -57,7 +57,7 @@ class YSRTech_EmailCampaigns_Model_Webhook_Processor
         } elseif ($event === 'delivered') {
             $this->_recordOutcome('delivered_at', $token, $email, $at);
         } elseif (in_array($event, ['opened', 'clicked'], true)) {
-            $this->_recordEngagement($event, $token, $email, $this->_isMachineOpen($eventData), $at);
+            $this->_recordEngagement($event, $token, $email, $this->_isMachineOpen($eventData), $at, (string) ($eventData['url'] ?? ''));
         }
     }
 
@@ -111,7 +111,7 @@ class YSRTech_EmailCampaigns_Model_Webhook_Processor
      * for the right person, when somebody has had two sends. It cannot
      * attribute it to the wrong person, which is the error that would matter.
      */
-    private function _recordEngagement(string $event, string $trackingToken, string $email, bool $machine, string $at): void
+    private function _recordEngagement(string $event, string $trackingToken, string $email, bool $machine, string $at, string $url = ''): void
     {
         $item = $this->_findQueueItem($trackingToken, $email);
 
@@ -140,6 +140,15 @@ class YSRTech_EmailCampaigns_Model_Webhook_Processor
         }
 
         $item->save();
+
+        // Which link it was, for the report's list of links
+        if ($event === 'clicked' && $url !== '') {
+            Mage::getSingleton('ysrtech_emailcampaigns/conversions')->recordLinkClick([
+                'queue_id'      => (int) $item->getId(),
+                'campaign_id'   => $item->getCampaignId(),
+                'automation_id' => $item->getAutomationId(),
+            ], $url, $at);
+        }
     }
 
     /**

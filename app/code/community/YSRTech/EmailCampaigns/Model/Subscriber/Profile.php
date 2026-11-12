@@ -207,6 +207,15 @@ class YSRTech_EmailCampaigns_Model_Subscriber_Profile
     }
 
     /**
+     * The orders credited to emails sent to this address: totals, and each
+     * by the message that earned it.
+     */
+    public function getEarned(): array
+    {
+        return Mage::getSingleton('ysrtech_emailcampaigns/conversions')->forEmail($this->getEmail());
+    }
+
+    /**
      * @return array<int, array{segment_id: string, name: string}>
      */
     public function getSegments(): array

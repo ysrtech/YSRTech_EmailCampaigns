@@ -84,6 +84,20 @@ class YSRTech_EmailCampaigns_Model_Campaign_Report
         $report['tracks_opens'] = (bool) Mage::helper('ysrtech_emailcampaigns')->getConfig('tracking/enabled')
             && (!$campaign->isLetter() || (bool) $campaign->getLetterTrack());
 
+        /** @var YSRTech_EmailCampaigns_Model_Conversions $conversions */
+        $conversions = Mage::getSingleton('ysrtech_emailcampaigns/conversions');
+        $earned      = $conversions->forCampaign($id);
+
+        // What it earned: shown where order tracking is on, or was when it went
+        $report['tracks_orders']     = $conversions->isEnabled($campaign->getStoreId()) || $earned['orders'] > 0;
+        $report['orders']            = $earned['orders'];
+        $report['orders_by_address'] = $earned['by_address'];
+        $report['revenue']           = $conversions->money($earned['revenue'], $earned['currency']);
+        $report['revenue_each']      = $report['sent'] > 0 ? $conversions->money($earned['revenue'] / $report['sent'], $earned['currency']) : null;
+        $report['conversion_days']   = $conversions->windowDays($campaign->getStoreId());
+
+        $report['links'] = $conversions->linksForCampaign($id);
+
         $report['last_sent_at'] = $row['last_sent']
             ? Mage::helper('core')->formatDate($row['last_sent'], 'medium', true)
             : null;
